@@ -1,0 +1,17 @@
+[project]
+name = "pytorch-ecc"
+version = "0.1.0"
+description = "Error correction utilities for pytorch"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    # Torch will print an error without numpy.
+    "numpy>=2.3.1",
+    "torch>=2.7.1",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.403",
+    "ruff>=0.12.4",
+]
