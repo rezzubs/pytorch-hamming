@@ -5,7 +5,7 @@ description = "Error correction utilities for pytorch"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    # Torch will print an error without numpy.
+    "hamming",
     "numpy>=2.3.1",
     "torch>=2.7.1",
 ]
@@ -15,3 +15,16 @@ dev = [
     "pyright>=1.1.403",
     "ruff>=0.12.4",
 ]
+
+[tool.uv]
+cache-keys = [{file = "pyproject.toml"}, {file = "./hamming/Cargo.toml"}, {file = "**/*.rs"}]
+
+[tool.uv.sources]
+hamming = { workspace = true }
+
+[tool.uv.workspace]
+members = ["hamming/", "."]
+
+[tool.setuptools]
+py-modules = ["pytorch_ecc"]
+

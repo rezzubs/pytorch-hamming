@@ -18,13 +18,19 @@
       {
         devShell = pkgs.mkShell {
           packages = with pkgs; [
+            cargo
+            clippy
             just
+            maturin
+            rust-analyzer
+            rustc
             uv
           ];
 
           shellHook = ''
             uv sync
             uv pip install -e .
+            uv pip install -e hamming
             . .venv/bin/activate
           '';
         };
