@@ -247,12 +247,16 @@ mod tests {
         assert_eq!(flip_bit(0b1111, 0), 0b1110);
     }
 
+    fn assert_f32(arr: [f32; 2]) {
+        let initial = arr;
+        let converted = ByteArray::from(initial);
+        let after: [f32; 2] = converted.into();
+        assert_eq!(initial, after);
+    }
+
     #[test]
     fn f32_conversions() {
-        let initial = [42.0, 6.9];
-        let arr = ByteArray::from(initial);
-        let after: [f32; 2] = arr.into();
-
-        assert_eq!(initial, after);
+        assert_f32([42.0, 6.9]);
+        assert_f32([0.9937, 0.2209]);
     }
 }

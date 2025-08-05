@@ -5,6 +5,9 @@ use crate::byte_array::ByteArray;
 /// Bit's reserved for error detection. All powers of two.
 const ERROR_CORRECTION_BIT_COUNT: usize = 7;
 
+/// Number of bytes used for the encoded format.
+const ENCODED_BYTES: usize = 9;
+
 /// Check if an index is reserved for parity (a power of two).
 fn is_par_i(i: usize) -> bool {
     if i == 0 {
@@ -13,16 +16,16 @@ fn is_par_i(i: usize) -> bool {
     (i & (i - 1)) == 0
 }
 
-/// 64 bits for data, 8 for SECDED.
-type Hamming64Arr = ByteArray<9>;
-
 /// The encoded representation of 64 bit data.
 ///
 /// See [`hamming_encode64`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Hamming64(pub Hamming64Arr);
+pub struct Hamming64(pub ByteArray<ENCODED_BYTES>);
 
 impl Hamming64 {
+    pub const NUM_BYTES: usize = ENCODED_BYTES;
+    pub const NUM_BITS: usize = ByteArray::<ENCODED_BYTES>::NUM_BITS;
+
     /// Encode 64 bits as a hamming code.
     pub fn encode(data: impl Into<ByteArray<8>>) -> Self {
         let input_arr: ByteArray<8> = data.into();
@@ -30,7 +33,7 @@ impl Hamming64 {
 
         let mut input_idx = 0;
 
-        for output_idx in 0..Hamming64Arr::NUM_BITS {
+        for output_idx in 0..Hamming64::NUM_BITS {
             if is_par_i(output_idx) {
                 continue;
             }
@@ -75,7 +78,7 @@ impl Hamming64 {
         let input_arr = &self.0;
 
         let mut output_idx = 0;
-        for input_idx in 0..Hamming64Arr::NUM_BITS {
+        for input_idx in 0..Hamming64::NUM_BITS {
             if is_par_i(input_idx) {
                 continue;
             }
@@ -106,7 +109,7 @@ impl Hamming64 {
 }
 
 impl std::ops::Deref for Hamming64 {
-    type Target = Hamming64Arr;
+    type Target = ByteArray<ENCODED_BYTES>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

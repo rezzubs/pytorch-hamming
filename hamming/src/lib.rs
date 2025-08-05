@@ -6,7 +6,7 @@ pub use byte_array::ByteArray;
 
 use itertools::Itertools;
 use numpy::{PyArray1, PyReadonlyArray1};
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyValueError, prelude::*};
 
 /// A Python module implemented in Rust.
 #[pymodule]
@@ -32,9 +32,35 @@ fn hamming(m: &Bound<'_, PyModule>) -> PyResult<()> {
         )
     }
 
-    // fn decode64(input: PyReadonlyArrayDyn<u8>) -> PyArray1<f32> {
-    //     input.into_iter()
-    // }
+    #[pyfn(m)]
+    fn decode64<'py>(
+        py: Python<'py>,
+        input: PyReadonlyArray1<'py, u8>,
+    ) -> PyResult<Bound<'py, PyArray1<f32>>> {
+        let input = input.as_array();
+
+        if input.len() % Hamming64::NUM_BYTES != 0 {
+            return Err(PyValueError::new_err(format!(
+                "Expected a number of bytes divisible by {}",
+                Hamming64::NUM_BYTES
+            )));
+        }
+
+        let mut iter = input.iter().copied();
+        let num_encoded = input.len() / Hamming64::NUM_BYTES;
+        let mut output = Vec::with_capacity(num_encoded * 2);
+        for _ in 0..num_encoded {
+            let bytes: [u8; Hamming64::NUM_BYTES] = iter.next_array().expect("Within bounds");
+
+            let encoded = Hamming64(bytes.into());
+            let decoded = encoded.decode();
+            let [a, b]: [f32; 2] = decoded.into();
+            output.push(a);
+            output.push(b);
+        }
+
+        Ok(PyArray1::from_slice(py, &output))
+    }
 
     Ok(())
 }
