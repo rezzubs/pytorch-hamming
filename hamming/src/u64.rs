@@ -1,8 +1,6 @@
-#![allow(dead_code)]
-
 use crate::byte_array::ByteArray;
 
-/// Bit's reserved for error detection. All powers of two.
+/// Bit's reserved for error correction. All powers of two.
 const ERROR_CORRECTION_BIT_COUNT: usize = 7;
 
 /// Number of bytes used for the encoded format.
@@ -25,6 +23,36 @@ pub struct Hamming64(pub ByteArray<ENCODED_BYTES>);
 impl Hamming64 {
     pub const NUM_BYTES: usize = ENCODED_BYTES;
     pub const NUM_BITS: usize = ByteArray::<ENCODED_BYTES>::NUM_BITS;
+
+    /// Correct any single bit flip error in self.
+    pub fn correct_error(&mut self) {
+        let e = self.error_idx();
+        self.flip_bit(e);
+    }
+
+    /// Decode into the original bit representation.
+    pub fn decode(mut self) -> ByteArray<8> {
+        let mut output_arr: ByteArray<8> = ByteArray::new();
+
+        self.correct_error();
+        let input_arr = &self.0;
+
+        let mut output_idx = 0;
+        for input_idx in 0..Hamming64::NUM_BITS {
+            if is_par_i(input_idx) {
+                continue;
+            }
+
+            if input_arr.bit_is_high(input_idx) {
+                output_arr.set_bit_high(output_idx);
+            }
+            // All output bits are 0 by default.
+
+            output_idx += 1;
+        }
+
+        output_arr
+    }
 
     /// Encode 64 bits as a hamming code.
     pub fn encode(data: impl Into<ByteArray<8>>) -> Self {
@@ -59,36 +87,6 @@ impl Hamming64 {
             if bits_to_toggle.bit_is_high(i) {
                 output_arr.0.flip_bit(parity_bit);
             }
-        }
-
-        output_arr
-    }
-
-    /// Correct any single bit flip error in self.
-    pub fn correct_error(&mut self) {
-        let e = self.error_idx();
-        self.flip_bit(e);
-    }
-
-    /// Decode into the original bit representation.
-    pub fn decode(mut self) -> ByteArray<8> {
-        let mut output_arr: ByteArray<8> = ByteArray::new();
-
-        self.correct_error();
-        let input_arr = &self.0;
-
-        let mut output_idx = 0;
-        for input_idx in 0..Hamming64::NUM_BITS {
-            if is_par_i(input_idx) {
-                continue;
-            }
-
-            if input_arr.bit_is_high(input_idx) {
-                output_arr.set_bit_high(output_idx);
-            }
-            // All output bits are 0 by default.
-
-            output_idx += 1;
         }
 
         output_arr

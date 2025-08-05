@@ -1,6 +1,3 @@
-// FIXME: remove after full implementation
-#![allow(dead_code)]
-
 /// An array of bytes with functions for manipulating single bits.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ByteArray<const N: usize> {
@@ -41,16 +38,16 @@ impl<const N: usize> ByteArray<N> {
         }
     }
 
-    /// Iterate over the bytes of the array.
-    pub fn into_bytes(self) -> std::array::IntoIter<u8, N> {
-        self.data.into_iter()
-    }
-
     /// Flip a bit in the array.
     pub fn flip_bit(&mut self, bit_index: usize) {
         assert!(bit_index < Self::NUM_BITS);
         let byte_index = bit_index / 8;
         self.data[byte_index] = flip_bit(self.data[byte_index], bit_index % 8);
+    }
+
+    /// Iterate over the bytes of the array.
+    pub fn into_bytes(self) -> std::array::IntoIter<u8, N> {
+        self.data.into_iter()
     }
 
     /// Create a new bytearray with all bits set to zero.
@@ -231,12 +228,12 @@ mod tests {
 
     #[test]
     fn get_bit_test() {
-        assert_eq!(bit_is_high(0b0001, 0), true);
-        assert_eq!(bit_is_high(0b0001, 2), false);
-        assert_eq!(bit_is_high(0b0001, 4), false);
-        assert_eq!(bit_is_high(0b0001, 4), false);
-        assert_eq!(bit_is_high(0b0010, 0), false);
-        assert_eq!(bit_is_high(0b0010, 1), true);
+        assert!(bit_is_high(0b0001, 0));
+        assert!(!bit_is_high(0b0001, 2));
+        assert!(!bit_is_high(0b0001, 4));
+        assert!(!bit_is_high(0b0001, 4));
+        assert!(!bit_is_high(0b0010, 0));
+        assert!(bit_is_high(0b0010, 1));
     }
 
     #[test]
