@@ -1,6 +1,7 @@
 // FIXME: remove after full implementation
 #![allow(dead_code)]
 
+/// An array of bytes with functions for manipulating single bits.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ByteArray<const N: usize> {
     data: [u8; N],
@@ -32,6 +33,7 @@ impl<const N: usize> ByteArray<N> {
         bit_is_low(self.data[byte_index], bit_index % 8)
     }
 
+    /// Iterate over the bits of the array.
     pub fn bits<'a>(&'a self) -> Bits<'a, N> {
         Bits {
             array: self,
@@ -39,6 +41,12 @@ impl<const N: usize> ByteArray<N> {
         }
     }
 
+    /// Iterate over the bytes of the array.
+    pub fn into_bytes(self) -> std::array::IntoIter<u8, N> {
+        self.data.into_iter()
+    }
+
+    /// Flip a bit in the array.
     pub fn flip_bit(&mut self, bit_index: usize) {
         assert!(bit_index < Self::NUM_BITS);
         let byte_index = bit_index / 8;
@@ -82,6 +90,28 @@ impl<const N: usize> Default for ByteArray<N> {
 impl From<u64> for ByteArray<8> {
     fn from(value: u64) -> Self {
         Self::from(value.to_le_bytes())
+    }
+}
+
+impl From<[f32; 2]> for ByteArray<8> {
+    fn from(value: [f32; 2]) -> Self {
+        let a_bytes = value[0].to_le_bytes();
+        let b_bytes = value[1].to_le_bytes();
+        let bytes = [
+            a_bytes[0], a_bytes[1], a_bytes[2], a_bytes[3], b_bytes[0], b_bytes[1], b_bytes[2],
+            b_bytes[3],
+        ];
+        Self::from(bytes)
+    }
+}
+
+impl From<ByteArray<8>> for [f32; 2] {
+    fn from(value: ByteArray<8>) -> Self {
+        let bytes = value.data;
+        let a_bytes = [bytes[0], bytes[1], bytes[2], bytes[3]];
+        let b_bytes = [bytes[4], bytes[5], bytes[6], bytes[7]];
+
+        [f32::from_le_bytes(a_bytes), f32::from_le_bytes(b_bytes)]
     }
 }
 
@@ -215,5 +245,14 @@ mod tests {
         assert_eq!(flip_bit(0b0000, 1), 0b0010);
         assert_eq!(flip_bit(0b0000, 3), 0b1000);
         assert_eq!(flip_bit(0b1111, 0), 0b1110);
+    }
+
+    #[test]
+    fn f32_conversions() {
+        let initial = [42.0, 6.9];
+        let arr = ByteArray::from(initial);
+        let after: [f32; 2] = arr.into();
+
+        assert_eq!(initial, after);
     }
 }

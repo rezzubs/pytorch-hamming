@@ -20,7 +20,7 @@ type Hamming64Arr = ByteArray<9>;
 ///
 /// See [`hamming_encode64`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Hamming64(Hamming64Arr);
+pub struct Hamming64(pub Hamming64Arr);
 
 impl Hamming64 {
     /// Encode 64 bits as a hamming code.
