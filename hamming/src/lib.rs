@@ -1,3 +1,9 @@
+pub mod byte_array;
+mod u64;
+
+pub use crate::u64::Hamming64;
+pub use byte_array::ByteArray;
+
 use numpy::PyReadonlyArrayDyn;
 use pyo3::prelude::*;
 

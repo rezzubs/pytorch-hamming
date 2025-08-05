@@ -1,0 +1,74 @@
+#![allow(dead_code)]
+
+use crate::byte_array::ByteArray;
+
+/// Bit's reserved for error detection. All powers of two.
+const ERROR_CORRECTION_BIT_COUNT: usize = 7;
+
+/// Check if an index is reserved for parity (a power of two).
+fn is_par_i(i: usize) -> bool {
+    if i == 0 {
+        return true;
+    }
+    (i & (i - 1)) == 0
+}
+
+/// 64 bits for data, 8 for SECDED.
+type Hamming64Arr = ByteArray<9>;
+
+/// The encoded representation of 64 bit data.
+///
+/// See [`hamming_encode64`].
+pub struct Hamming64(Hamming64Arr);
+
+impl Hamming64 {
+    /// Encode 64 bits as a hamming code.
+    pub fn encode(data: impl Into<ByteArray<8>>) -> Self {
+        let input_arr: ByteArray<8> = data.into();
+        let mut output_arr = Self(ByteArray::new());
+
+        let mut input_idx = 0;
+
+        for i in 0..Hamming64Arr::NUM_BITS {
+            if is_par_i(i) {
+                continue;
+            }
+
+            if input_arr.bit_is_high(input_idx) {
+                output_arr.0.set_bit_high(i);
+            } else {
+                output_arr.0.set_bit_low(i);
+            }
+
+            input_idx += 1;
+        }
+
+        let bits_to_toggle =
+            u8::try_from(output_arr.error_idx()).expect("ByteArray<9> index must fit inside u8");
+
+        let bits_to_toggle = ByteArray::from(bits_to_toggle);
+
+        for i in 0..ERROR_CORRECTION_BIT_COUNT {
+            let parity_bit = 1 << i;
+
+            if bits_to_toggle.bit_is_high(i) {
+                output_arr.0.flip_bit(parity_bit);
+            }
+        }
+
+        output_arr
+    }
+
+    /// Get the index of a flipped bit in case of a single bit flip.
+    ///
+    /// 0 marks a successful case.
+    pub fn error_idx(&self) -> usize {
+        use std::ops::BitXor;
+
+        self.0
+            .bits()
+            .enumerate()
+            .filter_map(|(i, bit_is_high)| bit_is_high.then_some(i))
+            .fold(0, |acc, x| acc.bitxor(x))
+    }
+}
