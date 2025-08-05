@@ -72,3 +72,17 @@ impl Hamming64 {
             .fold(0, |acc, x| acc.bitxor(x))
     }
 }
+
+impl std::ops::Deref for Hamming64 {
+    type Target = Hamming64Arr;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Hamming64 {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
