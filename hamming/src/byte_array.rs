@@ -1,6 +1,7 @@
 // FIXME: remove after full implementation
 #![allow(dead_code)]
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ByteArray<const N: usize> {
     data: [u8; N],
 }
@@ -8,39 +9,6 @@ pub struct ByteArray<const N: usize> {
 impl<const N: usize> ByteArray<N> {
     /// The number of bits stored in this array.
     pub const NUM_BITS: usize = N * 8;
-
-    /// Create a new bytearray with all bits set to zero.
-    pub fn new() -> Self {
-        Self { data: [0; N] }
-    }
-
-    /// Set the bit at at the specified index to 1.
-    ///
-    /// # Panics
-    ///
-    /// This function panics when `bit_index` is out of bounds.
-    pub fn set_bit_high(&mut self, bit_index: usize) {
-        assert!(bit_index < Self::NUM_BITS);
-        let byte_index = bit_index / 8;
-        self.data[byte_index] = set_bit_high(self.data[byte_index], bit_index % 8);
-    }
-
-    /// Set the bit at at the specified index to 0.
-    ///
-    /// # Panics
-    ///
-    /// This function panics when `bit_index` is out of bounds.
-    pub fn set_bit_low(&mut self, bit_index: usize) {
-        assert!(bit_index < Self::NUM_BITS);
-        let byte_index = bit_index / 8;
-        self.data[byte_index] = set_bit_low(self.data[byte_index], bit_index % 8);
-    }
-
-    pub fn flip_bit(&mut self, bit_index: usize) {
-        assert!(bit_index < Self::NUM_BITS);
-        let byte_index = bit_index / 8;
-        self.data[byte_index] = flip_bit(self.data[byte_index], bit_index % 8);
-    }
 
     /// Query if the specified bit is set to high.
     ///
@@ -69,6 +37,39 @@ impl<const N: usize> ByteArray<N> {
             array: self,
             next_bit: 0,
         }
+    }
+
+    pub fn flip_bit(&mut self, bit_index: usize) {
+        assert!(bit_index < Self::NUM_BITS);
+        let byte_index = bit_index / 8;
+        self.data[byte_index] = flip_bit(self.data[byte_index], bit_index % 8);
+    }
+
+    /// Create a new bytearray with all bits set to zero.
+    pub fn new() -> Self {
+        Self { data: [0; N] }
+    }
+
+    /// Set the bit at at the specified index to 1.
+    ///
+    /// # Panics
+    ///
+    /// This function panics when `bit_index` is out of bounds.
+    pub fn set_bit_high(&mut self, bit_index: usize) {
+        assert!(bit_index < Self::NUM_BITS);
+        let byte_index = bit_index / 8;
+        self.data[byte_index] = set_bit_high(self.data[byte_index], bit_index % 8);
+    }
+
+    /// Set the bit at at the specified index to 0.
+    ///
+    /// # Panics
+    ///
+    /// This function panics when `bit_index` is out of bounds.
+    pub fn set_bit_low(&mut self, bit_index: usize) {
+        assert!(bit_index < Self::NUM_BITS);
+        let byte_index = bit_index / 8;
+        self.data[byte_index] = set_bit_low(self.data[byte_index], bit_index % 8);
     }
 }
 

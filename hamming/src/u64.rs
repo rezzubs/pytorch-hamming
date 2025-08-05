@@ -19,6 +19,7 @@ type Hamming64Arr = ByteArray<9>;
 /// The encoded representation of 64 bit data.
 ///
 /// See [`hamming_encode64`].
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Hamming64(Hamming64Arr);
 
 impl Hamming64 {
@@ -29,16 +30,17 @@ impl Hamming64 {
 
         let mut input_idx = 0;
 
-        for i in 0..Hamming64Arr::NUM_BITS {
-            if is_par_i(i) {
+        for output_idx in 0..Hamming64Arr::NUM_BITS {
+            if is_par_i(output_idx) {
                 continue;
             }
 
             if input_arr.bit_is_high(input_idx) {
-                output_arr.0.set_bit_high(i);
+                output_arr.0.set_bit_high(output_idx);
             } else {
-                output_arr.0.set_bit_low(i);
+                output_arr.0.set_bit_low(output_idx);
             }
+            // All output bits are 0 by default.
 
             input_idx += 1;
         }
@@ -54,6 +56,36 @@ impl Hamming64 {
             if bits_to_toggle.bit_is_high(i) {
                 output_arr.0.flip_bit(parity_bit);
             }
+        }
+
+        output_arr
+    }
+
+    /// Correct any single bit flip error in self.
+    pub fn correct_error(&mut self) {
+        let e = self.error_idx();
+        self.flip_bit(e);
+    }
+
+    /// Decode into the original bit representation.
+    pub fn decode(mut self) -> ByteArray<8> {
+        let mut output_arr: ByteArray<8> = ByteArray::new();
+
+        self.correct_error();
+        let input_arr = &self.0;
+
+        let mut output_idx = 0;
+        for input_idx in 0..Hamming64Arr::NUM_BITS {
+            if is_par_i(input_idx) {
+                continue;
+            }
+
+            if input_arr.bit_is_high(input_idx) {
+                output_arr.set_bit_high(output_idx);
+            }
+            // All output bits are 0 by default.
+
+            output_idx += 1;
         }
 
         output_arr
