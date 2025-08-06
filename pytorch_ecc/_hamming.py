@@ -77,23 +77,85 @@ class HammingLayer(nn.Module):
             )
 
         self.original = original
-        self.register_buffer("original_shape", torch.tensor(original.weight.shape))
-        self.register_buffer("original_len", torch.tensor(original.weight.numel()))
-        protected_data = hamming_encode64(self.original.weight.data.flatten())
-        self.register_buffer("protected_data", protected_data)
+
+        self._protect_tensor("weight", original.weight.data)
+
+        if original.bias is not None:
+            self._protect_tensor("bias", original.bias.data)
+
+        if not isinstance(original, nn.BatchNorm2d):
+            return
+
+        if original.running_mean is not None:
+            if isinstance(original.running_mean, nn.Module):
+                raise ValueError("Unsupported module type")
+
+            self._protect_tensor("running_mean", original.running_mean.data)
+
+        if original.running_var is not None:
+            if isinstance(original.running_var, nn.Module):
+                raise ValueError("Unsupported module type")
+
+            self._protect_tensor("running_var", original.running_var.data)
+
+    def _protect_tensor(self, name: str, t: torch.Tensor) -> None:
+        """Protect a parameter by encoding it as a hamming code.
+
+        These parameters will be used for fault injection.
+
+        See also `_decode_protected`.
+        """
+        og = "hamming_original_" + name
+        t = t.data
+
+        protected_data = hamming_encode64(t.flatten())
+        self.register_buffer("hamming_protected_" + name, protected_data)
+
+        self.register_buffer(og + "_shape", torch.tensor(t.shape))
+
+        self.register_buffer(og + "_len", torch.tensor(t.numel()))
+
+    def _decode_protected(self, name: str) -> torch.Tensor:
+        """Decode a protected named parameter.
+
+        See also `_protect_tensor`
+        """
+        og = "hamming_original_" + name
+
+        protected_data = self.get_buffer("hamming_protected_" + name)
+
+        shape_tensor = self.get_buffer(og + "_shape")
+        shape = torch.Size(shape_tensor.tolist())
+
+        length = self.get_buffer(og + "_len").item()
+
+        return hamming_decode64(protected_data)[:length].reshape(shape)
 
     def decode(self) -> SupportsHamming:
-        shape_tensor = self.get_buffer("original_shape")
-        shape = torch.Size(shape_tensor.tolist())
-        length = self.get_buffer("original_len").item()
+        """Decode the hamming module into the type it was initialized with.
 
-        protected_data = self.get_buffer("protected_data")
-        weight = hamming_decode64(protected_data)[:length]
-        self.original.weight.data = weight.reshape(shape)
+        Using the hamming module after decoding is undefined behavior.
+        """
+        self.original.weight.data = self._decode_protected("weight")
+
+        if self.original.bias is not None:
+            self.original.bias.data = self._decode_protected("bias")
+
+        if not isinstance(self.original, nn.BatchNorm2d):
+            return self.original
+
+        if self.original.running_mean is not None:
+            self.original.running_mean = self._decode_protected("running_mean")
+
+        if self.original.running_var is not None:
+            self.original.running_var = self._decode_protected("running_var")
+
         return self.original
 
     def forward(self) -> None:
-        raise RuntimeError("Hamming layers need to be decoded before usage.")
+        raise RuntimeError(
+            "Hamming layers need to be decoded before usage. See `hamming_decode_module`"
+        )
 
 
 def hamming_encode_module(module: nn.Module) -> None:
