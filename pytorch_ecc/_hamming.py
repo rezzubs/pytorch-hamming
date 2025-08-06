@@ -6,7 +6,14 @@ from torch import nn
 
 import hamming
 
-__all__ = ["hamming_encode64", "hamming_decode64"]
+__all__ = [
+    "HammingLayer",
+    "hamming_decode64",
+    "hamming_decode_module",
+    "hamming_encode64",
+    "hamming_encode_module",
+    "hamming_layer_fi",
+]
 
 
 def hamming_encode64(t: torch.Tensor) -> torch.Tensor:
@@ -53,7 +60,7 @@ def hamming_decode64(t: torch.Tensor) -> torch.Tensor:
     return torch.from_numpy(out)
 
 
-type SupportsHamming = nn.Linear | nn.Conv2d | nn.BatchNorm2d
+SupportsHamming = nn.Linear | nn.Conv2d | nn.BatchNorm2d
 
 
 class HammingLayer(nn.Module):
@@ -64,6 +71,11 @@ class HammingLayer(nn.Module):
 
     def __init__(self, original: SupportsHamming, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        if not isinstance(original, SupportsHamming):
+            raise ValueError(
+                f"Module {type(original)} is not a valid HammingLayer target"
+            )
+
         self.original = original
         self.register_buffer("original_shape", torch.tensor(original.weight.shape))
         self.register_buffer("original_len", torch.tensor(original.weight.numel()))
@@ -82,3 +94,46 @@ class HammingLayer(nn.Module):
 
     def forward(self) -> None:
         raise RuntimeError("Hamming layers need to be decoded before usage.")
+
+
+def hamming_encode_module(module: nn.Module) -> None:
+    """Recursively replace child layers of the module with `HammingLayer`
+
+    A module that has been prepared like this can be used as an input for
+    `hamming_layer_fi` for fault injection.
+
+    Use `hamming_decode_module` to restore the original representation.
+
+    See `SupportsHamming` for supported layer types.
+    """
+    for name, child in module.named_children():
+        hamming_encode_module(child)
+
+        if not isinstance(child, SupportsHamming):
+            continue
+
+        setattr(module, name, HammingLayer(child))
+
+
+def hamming_decode_module(module: nn.Module) -> None:
+    """Decodes all `HammingLayer` children into their original instances.
+
+    This corrects all single bit errors in a memory line caused by `hamming_layer_fi`.
+
+    See `hamming_encode_module`.
+    """
+    for name, child in module.named_children():
+        hamming_decode_module(child)
+
+        if not isinstance(child, HammingLayer):
+            continue
+
+        setattr(module, name, child.decode())
+
+
+def hamming_layer_fi(module: nn.Module, bit_error_rate: float) -> None:
+    """Inject faults uniformly into `HammingLayer` children of the module.
+
+    See `hamming_encode_module`.
+    """
+    raise RuntimeError("Unimplemented")
