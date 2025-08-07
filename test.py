@@ -3,7 +3,7 @@ from torch import nn
 import torchvision
 from torchvision import transforms
 
-from pytorch_ecc._hamming import (
+from pytorch_ecc import (
     hamming_decode_module,
     hamming_encode_module,
 )

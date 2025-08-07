@@ -1,6 +1,21 @@
 "Error correction utilities for pytorch"
 
-from pytorch_ecc._hamming import hamming_decode64, hamming_encode64
+from pytorch_ecc._hamming import (
+    HammingLayer,
+    SupportsHamming,
+    hamming_decode64,
+    hamming_decode_module,
+    hamming_encode64,
+    hamming_encode_module,
+    hamming_layer_fi,
+)
 
-
-__all__ = ["hamming_encode64", "hamming_decode64"]
+__all__ = [
+    "HammingLayer",
+    "SupportsHamming",
+    "hamming_decode64",
+    "hamming_decode_module",
+    "hamming_encode64",
+    "hamming_encode_module",
+    "hamming_layer_fi",
+]
