@@ -1,11 +1,12 @@
 import torch
-from torch import nn
 import torchvision
+from torch import nn
 from torchvision import transforms
 
 from pytorch_ecc import (
     hamming_decode_module,
     hamming_encode_module,
+    hamming_layer_fi,
 )
 
 model: nn.Module = torch.hub.load(
@@ -41,11 +42,8 @@ def evaluate(model: nn.Module):
         # Convert logits to class indices
         outputs = outputs.argmax(dim=1)
 
-        # Update metrics
         num_samples += targets.size(0)
         num_correct += (outputs == targets).sum()
-
-        # break
 
     return (num_correct / num_samples * 100).item()
 
@@ -53,6 +51,7 @@ def evaluate(model: nn.Module):
 print(evaluate(model))
 
 hamming_encode_module(model)
+hamming_layer_fi(model, 1000)
 hamming_decode_module(model)
 
 print(evaluate(model))

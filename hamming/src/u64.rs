@@ -25,16 +25,27 @@ impl Hamming64 {
     pub const NUM_BITS: usize = ByteArray::<ENCODED_BYTES>::NUM_BITS;
 
     /// Correct any single bit flip error in self.
-    pub fn correct_error(&mut self) {
+    ///
+    /// Returns true if successful.
+    pub fn correct_error(&mut self) -> bool {
         let e = self.error_idx();
+
+        if e >= Self::NUM_BITS {
+            // NOTE: If it appears that the error is out of our protected range
+            // it means that more than one bit has flipped.
+            return false;
+        }
+
         self.flip_bit(e);
+        true
     }
 
     /// Decode into the original bit representation.
     pub fn decode(mut self) -> ByteArray<8> {
         let mut output_arr: ByteArray<8> = ByteArray::new();
 
-        self.correct_error();
+        // TODO: Keep track of failed corrections.
+        _ = self.correct_error();
         let input_arr = &self.0;
 
         let mut output_idx = 0;

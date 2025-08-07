@@ -1,4 +1,6 @@
-"""Wrappers for the rust hamming module"""
+"""Utilities for encoding PyTorch modules with hamming codes."""
+
+import random
 
 import numpy
 import torch
@@ -14,6 +16,9 @@ __all__ = [
     "hamming_encode_module",
     "hamming_layer_fi",
 ]
+
+HAMMING_DATA_PREFIX = "hamming_protected_"
+BITS_PER_BYTE = 8
 
 
 def hamming_encode64(t: torch.Tensor) -> torch.Tensor:
@@ -109,7 +114,7 @@ class HammingLayer(nn.Module):
         t = t.data
 
         protected_data = hamming_encode64(t.flatten())
-        self.register_buffer("hamming_protected_" + name, protected_data)
+        self.register_buffer(HAMMING_DATA_PREFIX + name, protected_data)
 
         self.register_buffer(og + "_shape", torch.tensor(t.shape))
 
@@ -122,7 +127,7 @@ class HammingLayer(nn.Module):
         """
         og = "hamming_original_" + name
 
-        protected_data = self.get_buffer("hamming_protected_" + name)
+        protected_data = self.get_buffer(HAMMING_DATA_PREFIX + name)
 
         shape_tensor = self.get_buffer(og + "_shape")
         shape = torch.Size(shape_tensor.tolist())
@@ -193,9 +198,78 @@ def hamming_decode_module(module: nn.Module) -> None:
         setattr(module, name, child.decode())
 
 
-def hamming_layer_fi(module: nn.Module, bit_error_rate: float) -> None:
+def tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
+    """Flip a single bit in a uint8 tensor.
+
+    The values in the tensor are treated as a continuous stream of bits.
+    """
+    if t.dtype != torch.uint8:
+        raise ValueError(f"Expected uint8 tensor, got {t.dtype}")
+    if len(t.shape) != 1:
+        raise ValueError(f"Expected a single dimensional tensor, got shape {t.shape}")
+
+    num_bits = t.numel() * BITS_PER_BYTE
+
+    if bit_index >= num_bits:
+        raise ValueError(f"Tensor has {num_bits} bits, got index {bit_index}")
+
+    byte_index = bit_index // BITS_PER_BYTE
+    true_bit_index = bit_index % BITS_PER_BYTE
+
+    t[byte_index] = t[byte_index] ^ (1 << true_bit_index)
+
+
+def tensor_list_flip_bit(ts: list[torch.Tensor], bit_index: int) -> None:
+    """Flip a single bit in a list of tensors.
+
+    The list of tensors are interpreted as a continuous stream of bits.
+    """
+    start_bit = 0
+    for t in ts:
+        num_bits = t.numel() * BITS_PER_BYTE
+        first_bit_of_next = start_bit + num_bits
+
+        if first_bit_of_next <= bit_index:
+            start_bit = first_bit_of_next
+            continue
+
+        t_bit_index = bit_index - start_bit
+        assert t_bit_index >= 0
+
+        tensor_flip_bit(t, t_bit_index)
+        return
+
+    total_num_bits = sum([t.numel() * BITS_PER_BYTE for t in ts])
+    raise ValueError(
+        f"Tensor list has {total_num_bits} bits in total, got index {bit_index}"
+    )
+
+
+def hamming_layer_fi(module: nn.Module, num_flips: int) -> None:
     """Inject faults uniformly into `HammingLayer` children of the module.
+
+    All bit flips will be unique.
 
     See `hamming_encode_module`.
     """
-    raise RuntimeError("Unimplemented")
+    protected_buffers = list(
+        x[1]
+        for x in module.named_buffers(recurse=True, remove_duplicate=False)
+        if HAMMING_DATA_PREFIX in x[0]
+    )
+
+    total_num_bits = sum([t.numel() * BITS_PER_BYTE for t in protected_buffers])
+    print(total_num_bits)
+    if total_num_bits < num_flips:
+        raise ValueError(
+            f"The module has {total_num_bits} bits worth of unprotected data, "
+            "tried to inject {num_flips} faults"
+        )
+
+    flip_candidates = list(range(total_num_bits))
+    random.shuffle(flip_candidates)
+
+    for _ in range(num_flips):
+        bit_to_flip = flip_candidates.pop()
+
+        tensor_list_flip_bit(protected_buffers, bit_to_flip)
