@@ -79,8 +79,6 @@ impl Hamming64 {
 
             if input_arr.bit_is_high(input_idx) {
                 output_arr.0.set_bit_high(output_idx);
-            } else {
-                output_arr.0.set_bit_low(output_idx);
             }
             // All output bits are 0 by default.
 
