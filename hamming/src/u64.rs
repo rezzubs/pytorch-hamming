@@ -72,7 +72,7 @@ impl Hamming64 {
 
         let mut input_idx = 0;
 
-        for output_idx in 0..Hamming64::NUM_BITS {
+        for output_idx in 3..Hamming64::NUM_BITS {
             if is_par_i(output_idx) {
                 continue;
             }
