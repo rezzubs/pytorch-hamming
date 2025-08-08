@@ -11,6 +11,7 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 /// A Python module implemented in Rust.
 #[pymodule]
 fn hamming(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    /// Encode an array of float32 values as an array of uint8 values.
     #[pyfn(m)]
     fn encode64<'py>(
         py: Python<'py>,
@@ -32,11 +33,14 @@ fn hamming(m: &Bound<'_, PyModule>) -> PyResult<()> {
         )
     }
 
+    /// Decode an array of uint8 values into an array of float32 values.
+    ///
+    /// Returns: (decoded_array, num_unmasked_faults)
     #[pyfn(m)]
     fn decode64<'py>(
         py: Python<'py>,
         input: PyReadonlyArray1<'py, u8>,
-    ) -> PyResult<Bound<'py, PyArray1<f32>>> {
+    ) -> PyResult<(Bound<'py, PyArray1<f32>>, u64)> {
         let input = input.as_array();
 
         if input.len() % Hamming64::NUM_BYTES != 0 {
@@ -49,17 +53,27 @@ fn hamming(m: &Bound<'_, PyModule>) -> PyResult<()> {
         let mut iter = input.iter().copied();
         let num_encoded = input.len() / Hamming64::NUM_BYTES;
         let mut output = Vec::with_capacity(num_encoded * 2);
+
+        let mut num_unmasked_faults: u64 = 0;
+
         for _ in 0..num_encoded {
             let bytes: [u8; Hamming64::NUM_BYTES] = iter.next_array().expect("Within bounds");
 
             let encoded = Hamming64(bytes.into());
-            let decoded = encoded.decode();
+            let (decoded, success) = encoded.decode();
+
+            if !success {
+                num_unmasked_faults = num_unmasked_faults
+                    .checked_add(1)
+                    .expect("Unexpectedly large number of unmasked faults");
+            }
+
             let [a, b]: [f32; 2] = decoded.into();
             output.push(a);
             output.push(b);
         }
 
-        Ok(PyArray1::from_slice(py, &output))
+        Ok((PyArray1::from_slice(py, &output), num_unmasked_faults))
     }
 
     Ok(())

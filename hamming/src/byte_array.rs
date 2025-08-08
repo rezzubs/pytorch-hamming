@@ -76,6 +76,11 @@ impl<const N: usize> ByteArray<N> {
         let byte_index = bit_index / 8;
         self.data[byte_index] = set_bit_low(self.data[byte_index], bit_index % 8);
     }
+
+    /// Return true if the number of high bits is even.
+    pub fn total_parity_is_even(&self) -> bool {
+        self.bits().filter(|bit_is_high| *bit_is_high).count() % 2 == 0
+    }
 }
 
 impl<const N: usize> Default for ByteArray<N> {
@@ -255,5 +260,16 @@ mod tests {
     fn f32_conversions() {
         assert_f32([42.0, 6.9]);
         assert_f32([0.9937, 0.2209]);
+    }
+
+    #[test]
+    fn total_even() {
+        assert!(ByteArray::from(0b00000000u8).total_parity_is_even());
+        assert!(!ByteArray::from(0b00000001u8).total_parity_is_even());
+        assert!(ByteArray::from(0b00000011u8).total_parity_is_even());
+        assert!(!ByteArray::from(0b00000111u8).total_parity_is_even());
+        assert!(ByteArray::from(0b10000001u8).total_parity_is_even());
+        assert!(!ByteArray::from(0b10010001u8).total_parity_is_even());
+        assert!(ByteArray::from(0b11111111u8).total_parity_is_even());
     }
 }
