@@ -36,6 +36,7 @@ class HammingStats:
         self.faults_in_encoded: list[int] = []
         self.total_bits: int | None = None
         self.unsuccessful_corrections: int = 0
+        self.non_matching_parameters: list[int] = []
 
     @classmethod
     def eval(
@@ -45,13 +46,14 @@ class HammingStats:
         accuracy_fn: Callable[[nn.Module], float],
     ) -> HammingStats:
         stats = cls()
-        clone = copy.deepcopy(module)
+        original = copy.deepcopy(module)
 
         hamming_encode_module(module)
         hamming_layer_fi(module, bit_error_rate=bit_error_rate, stats=stats)
         hamming_decode_module(module, stats=stats)
 
         stats.accuracy = accuracy_fn(module)
+        stats.non_matching_parameters = compare_module_bitwise(module, original)
 
         return stats
 
@@ -87,6 +89,9 @@ class HammingStats:
         print(f"  {three_or_more} containers had 3 or more faults")
         print(
             f"  Decoding detected {self.unsuccessful_corrections} non-correctable containers (an even number of faults or bit 0)"
+        )
+        print(
+            f"  {len(self.non_matching_parameters)} parameters were messed up from injection"
         )
 
 
@@ -136,6 +141,62 @@ def hamming_decode64(t: torch.Tensor) -> tuple[torch.Tensor, int]:
 
 
 SupportsHamming = nn.Linear | nn.Conv2d | nn.BatchNorm2d
+
+
+def compare_parameter_bitwise(a: torch.Tensor, b: torch.Tensor) -> list[int]:
+    assert a.shape == b.shape
+    assert a.dtype == b.dtype == torch.float32
+
+    out = []
+    for a_val, b_val in zip(a.flatten(), b.flatten(), strict=True):
+        a_val = int(a_val.to(torch.int32).item())
+        b_val = int(b_val.to(torch.int32).item())
+
+        xor = a_val ^ b_val
+        if xor > 0:
+            out.append(xor)
+
+    return out
+
+
+def compare_module_bitwise(a: nn.Module, b: nn.Module) -> list[int]:
+    """Recursively compare `SupportsHamming` children and return a bitwise xor of non-matching items.
+
+    The modules are expected to have an identical representation.
+    """
+    out = []
+    for a_child, b_child in zip(a.children(), b.children(), strict=True):
+        out += compare_module_bitwise(a_child, b_child)
+
+    if not isinstance(a, SupportsHamming):
+        assert not isinstance(b, SupportsHamming)
+        return out
+    if not isinstance(b, SupportsHamming):
+        assert not isinstance(a, SupportsHamming)
+        return out
+
+    out += compare_parameter_bitwise(a.weight, b.weight)
+    if a.bias is not None:
+        assert b.bias is not None
+        out += compare_parameter_bitwise(a.bias, b.bias)
+
+    if not isinstance(a, nn.BatchNorm2d):
+        assert not isinstance(b, nn.BatchNorm2d)
+        return out
+
+    if a.running_mean is not None:
+        assert b.running_mean is not None
+        assert not isinstance(a.running_mean, nn.Module)
+        assert not isinstance(b.running_mean, nn.Module)
+        out += compare_parameter_bitwise(a.running_mean, b.running_mean)
+
+    if a.running_var is not None:
+        assert b.running_var is not None
+        assert not isinstance(a.running_var, nn.Module)
+        assert not isinstance(b.running_var, nn.Module)
+        out += compare_parameter_bitwise(a.running_var, b.running_var)
+
+    return out
 
 
 class HammingLayer(nn.Module):
