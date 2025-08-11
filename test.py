@@ -3,11 +3,7 @@ import torchvision
 from torch import nn
 from torchvision import transforms
 
-from pytorch_ecc import (
-    hamming_decode_module,
-    hamming_encode_module,
-    hamming_layer_fi,
-)
+from pytorch_ecc import HammingStats
 
 model: nn.Module = torch.hub.load(
     "chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True
@@ -48,11 +44,4 @@ def evaluate(model: nn.Module):
     return (num_correct / num_samples * 100).item()
 
 
-print(evaluate(model))
-
-hamming_encode_module(model)
-hamming_layer_fi(model, bit_error_rate=0.0002)
-uncorrected_containers = hamming_decode_module(model)
-print(f"Failed to correct {uncorrected_containers} data containers")
-
-print(evaluate(model))
+HammingStats.eval(model, 0.0002, evaluate).summary()

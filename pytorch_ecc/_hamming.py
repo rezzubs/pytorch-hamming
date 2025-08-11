@@ -1,6 +1,10 @@
 """Utilities for encoding PyTorch modules with hamming codes."""
 
+from __future__ import annotations
+
+import copy
 import random
+from collections.abc import Callable
 
 import numpy
 import torch
@@ -10,6 +14,7 @@ import hamming
 
 __all__ = [
     "HammingLayer",
+    "HammingStats",
     "hamming_decode64",
     "hamming_decode_module",
     "hamming_encode64",
@@ -19,6 +24,70 @@ __all__ = [
 
 HAMMING_DATA_PREFIX = "hamming_protected_"
 BITS_PER_BYTE = 8
+BYTES_PER_CONTAINER = 9
+BITS_PER_CONTAINER = BITS_PER_BYTE * BYTES_PER_CONTAINER
+
+
+class HammingStats:
+    """Statistics for a encode, inject, decode cycle."""
+
+    def __init__(self) -> None:
+        self.accuracy: float | None = None
+        self.faults_in_encoded: list[int] = []
+        self.total_bits: int | None = None
+        self.unsuccessful_corrections: int = 0
+
+    @classmethod
+    def eval(
+        cls,
+        module: nn.Module,
+        bit_error_rate: float,
+        accuracy_fn: Callable[[nn.Module], float],
+    ) -> HammingStats:
+        stats = cls()
+        clone = copy.deepcopy(module)
+
+        hamming_encode_module(module)
+        hamming_layer_fi(module, bit_error_rate=bit_error_rate, stats=stats)
+        hamming_decode_module(module, stats=stats)
+
+        stats.accuracy = accuracy_fn(module)
+
+        return stats
+
+    def faulty_containers(self) -> dict[int, list[int]]:
+        output: dict[int, list[int]] = dict()
+
+        for bit in self.faults_in_encoded:
+            container_idx = bit // BITS_PER_CONTAINER
+            bit_idx = bit % BITS_PER_CONTAINER
+
+            faults_per_container = output.get(container_idx, [])
+            faults_per_container.append(bit_idx)
+            output[container_idx] = faults_per_container
+
+        return output
+
+    def summary(self) -> None:
+        print("Fault Injection Summary:")
+        num_faults = len(self.faults_in_encoded)
+        assert self.total_bits is not None
+        print(
+            f"  Injected {num_faults} faults across {self.total_bits} bits, BER: {num_faults / self.total_bits}"
+        )
+        print(f"  Accuracy: {self.accuracy:.2f}%")
+
+        faulty = self.faulty_containers()
+        exactly_one = len([v for v in faulty.values() if len(v) == 1])
+        exactly_two = len([v for v in faulty.values() if len(v) == 2])
+        three_or_more = len([v for v in faulty.values() if len(v) >= 3])
+
+        print(f"  {exactly_one} containers had exactly 1 fault")
+        print(f"  {exactly_two} containers had exactly 2 faults")
+        print(f"  {three_or_more} containers had 3 or more faults")
+        print(
+            f"  Decoding detected {self.unsuccessful_corrections} non-correctable containers (an even number of faults or bit 0)"
+        )
 
 
 def hamming_encode64(t: torch.Tensor) -> torch.Tensor:
@@ -192,28 +261,24 @@ def hamming_encode_module(module: nn.Module) -> None:
         setattr(module, name, HammingLayer(child))
 
 
-def hamming_decode_module(module: nn.Module) -> int:
+def hamming_decode_module(module: nn.Module, *, stats: HammingStats | None = None):
     """Decodes all `HammingLayer` children into their original instances.
 
     This corrects all single bit errors in a memory line caused by `hamming_layer_fi`.
 
-    Returns the number of containers which the ECC failed to protect.
-
     See `hamming_encode_module`.
     """
-    total_failed = 0
     for name, child in module.named_children():
-        total_failed += hamming_decode_module(child)
+        hamming_decode_module(child, stats=stats)
 
         if not isinstance(child, HammingLayer):
             continue
 
         result = child.decode()
-        total_failed += result[1]
+        if stats is not None:
+            stats.unsuccessful_corrections += result[1]
 
         setattr(module, name, result[0])
-
-    return total_failed
 
 
 def tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
@@ -268,6 +333,7 @@ def hamming_layer_fi(
     *,
     num_faults: int = 0,
     bit_error_rate: float | None = None,
+    stats: HammingStats | None = None,
 ) -> None:
     """Inject faults uniformly into `HammingLayer` children of the module.
 
@@ -288,6 +354,10 @@ def hamming_layer_fi(
     )
 
     total_num_bits = sum([t.numel() * BITS_PER_BYTE for t in protected_buffers])
+
+    if stats is not None:
+        stats.total_bits = total_num_bits
+
     if total_num_bits < num_faults:
         raise ValueError(
             f"The module has {total_num_bits} bits worth of unprotected data, "
@@ -307,5 +377,7 @@ def hamming_layer_fi(
     print(f"Injecting {num_faults} faults")
     for _ in range(num_faults):
         bit_to_flip = flip_candidates.pop()
+        if stats is not None:
+            stats.faults_in_encoded.append(bit_to_flip)
 
         tensor_list_flip_bit(protected_buffers, bit_to_flip)

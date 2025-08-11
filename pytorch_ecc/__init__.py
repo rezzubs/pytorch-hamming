@@ -2,6 +2,7 @@
 
 from pytorch_ecc._hamming import (
     HammingLayer,
+    HammingStats,
     SupportsHamming,
     hamming_decode64,
     hamming_decode_module,
@@ -12,6 +13,7 @@ from pytorch_ecc._hamming import (
 
 __all__ = [
     "HammingLayer",
+    "HammingStats",
     "SupportsHamming",
     "hamming_decode64",
     "hamming_decode_module",
