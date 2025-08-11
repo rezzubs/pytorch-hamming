@@ -261,10 +261,21 @@ def tensor_list_flip_bit(ts: list[torch.Tensor], bit_index: int) -> None:
     )
 
 
-def hamming_layer_fi(module: nn.Module, num_flips: int) -> None:
+def hamming_layer_fi(
+    module: nn.Module,
+    *,
+    num_faults: int = 0,
+    bit_error_rate: float | None = None,
+) -> None:
     """Inject faults uniformly into `HammingLayer` children of the module.
 
     All bit flips will be unique.
+
+    Args:
+        num_flips: How many bits to flip.
+        bit_error_rate:
+            Compute `num_bits` as a percentage of the total number of bits.
+            Overrides `num_flips`.
 
     See `hamming_encode_module`.
     """
@@ -275,16 +286,24 @@ def hamming_layer_fi(module: nn.Module, num_flips: int) -> None:
     )
 
     total_num_bits = sum([t.numel() * BITS_PER_BYTE for t in protected_buffers])
-    if total_num_bits < num_flips:
+    if total_num_bits < num_faults:
         raise ValueError(
             f"The module has {total_num_bits} bits worth of unprotected data, "
             "tried to inject {num_flips} faults"
         )
 
+    if bit_error_rate is not None:
+        if not (0.0 <= bit_error_rate <= 1.0):
+            raise ValueError(
+                f"`bit_error_rate` must be between 0 and 1, got {bit_error_rate}"
+            )
+        num_faults = int(round(bit_error_rate * total_num_bits))
+
     flip_candidates = list(range(total_num_bits))
     random.shuffle(flip_candidates)
 
-    for _ in range(num_flips):
+    print(f"Injecting {num_faults} faults")
+    for _ in range(num_faults):
         bit_to_flip = flip_candidates.pop()
 
         tensor_list_flip_bit(protected_buffers, bit_to_flip)

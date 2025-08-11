@@ -51,8 +51,8 @@ def evaluate(model: nn.Module):
 print(evaluate(model))
 
 hamming_encode_module(model)
-hamming_layer_fi(model, 1000)
+hamming_layer_fi(model, bit_error_rate=0.0002)
 unmasked_faults = hamming_decode_module(model)
-print(f"Decoding finished with {unmasked_faults} unmasked faults")
+print(f"Detected {unmasked_faults} number of unmasked faults")
 
 print(evaluate(model))
