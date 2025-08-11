@@ -52,7 +52,7 @@ print(evaluate(model))
 
 hamming_encode_module(model)
 hamming_layer_fi(model, bit_error_rate=0.0002)
-unmasked_faults = hamming_decode_module(model)
-print(f"Detected {unmasked_faults} number of unmasked faults")
+uncorrected_containers = hamming_decode_module(model)
+print(f"Failed to correct {uncorrected_containers} data containers")
 
 print(evaluate(model))

@@ -54,7 +54,7 @@ fn hamming(m: &Bound<'_, PyModule>) -> PyResult<()> {
         let num_encoded = input.len() / Hamming64::NUM_BYTES;
         let mut output = Vec::with_capacity(num_encoded * 2);
 
-        let mut num_unmasked_faults: u64 = 0;
+        let mut failed_decodings: u64 = 0;
 
         for _ in 0..num_encoded {
             let bytes: [u8; Hamming64::NUM_BYTES] = iter.next_array().expect("Within bounds");
@@ -63,7 +63,7 @@ fn hamming(m: &Bound<'_, PyModule>) -> PyResult<()> {
             let (decoded, success) = encoded.decode();
 
             if !success {
-                num_unmasked_faults = num_unmasked_faults
+                failed_decodings = failed_decodings
                     .checked_add(1)
                     .expect("Unexpectedly large number of unmasked faults");
             }
@@ -73,7 +73,7 @@ fn hamming(m: &Bound<'_, PyModule>) -> PyResult<()> {
             output.push(b);
         }
 
-        Ok((PyArray1::from_slice(py, &output), num_unmasked_faults))
+        Ok((PyArray1::from_slice(py, &output), failed_decodings))
     }
 
     Ok(())

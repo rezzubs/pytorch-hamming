@@ -84,7 +84,7 @@ class HammingLayer(nn.Module):
 
         self._original = original
         # Used as a shared buffer during decoding
-        self._unmasked_faults = 0
+        self._failed_decodings = 0
 
         self._protect_tensor("weight", original.weight.data)
 
@@ -138,7 +138,7 @@ class HammingLayer(nn.Module):
         length = self.get_buffer(og + "_len").item()
 
         result = hamming_decode64(protected_data)
-        self._unmasked_faults += result[1]
+        self._failed_decodings += result[1]
 
         return result[0][:length].reshape(shape)
 
@@ -147,7 +147,9 @@ class HammingLayer(nn.Module):
 
         Using the hamming module after decoding is undefined behavior.
 
-        Returns: The original layer and the number of unmasked faults
+        Returns:
+            The original layer and the number of containers which couldn't be
+            corrected.
         """
         self._original.weight.data = self._decode_protected("weight")
 
@@ -155,7 +157,7 @@ class HammingLayer(nn.Module):
             self._original.bias.data = self._decode_protected("bias")
 
         if not isinstance(self._original, nn.BatchNorm2d):
-            return self._original, self._unmasked_faults
+            return self._original, self._failed_decodings
 
         if self._original.running_mean is not None:
             self._original.running_mean = self._decode_protected("running_mean")
@@ -163,7 +165,7 @@ class HammingLayer(nn.Module):
         if self._original.running_var is not None:
             self._original.running_var = self._decode_protected("running_var")
 
-        return self._original, self._unmasked_faults
+        return self._original, self._failed_decodings
 
     def forward(self) -> None:
         raise RuntimeError(
@@ -195,23 +197,23 @@ def hamming_decode_module(module: nn.Module) -> int:
 
     This corrects all single bit errors in a memory line caused by `hamming_layer_fi`.
 
-    Returns the number of unmasked faults
+    Returns the number of containers which the ECC failed to protect.
 
     See `hamming_encode_module`.
     """
-    total_unmasked = 0
+    total_failed = 0
     for name, child in module.named_children():
-        total_unmasked += hamming_decode_module(child)
+        total_failed += hamming_decode_module(child)
 
         if not isinstance(child, HammingLayer):
             continue
 
         result = child.decode()
-        total_unmasked += result[1]
+        total_failed += result[1]
 
         setattr(module, name, result[0])
 
-    return total_unmasked
+    return total_failed
 
 
 def tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
