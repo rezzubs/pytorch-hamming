@@ -43,11 +43,12 @@ def hamming_encode64(t: torch.Tensor) -> torch.Tensor:
     return torch.from_numpy(out)
 
 
-def hamming_decode64(t: torch.Tensor) -> torch.Tensor:
+def hamming_decode64(t: torch.Tensor) -> tuple[torch.Tensor, int]:
     """Decode the output of `hamming_encode64`.
 
     Returns:
-        A 1 dimensional tensor with dtype=float32
+        A 1 dimensional tensor with dtype=float32 and the number of faults that
+        could not be corrected but were still detected.
 
     Note that encoding adds an extra 0 for odd length tensors which needs to be
     removed manually after decoding.
@@ -60,9 +61,9 @@ def hamming_decode64(t: torch.Tensor) -> torch.Tensor:
 
     # NOTE: Length checks are handled in rust.
     # FIXME: Ignored because there are no type signatures for the hamming module.
-    out: numpy.ndarray = hamming.decode64(t.numpy())  # pyright: ignore
+    result: tuple[numpy.ndarray, int] = hamming.decode64(t.numpy())  # pyright: ignore
 
-    return torch.from_numpy(out)
+    return torch.from_numpy(result[0]), result[1]
 
 
 SupportsHamming = nn.Linear | nn.Conv2d | nn.BatchNorm2d
@@ -81,7 +82,9 @@ class HammingLayer(nn.Module):
                 f"Module {type(original)} is not a valid HammingLayer target"
             )
 
-        self.original = original
+        self._original = original
+        # Used as a shared buffer during decoding
+        self._unmasked_faults = 0
 
         self._protect_tensor("weight", original.weight.data)
 
@@ -134,28 +137,33 @@ class HammingLayer(nn.Module):
 
         length = self.get_buffer(og + "_len").item()
 
-        return hamming_decode64(protected_data)[:length].reshape(shape)
+        result = hamming_decode64(protected_data)
+        self._unmasked_faults += result[1]
 
-    def decode(self) -> SupportsHamming:
+        return result[0][:length].reshape(shape)
+
+    def decode(self) -> tuple[SupportsHamming, int]:
         """Decode the hamming module into the type it was initialized with.
 
         Using the hamming module after decoding is undefined behavior.
+
+        Returns: The original layer and the number of unmasked faults
         """
-        self.original.weight.data = self._decode_protected("weight")
+        self._original.weight.data = self._decode_protected("weight")
 
-        if self.original.bias is not None:
-            self.original.bias.data = self._decode_protected("bias")
+        if self._original.bias is not None:
+            self._original.bias.data = self._decode_protected("bias")
 
-        if not isinstance(self.original, nn.BatchNorm2d):
-            return self.original
+        if not isinstance(self._original, nn.BatchNorm2d):
+            return self._original, self._unmasked_faults
 
-        if self.original.running_mean is not None:
-            self.original.running_mean = self._decode_protected("running_mean")
+        if self._original.running_mean is not None:
+            self._original.running_mean = self._decode_protected("running_mean")
 
-        if self.original.running_var is not None:
-            self.original.running_var = self._decode_protected("running_var")
+        if self._original.running_var is not None:
+            self._original.running_var = self._decode_protected("running_var")
 
-        return self.original
+        return self._original, self._unmasked_faults
 
     def forward(self) -> None:
         raise RuntimeError(
@@ -182,20 +190,28 @@ def hamming_encode_module(module: nn.Module) -> None:
         setattr(module, name, HammingLayer(child))
 
 
-def hamming_decode_module(module: nn.Module) -> None:
+def hamming_decode_module(module: nn.Module) -> int:
     """Decodes all `HammingLayer` children into their original instances.
 
     This corrects all single bit errors in a memory line caused by `hamming_layer_fi`.
 
+    Returns the number of unmasked faults
+
     See `hamming_encode_module`.
     """
+    total_unmasked = 0
     for name, child in module.named_children():
-        hamming_decode_module(child)
+        total_unmasked += hamming_decode_module(child)
 
         if not isinstance(child, HammingLayer):
             continue
 
-        setattr(module, name, child.decode())
+        result = child.decode()
+        total_unmasked += result[1]
+
+        setattr(module, name, result[0])
+
+    return total_unmasked
 
 
 def tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
@@ -259,7 +275,6 @@ def hamming_layer_fi(module: nn.Module, num_flips: int) -> None:
     )
 
     total_num_bits = sum([t.numel() * BITS_PER_BYTE for t in protected_buffers])
-    print(total_num_bits)
     if total_num_bits < num_flips:
         raise ValueError(
             f"The module has {total_num_bits} bits worth of unprotected data, "

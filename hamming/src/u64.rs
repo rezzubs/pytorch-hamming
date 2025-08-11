@@ -26,26 +26,49 @@ impl Hamming64 {
 
     /// Correct any single bit flip error in self.
     ///
-    /// Returns true if successful.
+    /// Returns `true` if the correction was successful. Note that the function
+    /// will incorrectly try to correct any odd number of faults other than 1.
+    /// For an even number of faults, `false` is always returned.
+    ///
+    /// If bit 0 is flipped we mark the result as `false` even if it's the only
+    /// faulty one because this case is indistinguishable from the even number
+    /// of faults case.
     pub fn correct_error(&mut self) -> bool {
-        let e = self.error_idx();
-
-        if e >= Self::NUM_BITS {
-            // NOTE: If it appears that the error is out of our protected range
-            // it means that more than one bit has flipped.
-            return false;
+        // The parity check provides double error detection. During encoding the
+        // 0th bit is set so the parity across all bits is even. For single bit
+        // errors we expect an odd parity.
+        match (self.error_idx(), self.0.total_parity_is_even()) {
+            // We couldn't find an error location and the total parity has not
+            // changed.
+            (0, true) => true,
+            // We're not detecting any errors but the parity changed therefore
+            // there must be multiple errors which are canceling each other out
+            (0, false) => false,
+            // We found an error location but the parity didn't change therefore
+            // there must be two or more errors.
+            (_, true) => false,
+            // If only one of our protected bits flipped it will cause the error
+            // index to be in our protected range.
+            (e, false) if e >= Self::NUM_BITS => false,
+            // We found an error location and the parity changed which means we
+            // either have 1 error which we will attempt to correct or an
+            // undetectable odd number of errors.
+            (e, false) => {
+                self.flip_bit(e);
+                true
+            }
         }
-
-        self.flip_bit(e);
-        true
     }
 
     /// Decode into the original bit representation.
-    pub fn decode(mut self) -> ByteArray<8> {
+    ///
+    /// The second returned value will be false for failed error correction. See
+    /// [`Self::correct_error`] for details.
+    pub fn decode(mut self) -> (ByteArray<8>, bool) {
         let mut output_arr: ByteArray<8> = ByteArray::new();
 
         // TODO: Keep track of failed corrections.
-        _ = self.correct_error();
+        let success = self.correct_error();
         let input_arr = &self.0;
 
         let mut output_idx = 0;
@@ -62,7 +85,7 @@ impl Hamming64 {
             output_idx += 1;
         }
 
-        output_arr
+        (output_arr, success)
     }
 
     /// Encode 64 bits as a hamming code.
@@ -96,6 +119,10 @@ impl Hamming64 {
             if bits_to_toggle.bit_is_high(i) {
                 output_arr.0.flip_bit(parity_bit);
             }
+        }
+
+        if !output_arr.total_parity_is_even() {
+            output_arr.set_bit_high(0);
         }
 
         output_arr
