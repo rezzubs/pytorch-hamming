@@ -52,6 +52,7 @@ print(evaluate(model))
 
 hamming_encode_module(model)
 hamming_layer_fi(model, 1000)
-hamming_decode_module(model)
+unmasked_faults = hamming_decode_module(model)
+print(f"Decoding finished with {unmasked_faults} unmasked faults")
 
 print(evaluate(model))
