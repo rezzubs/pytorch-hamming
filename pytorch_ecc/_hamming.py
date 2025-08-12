@@ -537,6 +537,31 @@ def hamming_fi(
     )
 
 
+def collect_supports_hamming_tensors(module: nn.Module) -> list[torch.Tensor]:
+    out = []
+    for child in module.children():
+        out += collect_supports_hamming_tensors(child)
+
+    if not isinstance(module, SupportsHamming):
+        return out
+
+    out.append(module.weight.data)
+
+    if module.bias is not None:
+        out.append(module.bias.data)
+
+    if not isinstance(module, nn.BatchNorm2d):
+        return out
+
+    if module.running_mean is not None:
+        out.append(module.running_mean.data)
+
+    if module.running_var is not None:
+        out.append(module.running_var.data)
+
+    return out
+
+
 def supports_hamming_fi(
     module: nn.Module,
     *,
@@ -544,8 +569,8 @@ def supports_hamming_fi(
     bit_error_rate: float | None = None,
     stats: HammingStats | None = None,
 ) -> None:
-    raise RuntimeError("unimplemented")
-    buffers = []
+    buffers = collect_supports_hamming_tensors(module)
+
     buffers_fi(
         buffers,
         num_faults=num_faults,
