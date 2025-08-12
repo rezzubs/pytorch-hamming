@@ -45,3 +45,4 @@ def evaluate(model: nn.Module):
 
 
 HammingStats.eval(model, 0.0002, evaluate).summary()
+HammingStats.eval_noprotect(model, 0.0002, evaluate).summary()

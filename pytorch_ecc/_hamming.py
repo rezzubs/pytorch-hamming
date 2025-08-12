@@ -50,10 +50,11 @@ class HammingStats:
     """Statistics for a encode, inject, decode cycle."""
 
     def __init__(self) -> None:
+        self.was_protected: bool = False
         self.accuracy: float | None = None
-        self.faults_in_encoded: list[int] = []
+        self.injected_faults: list[int] = []
         self.total_bits: int | None = None
-        self.unsuccessful_corrections: int = 0
+        self.unsuccessful_corrections: int | None = None
         self.non_matching_parameters: list[int] = []
 
     @classmethod
@@ -75,10 +76,27 @@ class HammingStats:
 
         return stats
 
+    @classmethod
+    def eval_noprotect(
+        cls,
+        module: nn.Module,
+        bit_error_rate: float,
+        accuracy_fn: Callable[[nn.Module], float],
+    ) -> HammingStats:
+        stats = cls()
+        original = copy.deepcopy(module)
+
+        supports_hamming_fi(module, bit_error_rate=bit_error_rate, stats=stats)
+
+        stats.accuracy = accuracy_fn(module)
+        stats.non_matching_parameters = compare_module_bitwise(module, original)
+
+        return stats
+
     def faulty_containers(self) -> dict[int, list[int]]:
         output: dict[int, list[int]] = dict()
 
-        for bit in self.faults_in_encoded:
+        for bit in self.injected_faults:
             container_idx = bit // BITS_PER_CONTAINER
             bit_idx = bit % BITS_PER_CONTAINER
 
@@ -102,24 +120,27 @@ class HammingStats:
 
     def summary(self) -> None:
         print("Fault Injection Summary:")
-        num_faults = len(self.faults_in_encoded)
+        num_faults = len(self.injected_faults)
         assert self.total_bits is not None
         print(
             f"  Injected {num_faults} faults across {self.total_bits} bits, BER: {num_faults / self.total_bits}"
         )
         print(f"  Accuracy: {self.accuracy:.2f}%")
 
-        faulty = self.faulty_containers()
-        exactly_one = len([v for v in faulty.values() if len(v) == 1])
-        exactly_two = len([v for v in faulty.values() if len(v) == 2])
-        three_or_more = len([v for v in faulty.values() if len(v) >= 3])
+        if self.was_protected:
+            faulty = self.faulty_containers()
+            exactly_one = len([v for v in faulty.values() if len(v) == 1])
+            exactly_two = len([v for v in faulty.values() if len(v) == 2])
+            three_or_more = len([v for v in faulty.values() if len(v) >= 3])
+            assert self.unsuccessful_corrections is not None
 
-        print(f"  {exactly_one} containers had exactly 1 fault")
-        print(f"  {exactly_two} containers had exactly 2 faults")
-        print(f"  {three_or_more} containers had 3 or more faults")
-        print(
-            f"  Decoding detected {self.unsuccessful_corrections} non-correctable containers (an even number of faults or bit 0)"
-        )
+            print(f"  {exactly_one} containers had exactly 1 fault")
+            print(f"  {exactly_two} containers had exactly 2 faults")
+            print(f"  {three_or_more} containers had 3 or more faults")
+            print(
+                f"  Decoding detected {self.unsuccessful_corrections} non-correctable containers (an even number of faults or bit 0)"
+            )
+
         print(
             f"  {len(self.non_matching_parameters)} parameters were messed up from injection"
         )
@@ -364,6 +385,9 @@ def hamming_decode_module(module: nn.Module, *, stats: HammingStats | None = Non
 
     See `hamming_encode_module`.
     """
+    if stats is not None:
+        stats.was_protected = True
+
     for name, child in module.named_children():
         hamming_decode_module(child, stats=stats)
 
@@ -372,7 +396,10 @@ def hamming_decode_module(module: nn.Module, *, stats: HammingStats | None = Non
 
         result = child.decode()
         if stats is not None:
-            stats.unsuccessful_corrections += result[1]
+            if stats.unsuccessful_corrections is None:
+                stats.unsuccessful_corrections = result[1]
+            else:
+                stats.unsuccessful_corrections += result[1]
 
         setattr(module, name, result[0])
 
@@ -498,7 +525,7 @@ def buffers_fi(
     for _ in range(num_faults):
         bit_to_flip = flip_candidates.pop()
         if stats is not None:
-            stats.faults_in_encoded.append(bit_to_flip)
+            stats.injected_faults.append(bit_to_flip)
 
         tensor_list_flip_bit(buffers, bit_to_flip)
 
