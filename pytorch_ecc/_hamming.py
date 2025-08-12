@@ -1,6 +1,10 @@
 """Utilities for encoding PyTorch modules with hamming codes."""
 
+from __future__ import annotations
+
+import copy
 import random
+from collections.abc import Callable
 
 import numpy
 import torch
@@ -10,6 +14,7 @@ import hamming
 
 __all__ = [
     "HammingLayer",
+    "HammingStats",
     "hamming_decode64",
     "hamming_decode_module",
     "hamming_encode64",
@@ -19,6 +24,108 @@ __all__ = [
 
 HAMMING_DATA_PREFIX = "hamming_protected_"
 BITS_PER_BYTE = 8
+BYTES_PER_CONTAINER = 9
+BITS_PER_CONTAINER = BITS_PER_BYTE * BYTES_PER_CONTAINER
+
+
+def num_set_bits32(number: int) -> int:
+    """Count the high bits in an integer
+
+    `number` is expected to be a 32 bit integer.
+    """
+    # Force an unsigned 32 bit representation. Otherwise -1 >> 1 will cause an
+    # infinite loop.
+    number = number & 0xFFFFFFFF
+    count = 0
+    while number != 0:
+        if number & 1:
+            count += 1
+        number >>= 1
+
+    return count
+
+
+class HammingStats:
+    """Statistics for a encode, inject, decode cycle."""
+
+    def __init__(self) -> None:
+        self.accuracy: float | None = None
+        self.faults_in_encoded: list[int] = []
+        self.total_bits: int | None = None
+        self.unsuccessful_corrections: int = 0
+        self.non_matching_parameters: list[int] = []
+
+    @classmethod
+    def eval(
+        cls,
+        module: nn.Module,
+        bit_error_rate: float,
+        accuracy_fn: Callable[[nn.Module], float],
+    ) -> HammingStats:
+        stats = cls()
+        original = copy.deepcopy(module)
+
+        hamming_encode_module(module)
+        hamming_layer_fi(module, bit_error_rate=bit_error_rate, stats=stats)
+        hamming_decode_module(module, stats=stats)
+
+        stats.accuracy = accuracy_fn(module)
+        stats.non_matching_parameters = compare_module_bitwise(module, original)
+
+        return stats
+
+    def faulty_containers(self) -> dict[int, list[int]]:
+        output: dict[int, list[int]] = dict()
+
+        for bit in self.faults_in_encoded:
+            container_idx = bit // BITS_PER_CONTAINER
+            bit_idx = bit % BITS_PER_CONTAINER
+
+            faults_per_container = output.get(container_idx, [])
+            faults_per_container.append(bit_idx)
+            output[container_idx] = faults_per_container
+
+        return output
+
+    def n_flips_per_paramn(self) -> dict[int, int]:
+        """Return the number of parameters grouped by the number of bits flipped in each."""
+
+        out = dict()
+        for p in self.non_matching_parameters:
+            group = num_set_bits32(p)
+            assert group != 0
+            prev = out.get(group, 0)
+            out[group] = prev + 1
+
+        return out
+
+    def summary(self) -> None:
+        print("Fault Injection Summary:")
+        num_faults = len(self.faults_in_encoded)
+        assert self.total_bits is not None
+        print(
+            f"  Injected {num_faults} faults across {self.total_bits} bits, BER: {num_faults / self.total_bits}"
+        )
+        print(f"  Accuracy: {self.accuracy:.2f}%")
+
+        faulty = self.faulty_containers()
+        exactly_one = len([v for v in faulty.values() if len(v) == 1])
+        exactly_two = len([v for v in faulty.values() if len(v) == 2])
+        three_or_more = len([v for v in faulty.values() if len(v) >= 3])
+
+        print(f"  {exactly_one} containers had exactly 1 fault")
+        print(f"  {exactly_two} containers had exactly 2 faults")
+        print(f"  {three_or_more} containers had 3 or more faults")
+        print(
+            f"  Decoding detected {self.unsuccessful_corrections} non-correctable containers (an even number of faults or bit 0)"
+        )
+        print(
+            f"  {len(self.non_matching_parameters)} parameters were messed up from injection"
+        )
+        param_fault_groups = list(self.n_flips_per_paramn().items())
+        param_fault_groups.sort(key=lambda x: x[0])
+        for num_faults, num_entries in param_fault_groups:
+            print(f"  {num_entries} parameters had {num_faults} faults")
 
 
 def hamming_encode64(t: torch.Tensor) -> torch.Tensor:
@@ -67,6 +174,63 @@ def hamming_decode64(t: torch.Tensor) -> tuple[torch.Tensor, int]:
 
 
 SupportsHamming = nn.Linear | nn.Conv2d | nn.BatchNorm2d
+
+
+def compare_parameter_bitwise(a: torch.Tensor, b: torch.Tensor) -> list[int]:
+    assert a.shape == b.shape
+    assert a.dtype == b.dtype == torch.float32
+
+    out = []
+    for a_item, b_item in zip(a.flatten(), b.flatten(), strict=True):
+        a_bits = int(a_item.view(torch.int32).item())
+        b_bits = int(b_item.view(torch.int32).item())
+
+        xor = a_bits ^ b_bits
+        # NOTE: != because the most significant bit of i32 is the sign bit,
+        # therefore we need to account for negative values.
+        if xor != 0:
+            out.append(xor)
+    return out
+
+
+def compare_module_bitwise(a: nn.Module, b: nn.Module) -> list[int]:
+    """Recursively compare `SupportsHamming` children and return a bitwise xor of non-matching items.
+
+    The modules are expected to have an identical representation.
+    """
+    out = []
+    for a_child, b_child in zip(a.children(), b.children(), strict=True):
+        out += compare_module_bitwise(a_child, b_child)
+
+    if not isinstance(a, SupportsHamming):
+        assert not isinstance(b, SupportsHamming)
+        return out
+    if not isinstance(b, SupportsHamming):
+        assert not isinstance(a, SupportsHamming)
+        return out
+
+    out += compare_parameter_bitwise(a.weight, b.weight)
+    if a.bias is not None:
+        assert b.bias is not None
+        out += compare_parameter_bitwise(a.bias, b.bias)
+
+    if not isinstance(a, nn.BatchNorm2d):
+        assert not isinstance(b, nn.BatchNorm2d)
+        return out
+
+    if a.running_mean is not None:
+        assert b.running_mean is not None
+        assert not isinstance(a.running_mean, nn.Module)
+        assert not isinstance(b.running_mean, nn.Module)
+        out += compare_parameter_bitwise(a.running_mean, b.running_mean)
+
+    if a.running_var is not None:
+        assert b.running_var is not None
+        assert not isinstance(a.running_var, nn.Module)
+        assert not isinstance(b.running_var, nn.Module)
+        out += compare_parameter_bitwise(a.running_var, b.running_var)
+
+    return out
 
 
 class HammingLayer(nn.Module):
@@ -192,28 +356,24 @@ def hamming_encode_module(module: nn.Module) -> None:
         setattr(module, name, HammingLayer(child))
 
 
-def hamming_decode_module(module: nn.Module) -> int:
+def hamming_decode_module(module: nn.Module, *, stats: HammingStats | None = None):
     """Decodes all `HammingLayer` children into their original instances.
 
     This corrects all single bit errors in a memory line caused by `hamming_layer_fi`.
 
-    Returns the number of containers which the ECC failed to protect.
-
     See `hamming_encode_module`.
     """
-    total_failed = 0
     for name, child in module.named_children():
-        total_failed += hamming_decode_module(child)
+        hamming_decode_module(child, stats=stats)
 
         if not isinstance(child, HammingLayer):
             continue
 
         result = child.decode()
-        total_failed += result[1]
+        if stats is not None:
+            stats.unsuccessful_corrections += result[1]
 
         setattr(module, name, result[0])
-
-    return total_failed
 
 
 def tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
@@ -268,6 +428,7 @@ def hamming_layer_fi(
     *,
     num_faults: int = 0,
     bit_error_rate: float | None = None,
+    stats: HammingStats | None = None,
 ) -> None:
     """Inject faults uniformly into `HammingLayer` children of the module.
 
@@ -288,6 +449,10 @@ def hamming_layer_fi(
     )
 
     total_num_bits = sum([t.numel() * BITS_PER_BYTE for t in protected_buffers])
+
+    if stats is not None:
+        stats.total_bits = total_num_bits
+
     if total_num_bits < num_faults:
         raise ValueError(
             f"The module has {total_num_bits} bits worth of unprotected data, "
@@ -307,5 +472,7 @@ def hamming_layer_fi(
     print(f"Injecting {num_faults} faults")
     for _ in range(num_faults):
         bit_to_flip = flip_candidates.pop()
+        if stats is not None:
+            stats.faults_in_encoded.append(bit_to_flip)
 
         tensor_list_flip_bit(protected_buffers, bit_to_flip)
