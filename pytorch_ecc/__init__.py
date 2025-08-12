@@ -8,7 +8,8 @@ from pytorch_ecc._hamming import (
     hamming_decode_module,
     hamming_encode64,
     hamming_encode_module,
-    hamming_layer_fi,
+    hamming_fi,
+    supports_hamming_fi,
 )
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "hamming_decode_module",
     "hamming_encode64",
     "hamming_encode_module",
-    "hamming_layer_fi",
+    "hamming_fi",
+    "supports_hamming_fi",
 ]
