@@ -19,7 +19,8 @@ __all__ = [
     "hamming_decode_module",
     "hamming_encode64",
     "hamming_encode_module",
-    "hamming_layer_fi",
+    "hamming_fi",
+    "supports_hamming_fi",
 ]
 
 HAMMING_DATA_PREFIX = "hamming_protected_"
@@ -49,10 +50,11 @@ class HammingStats:
     """Statistics for a encode, inject, decode cycle."""
 
     def __init__(self) -> None:
+        self.was_protected: bool = False
         self.accuracy: float | None = None
-        self.faults_in_encoded: list[int] = []
+        self.injected_faults: list[int] = []
         self.total_bits: int | None = None
-        self.unsuccessful_corrections: int = 0
+        self.unsuccessful_corrections: int | None = None
         self.non_matching_parameters: list[int] = []
 
     @classmethod
@@ -66,8 +68,25 @@ class HammingStats:
         original = copy.deepcopy(module)
 
         hamming_encode_module(module)
-        hamming_layer_fi(module, bit_error_rate=bit_error_rate, stats=stats)
+        hamming_fi(module, bit_error_rate=bit_error_rate, stats=stats)
         hamming_decode_module(module, stats=stats)
+
+        stats.accuracy = accuracy_fn(module)
+        stats.non_matching_parameters = compare_module_bitwise(module, original)
+
+        return stats
+
+    @classmethod
+    def eval_noprotect(
+        cls,
+        module: nn.Module,
+        bit_error_rate: float,
+        accuracy_fn: Callable[[nn.Module], float],
+    ) -> HammingStats:
+        stats = cls()
+        original = copy.deepcopy(module)
+
+        supports_hamming_fi(module, bit_error_rate=bit_error_rate, stats=stats)
 
         stats.accuracy = accuracy_fn(module)
         stats.non_matching_parameters = compare_module_bitwise(module, original)
@@ -77,7 +96,7 @@ class HammingStats:
     def faulty_containers(self) -> dict[int, list[int]]:
         output: dict[int, list[int]] = dict()
 
-        for bit in self.faults_in_encoded:
+        for bit in self.injected_faults:
             container_idx = bit // BITS_PER_CONTAINER
             bit_idx = bit % BITS_PER_CONTAINER
 
@@ -101,24 +120,27 @@ class HammingStats:
 
     def summary(self) -> None:
         print("Fault Injection Summary:")
-        num_faults = len(self.faults_in_encoded)
+        num_faults = len(self.injected_faults)
         assert self.total_bits is not None
         print(
             f"  Injected {num_faults} faults across {self.total_bits} bits, BER: {num_faults / self.total_bits}"
         )
         print(f"  Accuracy: {self.accuracy:.2f}%")
 
-        faulty = self.faulty_containers()
-        exactly_one = len([v for v in faulty.values() if len(v) == 1])
-        exactly_two = len([v for v in faulty.values() if len(v) == 2])
-        three_or_more = len([v for v in faulty.values() if len(v) >= 3])
+        if self.was_protected:
+            faulty = self.faulty_containers()
+            exactly_one = len([v for v in faulty.values() if len(v) == 1])
+            exactly_two = len([v for v in faulty.values() if len(v) == 2])
+            three_or_more = len([v for v in faulty.values() if len(v) >= 3])
+            assert self.unsuccessful_corrections is not None
 
-        print(f"  {exactly_one} containers had exactly 1 fault")
-        print(f"  {exactly_two} containers had exactly 2 faults")
-        print(f"  {three_or_more} containers had 3 or more faults")
-        print(
-            f"  Decoding detected {self.unsuccessful_corrections} non-correctable containers (an even number of faults or bit 0)"
-        )
+            print(f"  {exactly_one} containers had exactly 1 fault")
+            print(f"  {exactly_two} containers had exactly 2 faults")
+            print(f"  {three_or_more} containers had 3 or more faults")
+            print(
+                f"  Decoding detected {self.unsuccessful_corrections} non-correctable containers (an even number of faults or bit 0)"
+            )
+
         print(
             f"  {len(self.non_matching_parameters)} parameters were messed up from injection"
         )
@@ -363,6 +385,9 @@ def hamming_decode_module(module: nn.Module, *, stats: HammingStats | None = Non
 
     See `hamming_encode_module`.
     """
+    if stats is not None:
+        stats.was_protected = True
+
     for name, child in module.named_children():
         hamming_decode_module(child, stats=stats)
 
@@ -371,12 +396,38 @@ def hamming_decode_module(module: nn.Module, *, stats: HammingStats | None = Non
 
         result = child.decode()
         if stats is not None:
-            stats.unsuccessful_corrections += result[1]
+            if stats.unsuccessful_corrections is None:
+                stats.unsuccessful_corrections = result[1]
+            else:
+                stats.unsuccessful_corrections += result[1]
 
         setattr(module, name, result[0])
 
 
-def tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
+def tensor_list_dtype(buffers: list[torch.Tensor]) -> torch.dtype:
+    if len(buffers) == 0:
+        raise ValueError("Expected at least 1 element")
+
+    dtype = buffers[0].dtype
+    for buf in buffers[1:]:
+        if buf.dtype != dtype:
+            raise ValueError(
+                f"Expected all tensors to have the same datatype, got {dtype} and {buf.dtype}"
+            )
+
+    return dtype
+
+
+def bits_per_dtype(dtype: torch.dtype) -> int:
+    if dtype == torch.uint8:
+        return 8
+    elif dtype == torch.float32:
+        return 32
+    else:
+        raise ValueError(f"Unsupported datatype {dtype}")
+
+
+def uint8_tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
     """Flip a single bit in a uint8 tensor.
 
     The values in the tensor are treated as a continuous stream of bits.
@@ -386,15 +437,46 @@ def tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
     if len(t.shape) != 1:
         raise ValueError(f"Expected a single dimensional tensor, got shape {t.shape}")
 
-    num_bits = t.numel() * BITS_PER_BYTE
+    dtype_bits = bits_per_dtype(torch.uint8)
+
+    num_bits = t.numel() * dtype_bits
 
     if bit_index >= num_bits:
         raise ValueError(f"Tensor has {num_bits} bits, got index {bit_index}")
 
-    byte_index = bit_index // BITS_PER_BYTE
-    true_bit_index = bit_index % BITS_PER_BYTE
+    byte_index = bit_index // dtype_bits
+    true_bit_index = bit_index % dtype_bits
 
     t[byte_index] = t[byte_index] ^ (1 << true_bit_index)
+
+
+def float32_tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
+    if t.dtype != torch.float32:
+        raise ValueError(f"Expected float32 tensor, got {t.dtype}")
+    if len(t.shape) != 1:
+        raise ValueError(f"Expected a single dimensional tensor, got shape {t.shape}")
+
+    dtype_bits = bits_per_dtype(torch.float32)
+
+    num_bits = t.numel() * dtype_bits
+
+    if bit_index >= num_bits:
+        raise ValueError(f"Tensor has {num_bits} bits, got index {bit_index}")
+
+    byte_index = bit_index // dtype_bits
+    true_bit_index = bit_index % dtype_bits
+
+    bits = t[byte_index].view(torch.int32)
+    faulty = (bits ^ (1 << true_bit_index)).view(torch.float32)
+
+    t[byte_index] = faulty
+
+
+def tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
+    if t.dtype == torch.uint8:
+        uint8_tensor_flip_bit(t, bit_index)
+    elif t.dtype == torch.float32:
+        float32_tensor_flip_bit(t, bit_index)
 
 
 def tensor_list_flip_bit(ts: list[torch.Tensor], bit_index: int) -> None:
@@ -402,9 +484,12 @@ def tensor_list_flip_bit(ts: list[torch.Tensor], bit_index: int) -> None:
 
     The list of tensors are interpreted as a continuous stream of bits.
     """
+    dtype = tensor_list_dtype(ts)
+    dtype_bits = bits_per_dtype(dtype)
+
     start_bit = 0
     for t in ts:
-        num_bits = t.numel() * BITS_PER_BYTE
+        num_bits = t.numel() * dtype_bits
         first_bit_of_next = start_bit + num_bits
 
         if first_bit_of_next <= bit_index:
@@ -417,38 +502,28 @@ def tensor_list_flip_bit(ts: list[torch.Tensor], bit_index: int) -> None:
         tensor_flip_bit(t, t_bit_index)
         return
 
-    total_num_bits = sum([t.numel() * BITS_PER_BYTE for t in ts])
+    total_num_bits = sum([t.numel() * dtype_bits for t in ts])
     raise ValueError(
         f"Tensor list has {total_num_bits} bits in total, got index {bit_index}"
     )
 
 
-def hamming_layer_fi(
-    module: nn.Module,
+def buffers_fi(
+    buffers: list[torch.Tensor],
     *,
     num_faults: int = 0,
     bit_error_rate: float | None = None,
     stats: HammingStats | None = None,
 ) -> None:
-    """Inject faults uniformly into `HammingLayer` children of the module.
+    """Perform fault injection on a series of tensors.
 
-    All bit flips will be unique.
+    These tensors will be treated as one large buffer and must have the same datatype.
 
-    Args:
-        num_flips: How many bits to flip.
-        bit_error_rate:
-            Compute `num_bits` as a percentage of the total number of bits.
-            Overrides `num_flips`.
-
-    See `hamming_encode_module`.
+    Supported datatypes are uint8 and float32.
     """
-    protected_buffers = list(
-        x[1]
-        for x in module.named_buffers(recurse=True, remove_duplicate=False)
-        if HAMMING_DATA_PREFIX in x[0]
-    )
+    dtype = tensor_list_dtype(buffers)
 
-    total_num_bits = sum([t.numel() * BITS_PER_BYTE for t in protected_buffers])
+    total_num_bits = sum([t.numel() * bits_per_dtype(dtype) for t in buffers])
 
     if stats is not None:
         stats.total_bits = total_num_bits
@@ -469,10 +544,85 @@ def hamming_layer_fi(
     flip_candidates = list(range(total_num_bits))
     random.shuffle(flip_candidates)
 
-    print(f"Injecting {num_faults} faults")
     for _ in range(num_faults):
         bit_to_flip = flip_candidates.pop()
         if stats is not None:
-            stats.faults_in_encoded.append(bit_to_flip)
+            stats.injected_faults.append(bit_to_flip)
 
-        tensor_list_flip_bit(protected_buffers, bit_to_flip)
+        tensor_list_flip_bit(buffers, bit_to_flip)
+
+
+def hamming_fi(
+    module: nn.Module,
+    *,
+    num_faults: int = 0,
+    bit_error_rate: float | None = None,
+    stats: HammingStats | None = None,
+) -> None:
+    """Inject faults uniformly into `HammingLayer` children of the module.
+
+    All bit flips will be unique.
+
+    Args:
+        num_flips: How many bits to flip.
+        bit_error_rate:
+            Compute `num_bits` as a percentage of the total number of bits.
+            Overrides `num_flips`.
+
+    See `hamming_encode_module` to prepare the input.
+    See `supports_hamming_fi` for the unprotected variant.
+    """
+    protected_buffers = list(
+        x[1]
+        for x in module.named_buffers(recurse=True, remove_duplicate=False)
+        if HAMMING_DATA_PREFIX in x[0]
+    )
+
+    buffers_fi(
+        protected_buffers,
+        num_faults=num_faults,
+        bit_error_rate=bit_error_rate,
+        stats=stats,
+    )
+
+
+def collect_supports_hamming_tensors(module: nn.Module) -> list[torch.Tensor]:
+    out = []
+    for child in module.children():
+        out += collect_supports_hamming_tensors(child)
+
+    if not isinstance(module, SupportsHamming):
+        return out
+
+    out.append(module.weight.data.flatten())
+
+    if module.bias is not None:
+        out.append(module.bias.data.flatten())
+
+    if not isinstance(module, nn.BatchNorm2d):
+        return out
+
+    if module.running_mean is not None:
+        out.append(module.running_mean.data.flatten())
+
+    if module.running_var is not None:
+        out.append(module.running_var.data.flatten())
+
+    return out
+
+
+def supports_hamming_fi(
+    module: nn.Module,
+    *,
+    num_faults: int = 0,
+    bit_error_rate: float | None = None,
+    stats: HammingStats | None = None,
+) -> None:
+    buffers = collect_supports_hamming_tensors(module)
+
+    buffers_fi(
+        buffers,
+        num_faults=num_faults,
+        bit_error_rate=bit_error_rate,
+        stats=stats,
+    )
