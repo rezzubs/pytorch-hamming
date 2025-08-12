@@ -148,14 +148,15 @@ def compare_parameter_bitwise(a: torch.Tensor, b: torch.Tensor) -> list[int]:
     assert a.dtype == b.dtype == torch.float32
 
     out = []
-    for a_val, b_val in zip(a.flatten(), b.flatten(), strict=True):
-        a_val = int(a_val.to(torch.int32).item())
-        b_val = int(b_val.to(torch.int32).item())
+    for a_item, b_item in zip(a.flatten(), b.flatten(), strict=True):
+        a_bits = int(a_item.view(torch.int32).item())
+        b_bits = int(b_item.view(torch.int32).item())
 
-        xor = a_val ^ b_val
-        if xor > 0:
+        xor = a_bits ^ b_bits
+        # NOTE: != because the most significant bit of i32 is the sign bit,
+        # therefore we need to account for negative values.
+        if xor != 0:
             out.append(xor)
-
     return out
 
 
