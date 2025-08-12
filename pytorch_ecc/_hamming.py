@@ -28,6 +28,23 @@ BYTES_PER_CONTAINER = 9
 BITS_PER_CONTAINER = BITS_PER_BYTE * BYTES_PER_CONTAINER
 
 
+def num_set_bits32(number: int) -> int:
+    """Count the high bits in an integer
+
+    `number` is expected to be a 32 bit integer.
+    """
+    # Force an unsigned 32 bit representation. Otherwise -1 >> 1 will cause an
+    # infinite loop.
+    number = number & 0xFFFFFFFF
+    count = 0
+    while number != 0:
+        if number & 1:
+            count += 1
+        number >>= 1
+
+    return count
+
+
 class HammingStats:
     """Statistics for a encode, inject, decode cycle."""
 
@@ -70,6 +87,18 @@ class HammingStats:
 
         return output
 
+    def n_flips_per_paramn(self) -> dict[int, int]:
+        """Return the number of parameters grouped by the number of bits flipped in each."""
+
+        out = dict()
+        for p in self.non_matching_parameters:
+            group = num_set_bits32(p)
+            assert group != 0
+            prev = out.get(group, 0)
+            out[group] = prev + 1
+
+        return out
+
     def summary(self) -> None:
         print("Fault Injection Summary:")
         num_faults = len(self.faults_in_encoded)
@@ -93,6 +122,10 @@ class HammingStats:
         print(
             f"  {len(self.non_matching_parameters)} parameters were messed up from injection"
         )
+        param_fault_groups = list(self.n_flips_per_paramn().items())
+        param_fault_groups.sort(key=lambda x: x[0])
+        for num_faults, num_entries in param_fault_groups:
+            print(f"  {num_entries} parameters had {num_faults} faults")
 
 
 def hamming_encode64(t: torch.Tensor) -> torch.Tensor:
