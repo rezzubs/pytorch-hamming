@@ -450,11 +450,33 @@ def uint8_tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
     t[byte_index] = t[byte_index] ^ (1 << true_bit_index)
 
 
+def float32_tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
+    if t.dtype != torch.float32:
+        raise ValueError(f"Expected float32 tensor, got {t.dtype}")
+    if len(t.shape) != 1:
+        raise ValueError(f"Expected a single dimensional tensor, got shape {t.shape}")
+
+    dtype_bits = bits_per_dtype(torch.float32)
+
+    num_bits = t.numel() * dtype_bits
+
+    if bit_index >= num_bits:
+        raise ValueError(f"Tensor has {num_bits} bits, got index {bit_index}")
+
+    byte_index = bit_index // dtype_bits
+    true_bit_index = bit_index % dtype_bits
+
+    bits = t[byte_index].view(torch.int32)
+    faulty = (bits ^ (1 << true_bit_index)).view(torch.float32)
+
+    t[byte_index] = faulty
+
+
 def tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
     if t.dtype == torch.uint8:
         uint8_tensor_flip_bit(t, bit_index)
     elif t.dtype == torch.float32:
-        raise RuntimeError("unimplemented")
+        float32_tensor_flip_bit(t, bit_index)
 
 
 def tensor_list_flip_bit(ts: list[torch.Tensor], bit_index: int) -> None:
@@ -572,19 +594,19 @@ def collect_supports_hamming_tensors(module: nn.Module) -> list[torch.Tensor]:
     if not isinstance(module, SupportsHamming):
         return out
 
-    out.append(module.weight.data)
+    out.append(module.weight.data.flatten())
 
     if module.bias is not None:
-        out.append(module.bias.data)
+        out.append(module.bias.data.flatten())
 
     if not isinstance(module, nn.BatchNorm2d):
         return out
 
     if module.running_mean is not None:
-        out.append(module.running_mean.data)
+        out.append(module.running_mean.data.flatten())
 
     if module.running_var is not None:
-        out.append(module.running_var.data)
+        out.append(module.running_var.data.flatten())
 
     return out
 
