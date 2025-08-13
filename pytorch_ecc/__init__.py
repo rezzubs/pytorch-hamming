@@ -12,7 +12,10 @@ from pytorch_ecc._hamming import (
     supports_hamming_fi,
 )
 
+from pytorch_ecc._data import Data
+
 __all__ = [
+    "Data",
     "HammingLayer",
     "HammingStats",
     "SupportsHamming",
