@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import random
 from collections.abc import Callable
+from typing import Any
 
 import numpy
 import torch
@@ -55,7 +56,20 @@ class HammingStats:
         self.injected_faults: list[int] = []
         self.total_bits: int | None = None
         self.unsuccessful_corrections: int | None = None
+        # The xors between all true and faulty parameters.
         self.non_matching_parameters: list[int] = []
+
+    def __eq__(self, value: object, /) -> bool:
+        if not isinstance(value, HammingStats):
+            raise ValueError(f"Can't compare HammingStats with {type(value)}")
+        return (
+            self.was_protected == value.was_protected
+            and self.accuracy == value.accuracy
+            and self.injected_faults == value.injected_faults
+            and self.total_bits == value.total_bits
+            and self.unsuccessful_corrections == value.unsuccessful_corrections
+            and self.non_matching_parameters == value.non_matching_parameters
+        )
 
     @classmethod
     def eval(
@@ -148,6 +162,79 @@ class HammingStats:
         param_fault_groups.sort(key=lambda x: x[0])
         for num_faults, num_entries in param_fault_groups:
             print(f"  {num_entries} parameters had {num_faults} faults")
+
+    def to_dict(self) -> dict:
+        out = dict()
+
+        if self.accuracy is None:
+            raise ValueError("Incomplete stats, accuracy missing, run inference")
+
+        out["accuracy"] = self.accuracy
+        out["injected_faults"] = self.injected_faults
+
+        if self.total_bits is None:
+            raise ValueError(
+                "Incomplete stats, injected_faults missing, run fault injection"
+            )
+
+        out["total_bits"] = self.total_bits
+
+        out["was_protected"] = self.was_protected
+        if self.was_protected:
+            assert self.unsuccessful_corrections is not None
+            out["unsuccessful_corrections"] = self.unsuccessful_corrections
+        else:
+            assert self.unsuccessful_corrections is None
+
+        out["non_matching_parameters"] = self.non_matching_parameters
+
+        return out
+
+    @classmethod
+    def from_dict(cls, obj: Any) -> HammingStats:
+        out = cls()
+
+        if not isinstance(obj, dict):
+            raise ValueError(f"Expected a dictionary, got {type(obj)}")
+
+        accuracy = obj["accuracy"]
+        if not isinstance(accuracy, float):
+            raise ValueError(f"Expected float, got {type(accuracy)}")
+        out.accuracy = accuracy
+
+        injected_faults = obj["injected_faults"]
+        if not isinstance(injected_faults, list):
+            raise ValueError(f"Expected a list, got {type(injected_faults)}")
+        for x in injected_faults:
+            if not isinstance(x, int):
+                raise ValueError(f"Expected int, got {type(x)}")
+        out.injected_faults = injected_faults
+
+        total_bits = obj["total_bits"]
+        if not isinstance(total_bits, int):
+            raise ValueError(f"Expected int, got {type(total_bits)}")
+        out.total_bits = total_bits
+
+        was_protected = obj["was_protected"]
+        if not isinstance(was_protected, bool):
+            raise ValueError(f"Expected bool, got {type(was_protected)}")
+        out.was_protected = was_protected
+
+        if was_protected:
+            unsuccessful_corrections = obj["unsuccessful_corrections"]
+            if not isinstance(unsuccessful_corrections, int):
+                raise ValueError(f"Expected int, got {type(unsuccessful_corrections)}")
+            out.unsuccessful_corrections = unsuccessful_corrections
+
+        non_matching_parameters = obj["non_matching_parameters"]
+        if not isinstance(non_matching_parameters, list):
+            raise ValueError(f"Expected a list, got {type(non_matching_parameters)}")
+        for x in non_matching_parameters:
+            if not isinstance(x, int):
+                raise ValueError(f"Expected int, got {type(x)}")
+        out.non_matching_parameters = non_matching_parameters
+
+        return out
 
 
 def hamming_encode64(t: torch.Tensor) -> torch.Tensor:

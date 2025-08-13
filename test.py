@@ -44,5 +44,10 @@ def evaluate(model: nn.Module):
     return (num_correct / num_samples * 100).item()
 
 
-HammingStats.eval(model, 0.0002, evaluate).summary()
-HammingStats.eval_noprotect(model, 0.0002, evaluate).summary()
+stats = HammingStats.eval(model, 0.0002, evaluate)
+stats.summary()
+assert stats == HammingStats.from_dict(stats.to_dict())
+
+stats = HammingStats.eval_noprotect(model, 0.0002, evaluate)
+stats.summary()
+assert stats == HammingStats.from_dict(stats.to_dict())
