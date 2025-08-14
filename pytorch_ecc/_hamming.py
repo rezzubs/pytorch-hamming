@@ -120,6 +120,10 @@ class HammingStats:
 
         return output
 
+    def get_accuracy(self) -> float:
+        assert self.accuracy is not None
+        return self.accuracy
+
     def n_flips_per_paramn(self) -> dict[int, int]:
         """Return the number of parameters grouped by the number of bits flipped in each."""
 
@@ -131,6 +135,10 @@ class HammingStats:
             out[group] = prev + 1
 
         return out
+
+    def bit_error_rate(self) -> float:
+        assert self.total_bits is not None
+        return len(self.injected_faults) / self.total_bits
 
     def summary(self) -> None:
         print("Fault Injection Summary:")
