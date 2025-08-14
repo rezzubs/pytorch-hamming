@@ -45,8 +45,8 @@ def draw_statistics(stats: list[Statistic], ax: Axes) -> None:
     ax.set_xscale("log", base=10)
     ax.plot(markers, average, color="C0")
     ax.errorbar(markers, average, yerr=std, capsize=5, color="C0")
-    ax.plot(markers, min, "o", color="C0")
-    ax.plot(markers, max, "o", color="C0")
+    ax.scatter(markers, min, s=4, color="C0")
+    ax.scatter(markers, max, s=4, color="C0")
 
 
 def draw_data_stats(data: Data):
@@ -67,12 +67,16 @@ def draw_data_stats(data: Data):
 
     protected_accuracy = [
         Statistic(
-            "Acuracy of Protected", "BER", "%", ber, [e.get_accuracy() for e in entries]
+            "Accuracy of protected",
+            "BER",
+            "%",
+            ber,
+            [e.get_accuracy() for e in entries],
         )
         for ber, entries in protected_base
     ]
 
-    protected_container_2_or_more = [
+    protected_container_2_or_more_faults = [
         Statistic(
             "Cases of 2 or more faults in protected container",
             "BER",
@@ -90,7 +94,7 @@ def draw_data_stats(data: Data):
         Statistic(
             "BER of decoded parameters",
             "BER",
-            "count",
+            "Output BER",
             ber,
             [e.output_bit_error_rate() for e in entries],
         )
@@ -101,7 +105,7 @@ def draw_data_stats(data: Data):
         Statistic(
             "Rate of sucessful protections",
             "BER",
-            "count",
+            "rate",
             ber,
             [e.protection_rate() for e in entries],
         )
@@ -110,7 +114,7 @@ def draw_data_stats(data: Data):
 
     unprotected_accuracy = [
         Statistic(
-            "Acuracy of Unprotected",
+            "Accuracy of unprotected",
             "BER",
             "%",
             ber,
@@ -119,9 +123,16 @@ def draw_data_stats(data: Data):
         for ber, entries in unprotected_base
     ]
 
-    fig, ax = plt.subplots()
-    draw_statistics(protected_accuracy, ax)
-    plt.show()
+    fig, (ax0, ax1, ax2, ax3, ax4) = plt.subplots(nrows=5, ncols=1, figsize=(6, 18))
+
+    draw_statistics(unprotected_accuracy, ax0)
+    draw_statistics(protected_accuracy, ax1)
+    draw_statistics(output_bit_error_rate, ax2)
+    draw_statistics(protected_container_2_or_more_faults, ax3)
+    draw_statistics(protection_rate, ax4)
+
+    plt.tight_layout()
+    plt.savefig("result.png", dpi=400)
 
 
 if __name__ == "__main__":
