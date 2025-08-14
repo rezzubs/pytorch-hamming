@@ -72,6 +72,42 @@ def draw_data_stats(data: Data):
         for ber, entries in protected_base
     ]
 
+    protected_container_2_or_more = [
+        Statistic(
+            "Cases of 2 or more faults in protected container",
+            "BER",
+            "count",
+            ber,
+            [
+                len([v for v in e.faulty_containers().values() if len(v) >= 2])
+                for e in entries
+            ],
+        )
+        for ber, entries in protected_base
+    ]
+
+    output_bit_error_rate = [
+        Statistic(
+            "BER of decoded parameters",
+            "BER",
+            "count",
+            ber,
+            [e.output_bit_error_rate() for e in entries],
+        )
+        for ber, entries in protected_base
+    ]
+
+    protection_rate = [
+        Statistic(
+            "Rate of sucessful protections",
+            "BER",
+            "count",
+            ber,
+            [e.protection_rate() for e in entries],
+        )
+        for ber, entries in protected_base
+    ]
+
     unprotected_accuracy = [
         Statistic(
             "Acuracy of Unprotected",

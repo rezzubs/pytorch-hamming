@@ -124,7 +124,7 @@ class HammingStats:
         assert self.accuracy is not None
         return self.accuracy
 
-    def n_flips_per_paramn(self) -> dict[int, int]:
+    def n_flips_per_param(self) -> dict[int, int]:
         """Return the number of parameters grouped by the number of bits flipped in each."""
 
         out = dict()
@@ -135,6 +135,23 @@ class HammingStats:
             out[group] = prev + 1
 
         return out
+
+    def num_faults(self) -> int:
+        return len(self.injected_faults)
+
+    def num_faults_in_result(self) -> int:
+        return sum([num_faulty for num_faulty in self.n_flips_per_param().values()])
+
+    def output_bit_error_rate(self) -> float:
+        assert self.total_bits is not None
+        return self.num_faults_in_result() / self.total_bits
+
+    def protection_rate(self) -> float:
+        return 1 - (
+            self.num_faults_in_result() / self.num_faults()
+            if self.num_faults() > 0
+            else 0
+        )
 
     def bit_error_rate(self) -> float:
         assert self.total_bits is not None
@@ -166,7 +183,7 @@ class HammingStats:
         print(
             f"  {len(self.non_matching_parameters)} parameters were messed up from injection"
         )
-        param_fault_groups = list(self.n_flips_per_paramn().items())
+        param_fault_groups = list(self.n_flips_per_param().items())
         param_fault_groups.sort(key=lambda x: x[0])
         for num_faults, num_entries in param_fault_groups:
             print(f"  {num_entries} parameters had {num_faults} faults")
