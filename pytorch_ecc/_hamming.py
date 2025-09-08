@@ -16,9 +16,9 @@ import hamming
 __all__ = [
     "HammingLayer",
     "HammingStats",
-    "hamming_decode64",
+    "hamming_decode_f32",
     "hamming_decode_module",
-    "hamming_encode64",
+    "hamming_encode_f32",
     "hamming_encode_module",
     "hamming_fi",
     "supports_hamming_fi",
@@ -262,8 +262,8 @@ class HammingStats:
         return out
 
 
-def hamming_encode64(t: torch.Tensor) -> torch.Tensor:
-    """Enocde a flattened tensor as 9 byte hamming codes.
+def hamming_encode_f32(t: torch.Tensor) -> torch.Tensor:
+    """Enocde a flattened float32 tensor as 9 byte hamming codes.
 
     Returns:
         A 1 dimensional tensor with dtype=uint8
@@ -279,13 +279,13 @@ def hamming_encode64(t: torch.Tensor) -> torch.Tensor:
         raise ValueError(f"Only float32 tensors are supported, got {t.dtype}")
 
     # FIXME: Ignored because there are no type signatures for the hamming module.
-    out: numpy.ndarray = hamming.encode64(t.numpy())  # pyright: ignore
+    out: numpy.ndarray = hamming.u64.encode_f32(t.numpy())  # pyright: ignore
 
     return torch.from_numpy(out)
 
 
-def hamming_decode64(t: torch.Tensor) -> tuple[torch.Tensor, int]:
-    """Decode the output of `hamming_encode64`.
+def hamming_decode_f32(t: torch.Tensor) -> tuple[torch.Tensor, int]:
+    """Decode the output of `hamming_encode_f32`.
 
     Returns:
         A 1 dimensional tensor with dtype=float32 and the number of faults that
@@ -302,7 +302,7 @@ def hamming_decode64(t: torch.Tensor) -> tuple[torch.Tensor, int]:
 
     # NOTE: Length checks are handled in rust.
     # FIXME: Ignored because there are no type signatures for the hamming module.
-    result: tuple[numpy.ndarray, int] = hamming.decode64(t.numpy())  # pyright: ignore
+    result: tuple[numpy.ndarray, int] = hamming.u64.decode_f32(t.numpy())  # pyright: ignore
 
     return torch.from_numpy(result[0]), result[1]
 
@@ -414,7 +414,7 @@ class HammingLayer(nn.Module):
         og = "hamming_original_" + name
         t = t.data
 
-        protected_data = hamming_encode64(t.flatten())
+        protected_data = hamming_encode_f32(t.flatten())
         self.register_buffer(HAMMING_DATA_PREFIX + name, protected_data)
 
         self.register_buffer(og + "_shape", torch.tensor(t.shape))
@@ -435,7 +435,7 @@ class HammingLayer(nn.Module):
 
         length = self.get_buffer(og + "_len").item()
 
-        result = hamming_decode64(protected_data)
+        result = hamming_decode_f32(protected_data)
         self._failed_decodings += result[1]
 
         return result[0][:length].reshape(shape)
