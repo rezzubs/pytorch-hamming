@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from matplotlib.axes import Axes
+
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
 
-
-from pytorch_ecc._data import Data
-from pytorch_ecc._hamming import HammingStats
+from hamming_utils import Data, HammingStats
 
 
 @dataclass

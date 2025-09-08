@@ -11,7 +11,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from pytorch_ecc import HammingStats
+from hamming_utils import HammingStats
 
 __all__ = ["Data"]
 

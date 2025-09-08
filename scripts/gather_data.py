@@ -1,6 +1,6 @@
 import argparse
 
-from pytorch_ecc import Data
+from hamming_utils import Data
 
 
 def main() -> None:

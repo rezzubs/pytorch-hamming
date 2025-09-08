@@ -12,7 +12,7 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 ///
 /// Currently only chunks of 8 bytes (module u64) is supported.
 #[pymodule]
-mod hamming {
+mod hamming_core {
     use super::*;
 
     /// Data will be encoded in groups of 8 bytes and the corresponding encoded version will equal 9

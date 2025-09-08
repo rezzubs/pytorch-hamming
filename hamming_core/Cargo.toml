@@ -1,11 +1,11 @@
 [package]
-name = "hamming"
+name = "hamming_core"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
-name = "hamming"
+name = "hamming_core"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]

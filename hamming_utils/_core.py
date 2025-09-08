@@ -11,17 +11,17 @@ import numpy
 import torch
 from torch import nn
 
-import hamming
+import hamming_core
 
 __all__ = [
     "HammingLayer",
     "HammingStats",
-    "hamming_decode_f32",
-    "hamming_decode_module",
-    "hamming_encode_f32",
-    "hamming_encode_module",
-    "hamming_fi",
-    "supports_hamming_fi",
+    "decode_f32",
+    "decode_module",
+    "encode_f32",
+    "encode_module",
+    "protected_fi",
+    "nonprotected_fi",
 ]
 
 HAMMING_DATA_PREFIX = "hamming_protected_"
@@ -81,9 +81,9 @@ class HammingStats:
         stats = cls()
         original = copy.deepcopy(module)
 
-        hamming_encode_module(module)
-        hamming_fi(module, bit_error_rate=bit_error_rate, stats=stats)
-        hamming_decode_module(module, stats=stats)
+        encode_module(module)
+        protected_fi(module, bit_error_rate=bit_error_rate, stats=stats)
+        decode_module(module, stats=stats)
 
         stats.accuracy = accuracy_fn(module)
         stats.non_matching_parameters = compare_module_bitwise(module, original)
@@ -100,7 +100,7 @@ class HammingStats:
         stats = cls()
         original = copy.deepcopy(module)
 
-        supports_hamming_fi(module, bit_error_rate=bit_error_rate, stats=stats)
+        nonprotected_fi(module, bit_error_rate=bit_error_rate, stats=stats)
 
         stats.accuracy = accuracy_fn(module)
         stats.non_matching_parameters = compare_module_bitwise(module, original)
@@ -262,7 +262,7 @@ class HammingStats:
         return out
 
 
-def hamming_encode_f32(t: torch.Tensor) -> torch.Tensor:
+def encode_f32(t: torch.Tensor) -> torch.Tensor:
     """Enocde a flattened float32 tensor as 9 byte hamming codes.
 
     Returns:
@@ -279,12 +279,12 @@ def hamming_encode_f32(t: torch.Tensor) -> torch.Tensor:
         raise ValueError(f"Only float32 tensors are supported, got {t.dtype}")
 
     # FIXME: Ignored because there are no type signatures for the hamming module.
-    out: numpy.ndarray = hamming.u64.encode_f32(t.numpy())  # pyright: ignore
+    out: numpy.ndarray = hamming_core.u64.encode_f32(t.numpy())  # pyright: ignore
 
     return torch.from_numpy(out)
 
 
-def hamming_decode_f32(t: torch.Tensor) -> tuple[torch.Tensor, int]:
+def decode_f32(t: torch.Tensor) -> tuple[torch.Tensor, int]:
     """Decode the output of `hamming_encode_f32`.
 
     Returns:
@@ -302,7 +302,7 @@ def hamming_decode_f32(t: torch.Tensor) -> tuple[torch.Tensor, int]:
 
     # NOTE: Length checks are handled in rust.
     # FIXME: Ignored because there are no type signatures for the hamming module.
-    result: tuple[numpy.ndarray, int] = hamming.u64.decode_f32(t.numpy())  # pyright: ignore
+    result: tuple[numpy.ndarray, int] = hamming_core.u64.decode_f32(t.numpy())  # pyright: ignore
 
     return torch.from_numpy(result[0]), result[1]
 
@@ -414,7 +414,7 @@ class HammingLayer(nn.Module):
         og = "hamming_original_" + name
         t = t.data
 
-        protected_data = hamming_encode_f32(t.flatten())
+        protected_data = encode_f32(t.flatten())
         self.register_buffer(HAMMING_DATA_PREFIX + name, protected_data)
 
         self.register_buffer(og + "_shape", torch.tensor(t.shape))
@@ -435,7 +435,7 @@ class HammingLayer(nn.Module):
 
         length = self.get_buffer(og + "_len").item()
 
-        result = hamming_decode_f32(protected_data)
+        result = decode_f32(protected_data)
         self._failed_decodings += result[1]
 
         return result[0][:length].reshape(shape)
@@ -471,7 +471,7 @@ class HammingLayer(nn.Module):
         )
 
 
-def hamming_encode_module(module: nn.Module) -> None:
+def encode_module(module: nn.Module) -> None:
     """Recursively replace child layers of the module with `HammingLayer`
 
     A module that has been prepared like this can be used as an input for
@@ -482,7 +482,7 @@ def hamming_encode_module(module: nn.Module) -> None:
     See `SupportsHamming` for supported layer types.
     """
     for name, child in module.named_children():
-        hamming_encode_module(child)
+        encode_module(child)
 
         if not isinstance(child, SupportsHamming):
             continue
@@ -490,7 +490,7 @@ def hamming_encode_module(module: nn.Module) -> None:
         setattr(module, name, HammingLayer(child))
 
 
-def hamming_decode_module(module: nn.Module, *, stats: HammingStats | None = None):
+def decode_module(module: nn.Module, *, stats: HammingStats | None = None):
     """Decodes all `HammingLayer` children into their original instances.
 
     This corrects all single bit errors in a memory line caused by `hamming_layer_fi`.
@@ -501,7 +501,7 @@ def hamming_decode_module(module: nn.Module, *, stats: HammingStats | None = Non
         stats.was_protected = True
 
     for name, child in module.named_children():
-        hamming_decode_module(child, stats=stats)
+        decode_module(child, stats=stats)
 
         if not isinstance(child, HammingLayer):
             continue
@@ -664,7 +664,7 @@ def buffers_fi(
         tensor_list_flip_bit(buffers, bit_to_flip)
 
 
-def hamming_fi(
+def protected_fi(
     module: nn.Module,
     *,
     num_faults: int = 0,
@@ -723,13 +723,14 @@ def collect_supports_hamming_tensors(module: nn.Module) -> list[torch.Tensor]:
     return out
 
 
-def supports_hamming_fi(
+def nonprotected_fi(
     module: nn.Module,
     *,
     num_faults: int = 0,
     bit_error_rate: float | None = None,
     stats: HammingStats | None = None,
 ) -> None:
+    """Uniformly inject faults into all modules which could be encoded as HammingLayers."""
     buffers = collect_supports_hamming_tensors(module)
 
     buffers_fi(
