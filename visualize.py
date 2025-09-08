@@ -90,24 +90,13 @@ def draw_data_stats(data: Data):
         for ber, entries in protected_base
     ]
 
-    output_bit_error_rate = [
-        Statistic(
-            "BER of decoded parameters",
-            "BER",
-            "Output BER",
-            ber,
-            [e.output_bit_error_rate() for e in entries],
-        )
-        for ber, entries in protected_base
-    ]
-
     protection_rate = [
         Statistic(
             "Rate of sucessful protections",
             "BER",
-            "rate",
+            "%",
             ber,
-            [e.protection_rate() for e in entries],
+            [e.protection_rate() * 100 for e in entries],
         )
         for ber, entries in protected_base
     ]
@@ -123,13 +112,12 @@ def draw_data_stats(data: Data):
         for ber, entries in unprotected_base
     ]
 
-    fig, (ax0, ax1, ax2, ax3, ax4) = plt.subplots(nrows=5, ncols=1, figsize=(6, 18))
+    fig, (ax0, ax1, ax2, ax3) = plt.subplots(nrows=4, ncols=1, figsize=(6, 14))
 
     draw_statistics(unprotected_accuracy, ax0)
     draw_statistics(protected_accuracy, ax1)
-    draw_statistics(output_bit_error_rate, ax2)
-    draw_statistics(protected_container_2_or_more_faults, ax3)
-    draw_statistics(protection_rate, ax4)
+    draw_statistics(protected_container_2_or_more_faults, ax2)
+    draw_statistics(protection_rate, ax3)
 
     plt.tight_layout()
     plt.savefig("result.png", dpi=400)
