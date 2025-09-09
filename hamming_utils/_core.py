@@ -17,15 +17,21 @@ if TYPE_CHECKING:
 
 __all__ = [
     "HammingLayer",
+    "decode_f16",
     "decode_f32",
     "decode_module",
+    "encode_f16",
     "encode_f32",
     "encode_module",
     "protected_fi",
     "nonprotected_fi",
 ]
 
-HAMMING_DATA_PREFIX = "hamming_protected_"
+DATA_PREFIX = "hamming_protected_"
+ORIGINAL_PREFIX = "hamming_original_"
+DTYPE_F32 = 0
+DTYPE_F16 = 1
+
 BITS_PER_BYTE = 8
 BYTES_PER_CONTAINER = 9
 BITS_PER_CONTAINER = BITS_PER_BYTE * BYTES_PER_CONTAINER
@@ -54,7 +60,7 @@ def encode_f32(t: torch.Tensor) -> torch.Tensor:
 
 
 def decode_f32(t: torch.Tensor) -> tuple[torch.Tensor, int]:
-    """Decode the output of `hamming_encode_f32`.
+    """Decode the output of `encode_f32`.
 
     Returns:
         A 1 dimensional tensor with dtype=float32 and the number of faults that
@@ -76,17 +82,71 @@ def decode_f32(t: torch.Tensor) -> tuple[torch.Tensor, int]:
     return torch.from_numpy(result[0]), result[1]
 
 
+def encode_f16(t: torch.Tensor) -> torch.Tensor:
+    """Enocde a flattened float32 tensor as 9 byte hamming codes.
+
+    Returns:
+        A 1 dimensional tensor with dtype=uint8
+
+    Note that encoding adds padding zeros to make the length a multiple of 4.
+    These need to be removed manually after decoding.
+    """
+    if len(t.shape) != 1:
+        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
+
+    if t.dtype != torch.float16:
+        raise ValueError(f"Expected dtype=float16, got {t.dtype}")
+
+    result: numpy.ndarray = hamming_core.u64.encode_u16(t.view(torch.uint16).numpy())  # pyright: ignore
+    torch_result = torch.from_numpy(result)
+    assert torch_result.dtype == torch.uint8
+
+    return torch_result
+
+
+def decode_f16(t: torch.Tensor) -> tuple[torch.Tensor, int]:
+    """Decode the output of `encode_f16`.
+
+    Returns:
+        A 1 dimensional tensor with dtype=float16 and the number of faults that
+        could not be corrected but were still detected.
+
+    Note that encoding adds padding zeros to make the length a multiple of 4.
+    These need to be removed manually after decoding.
+    """
+    if len(t.shape) != 1:
+        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
+
+    if t.dtype != torch.uint8:
+        raise ValueError(f"Expected dtype=uint8, got {t.dtype}")
+
+    # NOTE: Length checks are handled in rust.
+    # FIXME: Ignored because there are no type signatures for the hamming module.
+    result: tuple[numpy.ndarray, int] = hamming_core.u64.decode_u16(t.numpy())  # pyright: ignore
+    torch_result = torch.from_numpy(result[0])
+    assert torch_result.dtype == torch.uint16
+
+    return torch_result.view(torch.float16), result[1]
+
+
 SupportsHamming = nn.Linear | nn.Conv2d | nn.BatchNorm2d
 
 
 def compare_parameter_bitwise(a: torch.Tensor, b: torch.Tensor) -> list[int]:
     assert a.shape == b.shape
-    assert a.dtype == b.dtype == torch.float32
+    assert a.dtype == b.dtype
+
+    if a.dtype == torch.float32:
+        view_repr = torch.int32
+    elif a.dtype == torch.float16:
+        view_repr = torch.int16
+    else:
+        raise ValueError(f"Unsupported dtype {a.dtype}")
 
     out = []
     for a_item, b_item in zip(a.flatten(), b.flatten(), strict=True):
-        a_bits = int(a_item.view(torch.int32).item())
-        b_bits = int(b_item.view(torch.int32).item())
+        a_bits = int(a_item.view(view_repr).item())
+        b_bits = int(b_item.view(view_repr).item())
 
         xor = a_bits ^ b_bits
         # NOTE: != because the most significant bit of i32 is the sign bit,
@@ -180,31 +240,45 @@ class HammingLayer(nn.Module):
 
         See also `_decode_protected`.
         """
-        og = "hamming_original_" + name
+        og = ORIGINAL_PREFIX + name
         t = t.data
 
-        protected_data = encode_f32(t.flatten())
-        self.register_buffer(HAMMING_DATA_PREFIX + name, protected_data)
+        if t.dtype == torch.float32:
+            dtype = DTYPE_F32
+            protected_data = encode_f32(t.flatten())
+        elif t.dtype == torch.float16:
+            dtype = DTYPE_F16
+            protected_data = encode_f16(t.flatten())
+        else:
+            raise ValueError(f"Unsupported datatype {t.dtype}")
+        self.register_buffer(DATA_PREFIX + name, protected_data)
 
         self.register_buffer(og + "_shape", torch.tensor(t.shape))
-
         self.register_buffer(og + "_len", torch.tensor(t.numel()))
+        self.register_buffer(og + "_dtype", torch.tensor(dtype))
 
     def _decode_protected(self, name: str) -> torch.Tensor:
         """Decode a protected named parameter.
 
         See also `_protect_tensor`
         """
-        og = "hamming_original_" + name
+        og = ORIGINAL_PREFIX + name
 
-        protected_data = self.get_buffer(HAMMING_DATA_PREFIX + name)
+        protected_data = self.get_buffer(DATA_PREFIX + name)
 
         shape_tensor = self.get_buffer(og + "_shape")
         shape = torch.Size(shape_tensor.tolist())
 
         length = self.get_buffer(og + "_len").item()
+        dtype = self.get_buffer(og + "_dtype").item()
 
-        result = decode_f32(protected_data)
+        if dtype == DTYPE_F32:
+            result = decode_f32(protected_data)
+        elif dtype == DTYPE_F16:
+            result = decode_f16(protected_data)
+        else:
+            raise ValueError(f"Unexpected dtype variant `{dtype}`")
+
         self._failed_decodings += result[1]
 
         return result[0][:length].reshape(shape)
@@ -304,6 +378,8 @@ def bits_per_dtype(dtype: torch.dtype) -> int:
         return 8
     elif dtype == torch.float32:
         return 32
+    elif dtype == torch.float16:
+        return 16
     else:
         raise ValueError(f"Unsupported datatype {dtype}")
 
@@ -331,33 +407,42 @@ def uint8_tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
     t[byte_index] = t[byte_index] ^ (1 << true_bit_index)
 
 
-def float32_tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
-    if t.dtype != torch.float32:
-        raise ValueError(f"Expected float32 tensor, got {t.dtype}")
+def float_tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
+    if t.dtype == torch.float32:
+        view_target = torch.int32
+    elif t.dtype == torch.float16:
+        view_target = torch.int16
+    else:
+        raise ValueError(f"Unsupported dtype {t.dtype}")
+
     if len(t.shape) != 1:
         raise ValueError(f"Expected a single dimensional tensor, got shape {t.shape}")
 
-    dtype_bits = bits_per_dtype(torch.float32)
+    dtype_bits = bits_per_dtype(t.dtype)
 
     num_bits = t.numel() * dtype_bits
 
     if bit_index >= num_bits:
         raise ValueError(f"Tensor has {num_bits} bits, got index {bit_index}")
 
-    byte_index = bit_index // dtype_bits
+    element_index = bit_index // dtype_bits
     true_bit_index = bit_index % dtype_bits
 
-    bits = t[byte_index].view(torch.int32)
-    faulty = (bits ^ (1 << true_bit_index)).view(torch.float32)
+    bits = t[element_index].view(view_target)
+    faulty = (bits ^ (1 << true_bit_index)).view(t.dtype)
 
-    t[byte_index] = faulty
+    t[element_index] = faulty
 
 
 def tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
     if t.dtype == torch.uint8:
         uint8_tensor_flip_bit(t, bit_index)
     elif t.dtype == torch.float32:
-        float32_tensor_flip_bit(t, bit_index)
+        float_tensor_flip_bit(t, bit_index)
+    elif t.dtype == torch.float16:
+        raise RuntimeError("Unimplemented")
+    else:
+        raise ValueError(f"Unsupported dtype {t.dtype}")
 
 
 def tensor_list_flip_bit(ts: list[torch.Tensor], bit_index: int) -> None:
@@ -398,9 +483,9 @@ def buffers_fi(
 ) -> None:
     """Perform fault injection on a series of tensors.
 
-    These tensors will be treated as one large buffer and must have the same datatype.
+    These tensors will be treated as one large buffer and **must have the same datatype**.
 
-    Supported datatypes are uint8 and float32.
+    Supported datatypes are uint8, float32 and float16.
     """
     dtype = tensor_list_dtype(buffers)
 
@@ -456,7 +541,7 @@ def protected_fi(
     protected_buffers = list(
         x[1]
         for x in module.named_buffers(recurse=True, remove_duplicate=False)
-        if HAMMING_DATA_PREFIX in x[0]
+        if DATA_PREFIX in x[0]
     )
 
     buffers_fi(
