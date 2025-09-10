@@ -29,8 +29,6 @@
 
           shellHook = ''
             uv sync
-            uv pip install -e .
-            uv pip install -e ./hamming_core
             . .venv/bin/activate
           '';
         };
