@@ -53,10 +53,6 @@ def get_resnet() -> nn.Module:
         "chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True
     )  # type: ignore
     assert isinstance(resnet, nn.Module)
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    print(f"running resnet on {device}")
-    resnet = resnet.to(device)
 
     return copy.deepcopy(resnet)
 
@@ -75,24 +71,31 @@ def data_file(path: str) -> Path:
     return p
 
 
-def evaluate_resnet(model: nn.Module):
-    global dataloader
-    model.eval()
-    num_samples = torch.tensor(0)
-    num_correct = torch.tensor(0)
+def evaluate_resnet(device: torch.device):
+    def inner(model: nn.Module):
+        global dataloader
+        nonlocal device
 
-    for data in get_dataloader():
-        inputs, targets = data[0], data[1]
+        model = model.to(device)
+        model.eval()
+        num_samples = torch.tensor(0).to(device)
+        num_correct = torch.tensor(0).to(device)
 
-        outputs = model(inputs)
+        print(f"Running resnet on {device}")
+        for data in get_dataloader():
+            inputs, targets = data[0].to(device), data[1].to(device)
 
-        # Convert logits to class indices
-        outputs = outputs.argmax(dim=1)
+            outputs = model(inputs)
 
-        num_samples += targets.size(0)
-        num_correct += (outputs == targets).sum()
+            # Convert logits to class indices
+            outputs = outputs.argmax(dim=1)
 
-    return (num_correct / num_samples * 100).item()
+            num_samples += targets.size(0)
+            num_correct += (outputs == targets).sum()
+
+        return (num_correct / num_samples * 100).item()
+
+    return inner
 
 
 @dataclass
@@ -126,14 +129,22 @@ class Data:
             json.dump(serializable, f)
 
     def record(
-        self, bit_error_rate: float, protected: bool, *, autosave: bool = True
+        self,
+        bit_error_rate: float,
+        protected: bool,
+        *,
+        autosave: bool = True,
+        device: torch.device | None = None,
     ) -> None:
         if protected:
             eval_fn = HammingStats.eval
         else:
             eval_fn = HammingStats.eval_noprotect
 
-        stats = eval_fn(get_resnet(), bit_error_rate, evaluate_resnet)
+        if device is None:
+            device = torch.device("cpu")
+
+        stats = eval_fn(get_resnet(), bit_error_rate, evaluate_resnet(device))
         stats.summary()
         self.entries.append(stats)
 
@@ -147,6 +158,7 @@ class Data:
         protected: bool,
         *,
         autosave: bool | int = True,
+        device: torch.device | None = None,
     ) -> None:
         if n < 1:
             raise ValueError("Expected at least 1 iteration")
@@ -162,7 +174,7 @@ class Data:
                 f"recording {i + 1}/{n} {'un' if not protected else ''}protected inference"
             )
             save = autosave != 0 and (i + 1) % autosave == 0
-            self.record(bit_error_rate, protected, autosave=save)
+            self.record(bit_error_rate, protected, autosave=save, device=device)
 
         if autosave != 0:
             self.save(self.autosave_path or "./")
