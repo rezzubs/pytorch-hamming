@@ -10,7 +10,7 @@ def main() -> None:
     parser.add_argument("-b", "--bit_error_rate", type=float, required=True)
     parser.add_argument("-i", "--iterations", type=int, required=True)
     parser.add_argument("-a", "--autosave", type=int, default=1, required=False)
-    parser.add_argument("-d", "--data_path", type=str, required=False)
+    parser.add_argument("-d", "--data-path", type=str, required=False)
     parser.add_argument("-p", "--protected", action="store_true", required=False)
     parser.add_argument("-c", "--cuda", action="store_true", required=False)
     parser.add_argument(
