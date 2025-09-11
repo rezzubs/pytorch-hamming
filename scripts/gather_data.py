@@ -13,6 +13,12 @@ def main() -> None:
     parser.add_argument("-d", "--data_path", type=str, required=False)
     parser.add_argument("-p", "--protected", action="store_true", required=False)
     parser.add_argument("-c", "--cuda", action="store_true", required=False)
+    parser.add_argument(
+        "--f16",
+        help="Use 16 bit precision for the model instead of the default 32",
+        action="store_true",
+        required=False,
+    )
 
     args = parser.parse_args()
 
@@ -31,6 +37,7 @@ def main() -> None:
         args.iterations,
         args.bit_error_rate,
         args.protected,
+        args.f16,
         autosave=args.autosave,
         device=device,
     )

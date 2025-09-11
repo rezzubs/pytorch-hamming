@@ -65,17 +65,20 @@ class HammingStats:
         cls,
         module: nn.Module,
         bit_error_rate: float,
-        accuracy_fn: Callable[[nn.Module], float],
+        accuracy_fn: Callable[[nn.Module, bool], float],
+        half: bool,
         track_injections: bool = False,
     ) -> HammingStats:
         stats = cls(track_injections)
+        if half:
+            module = module.half()
         original = copy.deepcopy(module)
 
         encode_module(module)
         protected_fi(module, bit_error_rate=bit_error_rate, stats=stats)
         decode_module(module, stats=stats)
 
-        stats.accuracy = accuracy_fn(module)
+        stats.accuracy = accuracy_fn(module, half)
         stats.non_matching_parameters = compare_module_bitwise(module, original)
 
         return stats
@@ -85,7 +88,8 @@ class HammingStats:
         cls,
         module: nn.Module,
         bit_error_rate: float,
-        accuracy_fn: Callable[[nn.Module], float],
+        accuracy_fn: Callable[[nn.Module, bool], float],
+        half: bool,
         track_injections: bool = False,
     ) -> HammingStats:
         stats = cls(track_injections)
@@ -93,7 +97,7 @@ class HammingStats:
 
         nonprotected_fi(module, bit_error_rate=bit_error_rate, stats=stats)
 
-        stats.accuracy = accuracy_fn(module)
+        stats.accuracy = accuracy_fn(module, half)
         stats.non_matching_parameters = compare_module_bitwise(module, original)
 
         return stats

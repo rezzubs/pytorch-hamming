@@ -72,11 +72,14 @@ def data_file(path: str) -> Path:
 
 
 def evaluate_resnet(device: torch.device):
-    def inner(model: nn.Module):
+    def inner(model: nn.Module, half: bool):
         global dataloader
         nonlocal device
 
         model = model.to(device)
+        if half:
+            model = model.half()
+
         model.eval()
         num_samples = torch.tensor(0).to(device)
         num_correct = torch.tensor(0).to(device)
@@ -84,6 +87,11 @@ def evaluate_resnet(device: torch.device):
         print(f"Running resnet on {device}")
         for data in get_dataloader():
             inputs, targets = data[0].to(device), data[1].to(device)
+            assert isinstance(inputs, torch.Tensor)
+            assert isinstance(targets, torch.Tensor)
+            if half:
+                inputs = inputs.half()
+                targets = targets.half()
 
             outputs = model(inputs)
 
@@ -132,6 +140,7 @@ class Data:
         self,
         bit_error_rate: float,
         protected: bool,
+        half: bool,
         *,
         autosave: bool = True,
         device: torch.device | None = None,
@@ -145,7 +154,7 @@ class Data:
         if device is None:
             device = torch.device("cpu")
 
-        stats = eval_fn(get_resnet(), bit_error_rate, evaluate_resnet(device))
+        stats = eval_fn(get_resnet(), bit_error_rate, evaluate_resnet(device), half)
         if summary:
             stats.summary()
         self.entries.append(stats)
@@ -158,6 +167,7 @@ class Data:
         n: int,
         bit_error_rate: float,
         protected: bool,
+        half: bool,
         *,
         autosave: bool | int = True,
         device: torch.device | None = None,
@@ -178,7 +188,12 @@ class Data:
             )
             save = autosave != 0 and (i + 1) % autosave == 0
             self.record(
-                bit_error_rate, protected, autosave=save, device=device, summary=summary
+                bit_error_rate,
+                protected,
+                half,
+                autosave=save,
+                device=device,
+                summary=summary,
             )
 
         if autosave != 0:
