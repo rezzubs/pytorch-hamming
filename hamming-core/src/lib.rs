@@ -1,8 +1,10 @@
-pub mod byte_array;
+mod bit_buffer;
+pub mod byte_ops;
+pub mod conversions;
 mod u64;
 
 pub use crate::u64::Hamming64;
-pub use byte_array::ByteArray;
+pub use bit_buffer::BitBuffer;
 
 use itertools::Itertools;
 use numpy::{PyArray1, PyReadonlyArray1};
@@ -25,13 +27,17 @@ mod hamming_core {
     /// The decoding functions additionally return the number of detected faults.
     #[pymodule]
     mod u64 {
+        use crate::conversions::{
+            f32x2_to_le_bytes, le_bytes_to_f32x2, le_bytes_to_u16x4, u16x4_to_le_bytes,
+        };
+
         use super::*;
 
         /// Encode an array of float32 values as an array of uint8 values.
         ///
         /// See module docs for details.
         #[pyfunction]
-        fn encode_f32<'py>(
+        fn encode_u32<'py>(
             py: Python<'py>,
             input: PyReadonlyArray1<'py, f32>,
         ) -> Bound<'py, PyArray1<u8>> {
@@ -47,7 +53,7 @@ mod hamming_core {
                 input
                     .into_iter()
                     .tuples()
-                    .flat_map(|(a, b)| Hamming64::encode([a, b]).0.into_bytes()),
+                    .flat_map(|(a, b)| Hamming64::encode(f32x2_to_le_bytes([a, b])).0),
             )
         }
 
@@ -77,7 +83,7 @@ mod hamming_core {
             for _ in 0..num_encoded {
                 let bytes: [u8; Hamming64::NUM_BYTES] = iter.next_array().expect("Within bounds");
 
-                let encoded = Hamming64(bytes.into());
+                let encoded = Hamming64(bytes);
                 let (decoded, success) = encoded.decode();
 
                 if !success {
@@ -86,7 +92,7 @@ mod hamming_core {
                         .expect("Unexpectedly large number of unmasked faults");
                 }
 
-                let [a, b]: [f32; 2] = decoded.into();
+                let [a, b] = le_bytes_to_f32x2(decoded);
                 output.push(a);
                 output.push(b);
             }
@@ -114,9 +120,10 @@ mod hamming_core {
                 input
                     .into_iter()
                     .tuples()
-                    .flat_map(|(a, b, c, d)| Hamming64::encode([a, b, c, d]).0.into_bytes()),
+                    .flat_map(|(a, b, c, d)| Hamming64::encode(u16x4_to_le_bytes([a, b, c, d])).0),
             )
         }
+
         /// Decode an array of uint8 values into an array of float32 values.
         ///
         /// Returns: (decoded_array, num_unmasked_faults)
@@ -143,7 +150,7 @@ mod hamming_core {
             for _ in 0..num_encoded {
                 let bytes: [u8; Hamming64::NUM_BYTES] = iter.next_array().expect("Within bounds");
 
-                let encoded = Hamming64(bytes.into());
+                let encoded = Hamming64(bytes);
                 let (decoded, success) = encoded.decode();
 
                 if !success {
@@ -152,8 +159,7 @@ mod hamming_core {
                         .expect("Unexpectedly large number of unmasked faults");
                 }
 
-                let [a, b, c, d]: [u16; 4] = decoded.into();
-                output.extend([a, b, c, d]);
+                output.extend(le_bytes_to_u16x4(decoded));
             }
 
             Ok((PyArray1::from_slice(py, &output), failed_decodings))
