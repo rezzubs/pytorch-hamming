@@ -2,7 +2,6 @@
 name = "hamming-utils"
 version = "0.1.0"
 description = "Error correction utilities for pytorch"
-readme = "README.md"
 authors = [
     { name = "Marten Roots", email = "rezzubs@proton.me" }
 ]
