@@ -137,9 +137,9 @@ def compare_parameter_bitwise(a: torch.Tensor, b: torch.Tensor) -> list[int]:
     assert a.dtype == b.dtype
 
     if a.dtype == torch.float32:
-        view_repr = torch.int32
+        view_repr = torch.uint32
     elif a.dtype == torch.float16:
-        view_repr = torch.int16
+        view_repr = torch.uint16
     else:
         raise ValueError(f"Unsupported dtype {a.dtype}")
 
