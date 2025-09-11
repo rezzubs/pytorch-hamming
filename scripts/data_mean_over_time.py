@@ -30,13 +30,16 @@ def main():
         for j in range(len(val)):
             means.append(np.mean(val[:j]))
 
-        ax = axes[i]
+        ax = axes[i] if len(data) > 1 else axes
         assert isinstance(ax, Axes)
         ax.set_title(str(key))
         ax.plot(means)
 
-    for ax in axes:
-        ax.set_xlim(0, max_len)
+    if len(data) > 1:
+        for ax in axes:
+            ax.set_xlim(0, max_len)
+    else:
+        axes.set_xlim(0, max_len)
 
     plt.tight_layout()
     plt.show()
