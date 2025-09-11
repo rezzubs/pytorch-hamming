@@ -135,6 +135,7 @@ class Data:
         *,
         autosave: bool = True,
         device: torch.device | None = None,
+        summary: bool = True,
     ) -> None:
         if protected:
             eval_fn = HammingStats.eval
@@ -145,7 +146,8 @@ class Data:
             device = torch.device("cpu")
 
         stats = eval_fn(get_resnet(), bit_error_rate, evaluate_resnet(device))
-        stats.summary()
+        if summary:
+            stats.summary()
         self.entries.append(stats)
 
         if autosave:
@@ -159,6 +161,7 @@ class Data:
         *,
         autosave: bool | int = True,
         device: torch.device | None = None,
+        summary: bool = False,
     ) -> None:
         if n < 1:
             raise ValueError("Expected at least 1 iteration")
@@ -174,7 +177,9 @@ class Data:
                 f"recording {i + 1}/{n} {'un' if not protected else ''}protected inference"
             )
             save = autosave != 0 and (i + 1) % autosave == 0
-            self.record(bit_error_rate, protected, autosave=save, device=device)
+            self.record(
+                bit_error_rate, protected, autosave=save, device=device, summary=summary
+            )
 
         if autosave != 0:
             self.save(self.autosave_path or "./")
