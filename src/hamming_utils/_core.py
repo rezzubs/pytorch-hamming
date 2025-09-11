@@ -512,7 +512,7 @@ def buffers_fi(
 
     for _ in range(num_faults):
         bit_to_flip = flip_candidates.pop()
-        if stats is not None:
+        if stats is not None and stats.injected_faults is not None:
             stats.injected_faults.append(bit_to_flip)
 
         tensor_list_flip_bit(buffers, bit_to_flip)
