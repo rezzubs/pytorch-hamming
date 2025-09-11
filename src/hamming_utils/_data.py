@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,7 +37,7 @@ def get_dataloader() -> DataLoader:
     )
     dataloader = torch.utils.data.DataLoader(
         testset,
-        batch_size=8,
+        batch_size=1000,
         shuffle=False,
     )
 
