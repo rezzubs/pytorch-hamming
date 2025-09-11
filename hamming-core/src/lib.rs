@@ -75,12 +75,12 @@ mod hamming_core {
             }
 
             let mut iter = input.iter().copied();
-            let num_encoded = input.len() / Hamming64::NUM_BYTES;
-            let mut output = Vec::with_capacity(num_encoded * 2);
+            let num_encoded_buffers = input.len() / Hamming64::NUM_BYTES;
+            let mut output = Vec::with_capacity(num_encoded_buffers * 2);
 
             let mut failed_decodings: u64 = 0;
 
-            for _ in 0..num_encoded {
+            for _ in 0..num_encoded_buffers {
                 let bytes: [u8; Hamming64::NUM_BYTES] = iter.next_array().expect("Within bounds");
 
                 let encoded = Hamming64(bytes);
@@ -142,12 +142,12 @@ mod hamming_core {
             }
 
             let mut iter = input.iter().copied();
-            let num_encoded = input.len() / Hamming64::NUM_BYTES;
-            let mut output = Vec::with_capacity(num_encoded * 2);
+            let num_encoded_buffers = input.len() / Hamming64::NUM_BYTES;
+            let mut output = Vec::with_capacity(num_encoded_buffers * 2);
 
             let mut failed_decodings: u64 = 0;
 
-            for _ in 0..num_encoded {
+            for _ in 0..num_encoded_buffers {
                 let bytes: [u8; Hamming64::NUM_BYTES] = iter.next_array().expect("Within bounds");
 
                 let encoded = Hamming64(bytes);
