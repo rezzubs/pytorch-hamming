@@ -1,10 +1,12 @@
 mod bit_buffer;
 pub mod byte_ops;
 pub mod conversions;
+mod encoding;
 mod u64;
 
 pub use crate::u64::Hamming64;
 pub use bit_buffer::BitBuffer;
+pub use encoding::{Decodable, Encodable};
 
 use itertools::Itertools;
 use numpy::{PyArray1, PyReadonlyArray1};
