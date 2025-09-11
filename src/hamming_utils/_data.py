@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import torch
 import torchvision
 from torch import nn
@@ -198,3 +199,42 @@ class Data:
 
         if autosave != 0:
             self.save(self.autosave_path or "./")
+
+    def partition(self) -> dict[float, dict[str, list[float]]]:
+        """Group the accuracy metrics by bit error rate and if it was protected or not."""
+
+        bers: dict[float, dict[str, list[float]]] = dict()
+
+        for entry in self.entries:
+            ber = entry.bit_error_rate()
+            ber_group = bers.get(ber, dict())
+
+            if entry.accuracy is None:
+                print("WARNING: got entry without accuracty")
+                continue
+
+            if entry.was_protected:
+                target = ber_group.get("protected", [])
+                target.append(entry.accuracy)
+                ber_group["protected"] = target
+            else:
+                target = ber_group.get("unprotected", [])
+                target.append(entry.accuracy)
+                ber_group["unprotected"] = target
+
+            bers[ber] = ber_group
+
+        return bers
+
+    def overview(self) -> None:
+        """Print an overview of the current dataset."""
+
+        bers = list(self.partition().items())
+        bers.sort(key=lambda x: x[0])
+
+        for ber, groups in bers:
+            print(f"BER: {ber}")
+            for group, entries in sorted(groups.items(), key=lambda x: x[0]):
+                print(f"-> {group}")
+                print(f"  -> count: {len(entries)}")
+                print(f"  -> mean: {np.mean(entries)}")
