@@ -2,9 +2,7 @@ mod bit_buffer;
 pub mod byte_ops;
 pub mod conversions;
 mod encoding;
-mod u64;
 
-pub use crate::u64::Hamming64;
 pub use bit_buffer::BitBuffer;
 pub use encoding::{Decodable, Encodable};
 
@@ -39,7 +37,7 @@ mod hamming_core {
         ///
         /// See module docs for details.
         #[pyfunction]
-        fn encode_u32<'py>(
+        fn encode_f32<'py>(
             py: Python<'py>,
             input: PyReadonlyArray1<'py, f32>,
         ) -> Bound<'py, PyArray1<u8>> {
@@ -55,7 +53,7 @@ mod hamming_core {
                 input
                     .into_iter()
                     .tuples()
-                    .flat_map(|(a, b)| Hamming64::encode(f32x2_to_le_bytes([a, b])).0),
+                    .flat_map(|(a, b)| f32x2_to_le_bytes([a, b]).encode()),
             )
         }
 
@@ -69,23 +67,23 @@ mod hamming_core {
         ) -> PyResult<(Bound<'py, PyArray1<f32>>, u64)> {
             let input = input.as_array();
 
-            if input.len() % Hamming64::NUM_BYTES != 0 {
+            const NUM_ENCODED_BYTES: usize = 9;
+
+            if input.len() % NUM_ENCODED_BYTES != 0 {
                 return Err(PyValueError::new_err(format!(
-                    "Expected a number of bytes divisible by {}",
-                    Hamming64::NUM_BYTES
+                    "Expected a number of bytes divisible by {NUM_ENCODED_BYTES}"
                 )));
             }
 
             let mut iter = input.iter().copied();
-            let num_encoded_buffers = input.len() / Hamming64::NUM_BYTES;
+            let num_encoded_buffers = input.len() / NUM_ENCODED_BYTES;
             let mut output = Vec::with_capacity(num_encoded_buffers * 2);
 
             let mut failed_decodings: u64 = 0;
 
             for _ in 0..num_encoded_buffers {
-                let bytes: [u8; Hamming64::NUM_BYTES] = iter.next_array().expect("Within bounds");
+                let encoded: [u8; NUM_ENCODED_BYTES] = iter.next_array().expect("Within bounds");
 
-                let encoded = Hamming64(bytes);
                 let (decoded, success) = encoded.decode();
 
                 if !success {
@@ -114,7 +112,8 @@ mod hamming_core {
         ) -> Bound<'py, PyArray1<u8>> {
             let mut input = input.as_array().into_iter().copied().collect::<Vec<u16>>();
 
-            let required_padding = input.len() % 4;
+            const ITEMS_PER_CONTAINER: usize = 4;
+            let required_padding = input.len() % ITEMS_PER_CONTAINER;
             input.extend(std::iter::repeat_n(0, required_padding));
 
             PyArray1::from_iter(
@@ -122,7 +121,7 @@ mod hamming_core {
                 input
                     .into_iter()
                     .tuples()
-                    .flat_map(|(a, b, c, d)| Hamming64::encode(u16x4_to_le_bytes([a, b, c, d])).0),
+                    .flat_map(|(a, b, c, d)| u16x4_to_le_bytes([a, b, c, d]).encode()),
             )
         }
 
@@ -136,23 +135,23 @@ mod hamming_core {
         ) -> PyResult<(Bound<'py, PyArray1<u16>>, u64)> {
             let input = input.as_array();
 
-            if input.len() % Hamming64::NUM_BYTES != 0 {
+            const NUM_ENCODED_BYTES: usize = 9;
+
+            if input.len() % NUM_ENCODED_BYTES != 0 {
                 return Err(PyValueError::new_err(format!(
-                    "Expected a number of bytes divisible by {}",
-                    Hamming64::NUM_BYTES
+                    "Expected a number of bytes divisible by {NUM_ENCODED_BYTES}"
                 )));
             }
 
             let mut iter = input.iter().copied();
-            let num_encoded_buffers = input.len() / Hamming64::NUM_BYTES;
+            let num_encoded_buffers = input.len() / NUM_ENCODED_BYTES;
             let mut output = Vec::with_capacity(num_encoded_buffers * 2);
 
             let mut failed_decodings: u64 = 0;
 
             for _ in 0..num_encoded_buffers {
-                let bytes: [u8; Hamming64::NUM_BYTES] = iter.next_array().expect("Within bounds");
+                let encoded: [u8; NUM_ENCODED_BYTES] = iter.next_array().expect("Within bounds");
 
-                let encoded = Hamming64(bytes);
                 let (decoded, success) = encoded.decode();
 
                 if !success {
