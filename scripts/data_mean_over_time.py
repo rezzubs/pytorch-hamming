@@ -32,7 +32,7 @@ def main():
 
         ax = axes[i] if len(data) > 1 else axes
         assert isinstance(ax, Axes)
-        ax.set_title(str(key))
+        ax.set_title(f"{key:.3}")
         ax.plot(means)
 
     if len(data) > 1:
