@@ -11,7 +11,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from pytorch_ecc import HammingStats
+from hamming_utils._stats import HammingStats
 
 __all__ = ["Data"]
 
@@ -36,7 +36,7 @@ def get_dataloader() -> DataLoader:
     )
     dataloader = torch.utils.data.DataLoader(
         testset,
-        batch_size=8,
+        batch_size=1000,
         shuffle=False,
     )
 
@@ -53,10 +53,6 @@ def get_resnet() -> nn.Module:
         "chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True
     )  # type: ignore
     assert isinstance(resnet, nn.Module)
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    print(f"running resnet on {device}")
-    resnet = resnet.to(device)
 
     return copy.deepcopy(resnet)
 
@@ -75,24 +71,39 @@ def data_file(path: str) -> Path:
     return p
 
 
-def evaluate_resnet(model: nn.Module):
-    global dataloader
-    model.eval()
-    num_samples = torch.tensor(0)
-    num_correct = torch.tensor(0)
+def evaluate_resnet(device: torch.device):
+    def inner(model: nn.Module, half: bool):
+        global dataloader
+        nonlocal device
 
-    for data in get_dataloader():
-        inputs, targets = data[0], data[1]
+        model = model.to(device)
+        if half:
+            model = model.half()
 
-        outputs = model(inputs)
+        model.eval()
+        num_samples = torch.tensor(0).to(device)
+        num_correct = torch.tensor(0).to(device)
 
-        # Convert logits to class indices
-        outputs = outputs.argmax(dim=1)
+        print(f"Running resnet on {device}")
+        for data in get_dataloader():
+            inputs, targets = data[0].to(device), data[1].to(device)
+            assert isinstance(inputs, torch.Tensor)
+            assert isinstance(targets, torch.Tensor)
+            if half:
+                inputs = inputs.half()
+                targets = targets.half()
 
-        num_samples += targets.size(0)
-        num_correct += (outputs == targets).sum()
+            outputs = model(inputs)
 
-    return (num_correct / num_samples * 100).item()
+            # Convert logits to class indices
+            outputs = outputs.argmax(dim=1)
+
+            num_samples += targets.size(0)
+            num_correct += (outputs == targets).sum()
+
+        return (num_correct / num_samples * 100).item()
+
+    return inner
 
 
 @dataclass
@@ -126,15 +137,26 @@ class Data:
             json.dump(serializable, f)
 
     def record(
-        self, bit_error_rate: float, protected: bool, *, autosave: bool = True
+        self,
+        bit_error_rate: float,
+        protected: bool,
+        half: bool,
+        *,
+        autosave: bool = True,
+        device: torch.device | None = None,
+        summary: bool = True,
     ) -> None:
         if protected:
             eval_fn = HammingStats.eval
         else:
             eval_fn = HammingStats.eval_noprotect
 
-        stats = eval_fn(get_resnet(), bit_error_rate, evaluate_resnet)
-        stats.summary()
+        if device is None:
+            device = torch.device("cpu")
+
+        stats = eval_fn(get_resnet(), bit_error_rate, evaluate_resnet(device), half)
+        if summary:
+            stats.summary()
         self.entries.append(stats)
 
         if autosave:
@@ -145,8 +167,11 @@ class Data:
         n: int,
         bit_error_rate: float,
         protected: bool,
+        half: bool,
         *,
         autosave: bool | int = True,
+        device: torch.device | None = None,
+        summary: bool = False,
     ) -> None:
         if n < 1:
             raise ValueError("Expected at least 1 iteration")
@@ -162,7 +187,14 @@ class Data:
                 f"recording {i + 1}/{n} {'un' if not protected else ''}protected inference"
             )
             save = autosave != 0 and (i + 1) % autosave == 0
-            self.record(bit_error_rate, protected, autosave=save)
+            self.record(
+                bit_error_rate,
+                protected,
+                half,
+                autosave=save,
+                device=device,
+                summary=summary,
+            )
 
         if autosave != 0:
             self.save(self.autosave_path or "./")

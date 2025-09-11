@@ -1,5 +1,5 @@
-use hamming::ByteArray;
-use hamming::Hamming64;
+use hamming_core::ByteArray;
+use hamming_core::Hamming64;
 use rand::seq::IteratorRandom;
 
 pub fn main() {

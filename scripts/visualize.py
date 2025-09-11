@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from matplotlib.axes import Axes
+
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
 
-
-from pytorch_ecc._data import Data
-from pytorch_ecc._hamming import HammingStats
+from hamming_utils import Data, HammingStats
 
 
 @dataclass
@@ -76,20 +75,6 @@ def draw_data_stats(data: Data):
         for ber, entries in protected_base
     ]
 
-    protected_container_2_or_more_faults = [
-        Statistic(
-            "Cases of 2 or more faults in protected container",
-            "BER",
-            "count",
-            ber,
-            [
-                len([v for v in e.faulty_containers().values() if len(v) >= 2])
-                for e in entries
-            ],
-        )
-        for ber, entries in protected_base
-    ]
-
     protection_rate = [
         Statistic(
             "Rate of sucessful protections",
@@ -112,12 +97,11 @@ def draw_data_stats(data: Data):
         for ber, entries in unprotected_base
     ]
 
-    fig, (ax0, ax1, ax2, ax3) = plt.subplots(nrows=4, ncols=1, figsize=(6, 14))
+    _, (ax0, ax1, ax2) = plt.subplots(nrows=3, ncols=1, figsize=(6, 10))
 
     draw_statistics(unprotected_accuracy, ax0)
     draw_statistics(protected_accuracy, ax1)
-    draw_statistics(protected_container_2_or_more_faults, ax2)
-    draw_statistics(protection_rate, ax3)
+    draw_statistics(protection_rate, ax2)
 
     plt.tight_layout()
     plt.savefig("result.png", dpi=400)

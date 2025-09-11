@@ -117,6 +117,40 @@ impl From<ByteArray<8>> for [f32; 2] {
     }
 }
 
+impl From<[u16; 4]> for ByteArray<8> {
+    fn from(value: [u16; 4]) -> Self {
+        let a_bytes = value[0].to_le_bytes();
+        let b_bytes = value[1].to_le_bytes();
+        let c_bytes = value[2].to_le_bytes();
+        let d_bytes = value[3].to_le_bytes();
+
+        let bytes = [
+            a_bytes[0], a_bytes[1], b_bytes[0], b_bytes[1], c_bytes[0], c_bytes[1], d_bytes[0],
+            d_bytes[1],
+        ];
+        Self::from(bytes)
+    }
+}
+
+impl From<ByteArray<8>> for [u16; 4] {
+    fn from(value: ByteArray<8>) -> Self {
+        {
+            let bytes = value.data;
+            let a_bytes = [bytes[0], bytes[1]];
+            let b_bytes = [bytes[2], bytes[3]];
+            let c_bytes = [bytes[4], bytes[5]];
+            let d_bytes = [bytes[6], bytes[7]];
+
+            [
+                u16::from_le_bytes(a_bytes),
+                u16::from_le_bytes(b_bytes),
+                u16::from_le_bytes(c_bytes),
+                u16::from_le_bytes(d_bytes),
+            ]
+        }
+    }
+}
+
 impl From<u8> for ByteArray<1> {
     fn from(value: u8) -> Self {
         Self::from(value.to_le_bytes())

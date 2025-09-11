@@ -2,268 +2,43 @@
 
 from __future__ import annotations
 
-import copy
 import random
-from collections.abc import Callable
-from typing import Any
 
 import numpy
 import torch
 from torch import nn
 
-import hamming
+import hamming_core
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ._stats import HammingStats
 
 __all__ = [
     "HammingLayer",
-    "HammingStats",
-    "hamming_decode64",
-    "hamming_decode_module",
-    "hamming_encode64",
-    "hamming_encode_module",
-    "hamming_fi",
-    "supports_hamming_fi",
+    "decode_f16",
+    "decode_f32",
+    "decode_module",
+    "encode_f16",
+    "encode_f32",
+    "encode_module",
+    "protected_fi",
+    "nonprotected_fi",
 ]
 
-HAMMING_DATA_PREFIX = "hamming_protected_"
+DATA_PREFIX = "hamming_protected_"
+ORIGINAL_PREFIX = "hamming_original_"
+DTYPE_F32 = 0
+DTYPE_F16 = 1
+
 BITS_PER_BYTE = 8
 BYTES_PER_CONTAINER = 9
 BITS_PER_CONTAINER = BITS_PER_BYTE * BYTES_PER_CONTAINER
 
 
-def num_set_bits32(number: int) -> int:
-    """Count the high bits in an integer
-
-    `number` is expected to be a 32 bit integer.
-    """
-    # Force an unsigned 32 bit representation. Otherwise -1 >> 1 will cause an
-    # infinite loop.
-    number = number & 0xFFFFFFFF
-    count = 0
-    while number != 0:
-        if number & 1:
-            count += 1
-        number >>= 1
-
-    return count
-
-
-class HammingStats:
-    """Statistics for a encode, inject, decode cycle."""
-
-    def __init__(self) -> None:
-        self.was_protected: bool = False
-        self.accuracy: float | None = None
-        self.injected_faults: list[int] = []
-        self.total_bits: int | None = None
-        self.unsuccessful_corrections: int | None = None
-        # The xors between all true and faulty parameters.
-        self.non_matching_parameters: list[int] = []
-
-    def __eq__(self, value: object, /) -> bool:
-        if not isinstance(value, HammingStats):
-            raise ValueError(f"Can't compare HammingStats with {type(value)}")
-        return (
-            self.was_protected == value.was_protected
-            and self.accuracy == value.accuracy
-            and self.injected_faults == value.injected_faults
-            and self.total_bits == value.total_bits
-            and self.unsuccessful_corrections == value.unsuccessful_corrections
-            and self.non_matching_parameters == value.non_matching_parameters
-        )
-
-    @classmethod
-    def eval(
-        cls,
-        module: nn.Module,
-        bit_error_rate: float,
-        accuracy_fn: Callable[[nn.Module], float],
-    ) -> HammingStats:
-        stats = cls()
-        original = copy.deepcopy(module)
-
-        hamming_encode_module(module)
-        hamming_fi(module, bit_error_rate=bit_error_rate, stats=stats)
-        hamming_decode_module(module, stats=stats)
-
-        stats.accuracy = accuracy_fn(module)
-        stats.non_matching_parameters = compare_module_bitwise(module, original)
-
-        return stats
-
-    @classmethod
-    def eval_noprotect(
-        cls,
-        module: nn.Module,
-        bit_error_rate: float,
-        accuracy_fn: Callable[[nn.Module], float],
-    ) -> HammingStats:
-        stats = cls()
-        original = copy.deepcopy(module)
-
-        supports_hamming_fi(module, bit_error_rate=bit_error_rate, stats=stats)
-
-        stats.accuracy = accuracy_fn(module)
-        stats.non_matching_parameters = compare_module_bitwise(module, original)
-
-        return stats
-
-    def faulty_containers(self) -> dict[int, list[int]]:
-        output: dict[int, list[int]] = dict()
-
-        for bit in self.injected_faults:
-            container_idx = bit // BITS_PER_CONTAINER
-            bit_idx = bit % BITS_PER_CONTAINER
-
-            faults_per_container = output.get(container_idx, [])
-            faults_per_container.append(bit_idx)
-            output[container_idx] = faults_per_container
-
-        return output
-
-    def get_accuracy(self) -> float:
-        assert self.accuracy is not None
-        return self.accuracy
-
-    def n_flips_per_param(self) -> dict[int, int]:
-        """Return the number of parameters grouped by the number of bits flipped in each."""
-
-        out = dict()
-        for p in self.non_matching_parameters:
-            group = num_set_bits32(p)
-            assert group != 0
-            prev = out.get(group, 0)
-            out[group] = prev + 1
-
-        return out
-
-    def num_faults(self) -> int:
-        return len(self.injected_faults)
-
-    def num_faults_in_result(self) -> int:
-        return sum([num_faulty for num_faulty in self.n_flips_per_param().values()])
-
-    def output_bit_error_rate(self) -> float:
-        assert self.total_bits is not None
-        return self.num_faults_in_result() / self.total_bits
-
-    def protection_rate(self) -> float:
-        return 1 - (
-            self.num_faults_in_result() / self.num_faults()
-            if self.num_faults() > 0
-            else 0
-        )
-
-    def bit_error_rate(self) -> float:
-        assert self.total_bits is not None
-        return len(self.injected_faults) / self.total_bits
-
-    def summary(self) -> None:
-        print("Fault Injection Summary:")
-        num_faults = len(self.injected_faults)
-        assert self.total_bits is not None
-        print(
-            f"  Injected {num_faults} faults across {self.total_bits} bits, BER: {num_faults / self.total_bits}"
-        )
-        print(f"  Accuracy: {self.accuracy:.2f}%")
-
-        if self.was_protected:
-            faulty = self.faulty_containers()
-            exactly_one = len([v for v in faulty.values() if len(v) == 1])
-            exactly_two = len([v for v in faulty.values() if len(v) == 2])
-            three_or_more = len([v for v in faulty.values() if len(v) >= 3])
-            assert self.unsuccessful_corrections is not None
-
-            print(f"  {exactly_one} containers had exactly 1 fault")
-            print(f"  {exactly_two} containers had exactly 2 faults")
-            print(f"  {three_or_more} containers had 3 or more faults")
-            print(
-                f"  Decoding detected {self.unsuccessful_corrections} non-correctable containers (an even number of faults or bit 0)"
-            )
-
-        print(
-            f"  {len(self.non_matching_parameters)} parameters were messed up from injection"
-        )
-        param_fault_groups = list(self.n_flips_per_param().items())
-        param_fault_groups.sort(key=lambda x: x[0])
-        for num_faults, num_entries in param_fault_groups:
-            print(f"  {num_entries} parameters had {num_faults} faults")
-
-    def to_dict(self) -> dict:
-        out = dict()
-
-        if self.accuracy is None:
-            raise ValueError("Incomplete stats, accuracy missing, run inference")
-
-        out["accuracy"] = self.accuracy
-        out["injected_faults"] = self.injected_faults
-
-        if self.total_bits is None:
-            raise ValueError(
-                "Incomplete stats, injected_faults missing, run fault injection"
-            )
-
-        out["total_bits"] = self.total_bits
-
-        out["was_protected"] = self.was_protected
-        if self.was_protected:
-            assert self.unsuccessful_corrections is not None
-            out["unsuccessful_corrections"] = self.unsuccessful_corrections
-        else:
-            assert self.unsuccessful_corrections is None
-
-        out["non_matching_parameters"] = self.non_matching_parameters
-
-        return out
-
-    @classmethod
-    def from_dict(cls, obj: Any) -> HammingStats:
-        out = cls()
-
-        if not isinstance(obj, dict):
-            raise ValueError(f"Expected a dictionary, got {type(obj)}")
-
-        accuracy = obj["accuracy"]
-        if not isinstance(accuracy, float):
-            raise ValueError(f"Expected float, got {type(accuracy)}")
-        out.accuracy = accuracy
-
-        injected_faults = obj["injected_faults"]
-        if not isinstance(injected_faults, list):
-            raise ValueError(f"Expected a list, got {type(injected_faults)}")
-        for x in injected_faults:
-            if not isinstance(x, int):
-                raise ValueError(f"Expected int, got {type(x)}")
-        out.injected_faults = injected_faults
-
-        total_bits = obj["total_bits"]
-        if not isinstance(total_bits, int):
-            raise ValueError(f"Expected int, got {type(total_bits)}")
-        out.total_bits = total_bits
-
-        was_protected = obj["was_protected"]
-        if not isinstance(was_protected, bool):
-            raise ValueError(f"Expected bool, got {type(was_protected)}")
-        out.was_protected = was_protected
-
-        if was_protected:
-            unsuccessful_corrections = obj["unsuccessful_corrections"]
-            if not isinstance(unsuccessful_corrections, int):
-                raise ValueError(f"Expected int, got {type(unsuccessful_corrections)}")
-            out.unsuccessful_corrections = unsuccessful_corrections
-
-        non_matching_parameters = obj["non_matching_parameters"]
-        if not isinstance(non_matching_parameters, list):
-            raise ValueError(f"Expected a list, got {type(non_matching_parameters)}")
-        for x in non_matching_parameters:
-            if not isinstance(x, int):
-                raise ValueError(f"Expected int, got {type(x)}")
-        out.non_matching_parameters = non_matching_parameters
-
-        return out
-
-
-def hamming_encode64(t: torch.Tensor) -> torch.Tensor:
-    """Enocde a flattened tensor as 9 byte hamming codes.
+def encode_f32(t: torch.Tensor) -> torch.Tensor:
+    """Enocde a flattened float32 tensor as 9 byte hamming codes.
 
     Returns:
         A 1 dimensional tensor with dtype=uint8
@@ -279,13 +54,13 @@ def hamming_encode64(t: torch.Tensor) -> torch.Tensor:
         raise ValueError(f"Only float32 tensors are supported, got {t.dtype}")
 
     # FIXME: Ignored because there are no type signatures for the hamming module.
-    out: numpy.ndarray = hamming.encode64(t.numpy())  # pyright: ignore
+    out: numpy.ndarray = hamming_core.u64.encode_f32(t.numpy())  # pyright: ignore
 
     return torch.from_numpy(out)
 
 
-def hamming_decode64(t: torch.Tensor) -> tuple[torch.Tensor, int]:
-    """Decode the output of `hamming_encode64`.
+def decode_f32(t: torch.Tensor) -> tuple[torch.Tensor, int]:
+    """Decode the output of `encode_f32`.
 
     Returns:
         A 1 dimensional tensor with dtype=float32 and the number of faults that
@@ -302,9 +77,56 @@ def hamming_decode64(t: torch.Tensor) -> tuple[torch.Tensor, int]:
 
     # NOTE: Length checks are handled in rust.
     # FIXME: Ignored because there are no type signatures for the hamming module.
-    result: tuple[numpy.ndarray, int] = hamming.decode64(t.numpy())  # pyright: ignore
+    result: tuple[numpy.ndarray, int] = hamming_core.u64.decode_f32(t.numpy())  # pyright: ignore
 
     return torch.from_numpy(result[0]), result[1]
+
+
+def encode_f16(t: torch.Tensor) -> torch.Tensor:
+    """Enocde a flattened float32 tensor as 9 byte hamming codes.
+
+    Returns:
+        A 1 dimensional tensor with dtype=uint8
+
+    Note that encoding adds padding zeros to make the length a multiple of 4.
+    These need to be removed manually after decoding.
+    """
+    if len(t.shape) != 1:
+        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
+
+    if t.dtype != torch.float16:
+        raise ValueError(f"Expected dtype=float16, got {t.dtype}")
+
+    result: numpy.ndarray = hamming_core.u64.encode_u16(t.view(torch.uint16).numpy())  # pyright: ignore
+    torch_result = torch.from_numpy(result)
+    assert torch_result.dtype == torch.uint8
+
+    return torch_result
+
+
+def decode_f16(t: torch.Tensor) -> tuple[torch.Tensor, int]:
+    """Decode the output of `encode_f16`.
+
+    Returns:
+        A 1 dimensional tensor with dtype=float16 and the number of faults that
+        could not be corrected but were still detected.
+
+    Note that encoding adds padding zeros to make the length a multiple of 4.
+    These need to be removed manually after decoding.
+    """
+    if len(t.shape) != 1:
+        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
+
+    if t.dtype != torch.uint8:
+        raise ValueError(f"Expected dtype=uint8, got {t.dtype}")
+
+    # NOTE: Length checks are handled in rust.
+    # FIXME: Ignored because there are no type signatures for the hamming module.
+    result: tuple[numpy.ndarray, int] = hamming_core.u64.decode_u16(t.numpy())  # pyright: ignore
+    torch_result = torch.from_numpy(result[0])
+    assert torch_result.dtype == torch.uint16
+
+    return torch_result.view(torch.float16), result[1]
 
 
 SupportsHamming = nn.Linear | nn.Conv2d | nn.BatchNorm2d
@@ -312,12 +134,19 @@ SupportsHamming = nn.Linear | nn.Conv2d | nn.BatchNorm2d
 
 def compare_parameter_bitwise(a: torch.Tensor, b: torch.Tensor) -> list[int]:
     assert a.shape == b.shape
-    assert a.dtype == b.dtype == torch.float32
+    assert a.dtype == b.dtype
+
+    if a.dtype == torch.float32:
+        view_repr = torch.int32
+    elif a.dtype == torch.float16:
+        view_repr = torch.int16
+    else:
+        raise ValueError(f"Unsupported dtype {a.dtype}")
 
     out = []
     for a_item, b_item in zip(a.flatten(), b.flatten(), strict=True):
-        a_bits = int(a_item.view(torch.int32).item())
-        b_bits = int(b_item.view(torch.int32).item())
+        a_bits = int(a_item.view(view_repr).item())
+        b_bits = int(b_item.view(view_repr).item())
 
         xor = a_bits ^ b_bits
         # NOTE: != because the most significant bit of i32 is the sign bit,
@@ -411,31 +240,45 @@ class HammingLayer(nn.Module):
 
         See also `_decode_protected`.
         """
-        og = "hamming_original_" + name
+        og = ORIGINAL_PREFIX + name
         t = t.data
 
-        protected_data = hamming_encode64(t.flatten())
-        self.register_buffer(HAMMING_DATA_PREFIX + name, protected_data)
+        if t.dtype == torch.float32:
+            dtype = DTYPE_F32
+            protected_data = encode_f32(t.flatten())
+        elif t.dtype == torch.float16:
+            dtype = DTYPE_F16
+            protected_data = encode_f16(t.flatten())
+        else:
+            raise ValueError(f"Unsupported datatype {t.dtype}")
+        self.register_buffer(DATA_PREFIX + name, protected_data)
 
         self.register_buffer(og + "_shape", torch.tensor(t.shape))
-
         self.register_buffer(og + "_len", torch.tensor(t.numel()))
+        self.register_buffer(og + "_dtype", torch.tensor(dtype))
 
     def _decode_protected(self, name: str) -> torch.Tensor:
         """Decode a protected named parameter.
 
         See also `_protect_tensor`
         """
-        og = "hamming_original_" + name
+        og = ORIGINAL_PREFIX + name
 
-        protected_data = self.get_buffer(HAMMING_DATA_PREFIX + name)
+        protected_data = self.get_buffer(DATA_PREFIX + name)
 
         shape_tensor = self.get_buffer(og + "_shape")
         shape = torch.Size(shape_tensor.tolist())
 
         length = self.get_buffer(og + "_len").item()
+        dtype = self.get_buffer(og + "_dtype").item()
 
-        result = hamming_decode64(protected_data)
+        if dtype == DTYPE_F32:
+            result = decode_f32(protected_data)
+        elif dtype == DTYPE_F16:
+            result = decode_f16(protected_data)
+        else:
+            raise ValueError(f"Unexpected dtype variant `{dtype}`")
+
         self._failed_decodings += result[1]
 
         return result[0][:length].reshape(shape)
@@ -471,7 +314,7 @@ class HammingLayer(nn.Module):
         )
 
 
-def hamming_encode_module(module: nn.Module) -> None:
+def encode_module(module: nn.Module) -> None:
     """Recursively replace child layers of the module with `HammingLayer`
 
     A module that has been prepared like this can be used as an input for
@@ -482,7 +325,7 @@ def hamming_encode_module(module: nn.Module) -> None:
     See `SupportsHamming` for supported layer types.
     """
     for name, child in module.named_children():
-        hamming_encode_module(child)
+        encode_module(child)
 
         if not isinstance(child, SupportsHamming):
             continue
@@ -490,7 +333,7 @@ def hamming_encode_module(module: nn.Module) -> None:
         setattr(module, name, HammingLayer(child))
 
 
-def hamming_decode_module(module: nn.Module, *, stats: HammingStats | None = None):
+def decode_module(module: nn.Module, *, stats: HammingStats | None = None):
     """Decodes all `HammingLayer` children into their original instances.
 
     This corrects all single bit errors in a memory line caused by `hamming_layer_fi`.
@@ -501,7 +344,7 @@ def hamming_decode_module(module: nn.Module, *, stats: HammingStats | None = Non
         stats.was_protected = True
 
     for name, child in module.named_children():
-        hamming_decode_module(child, stats=stats)
+        decode_module(child, stats=stats)
 
         if not isinstance(child, HammingLayer):
             continue
@@ -535,6 +378,8 @@ def bits_per_dtype(dtype: torch.dtype) -> int:
         return 8
     elif dtype == torch.float32:
         return 32
+    elif dtype == torch.float16:
+        return 16
     else:
         raise ValueError(f"Unsupported datatype {dtype}")
 
@@ -562,33 +407,42 @@ def uint8_tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
     t[byte_index] = t[byte_index] ^ (1 << true_bit_index)
 
 
-def float32_tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
-    if t.dtype != torch.float32:
-        raise ValueError(f"Expected float32 tensor, got {t.dtype}")
+def float_tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
+    if t.dtype == torch.float32:
+        view_target = torch.int32
+    elif t.dtype == torch.float16:
+        view_target = torch.int16
+    else:
+        raise ValueError(f"Unsupported dtype {t.dtype}")
+
     if len(t.shape) != 1:
         raise ValueError(f"Expected a single dimensional tensor, got shape {t.shape}")
 
-    dtype_bits = bits_per_dtype(torch.float32)
+    dtype_bits = bits_per_dtype(t.dtype)
 
     num_bits = t.numel() * dtype_bits
 
     if bit_index >= num_bits:
         raise ValueError(f"Tensor has {num_bits} bits, got index {bit_index}")
 
-    byte_index = bit_index // dtype_bits
+    element_index = bit_index // dtype_bits
     true_bit_index = bit_index % dtype_bits
 
-    bits = t[byte_index].view(torch.int32)
-    faulty = (bits ^ (1 << true_bit_index)).view(torch.float32)
+    bits = t[element_index].view(view_target)
+    faulty = (bits ^ (1 << true_bit_index)).view(t.dtype)
 
-    t[byte_index] = faulty
+    t[element_index] = faulty
 
 
 def tensor_flip_bit(t: torch.Tensor, bit_index: int) -> None:
     if t.dtype == torch.uint8:
         uint8_tensor_flip_bit(t, bit_index)
     elif t.dtype == torch.float32:
-        float32_tensor_flip_bit(t, bit_index)
+        float_tensor_flip_bit(t, bit_index)
+    elif t.dtype == torch.float16:
+        raise RuntimeError("Unimplemented")
+    else:
+        raise ValueError(f"Unsupported dtype {t.dtype}")
 
 
 def tensor_list_flip_bit(ts: list[torch.Tensor], bit_index: int) -> None:
@@ -629,9 +483,9 @@ def buffers_fi(
 ) -> None:
     """Perform fault injection on a series of tensors.
 
-    These tensors will be treated as one large buffer and must have the same datatype.
+    These tensors will be treated as one large buffer and **must have the same datatype**.
 
-    Supported datatypes are uint8 and float32.
+    Supported datatypes are uint8, float32 and float16.
     """
     dtype = tensor_list_dtype(buffers)
 
@@ -658,13 +512,13 @@ def buffers_fi(
 
     for _ in range(num_faults):
         bit_to_flip = flip_candidates.pop()
-        if stats is not None:
+        if stats is not None and stats.injected_faults is not None:
             stats.injected_faults.append(bit_to_flip)
 
         tensor_list_flip_bit(buffers, bit_to_flip)
 
 
-def hamming_fi(
+def protected_fi(
     module: nn.Module,
     *,
     num_faults: int = 0,
@@ -687,7 +541,7 @@ def hamming_fi(
     protected_buffers = list(
         x[1]
         for x in module.named_buffers(recurse=True, remove_duplicate=False)
-        if HAMMING_DATA_PREFIX in x[0]
+        if DATA_PREFIX in x[0]
     )
 
     buffers_fi(
@@ -723,13 +577,14 @@ def collect_supports_hamming_tensors(module: nn.Module) -> list[torch.Tensor]:
     return out
 
 
-def supports_hamming_fi(
+def nonprotected_fi(
     module: nn.Module,
     *,
     num_faults: int = 0,
     bit_error_rate: float | None = None,
     stats: HammingStats | None = None,
 ) -> None:
+    """Uniformly inject faults into all modules which could be encoded as HammingLayers."""
     buffers = collect_supports_hamming_tensors(module)
 
     buffers_fi(
