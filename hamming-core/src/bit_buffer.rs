@@ -1,6 +1,6 @@
 use crate::byte_ops::{flip, is_1, set_0, set_1};
 
-pub trait BitBuffer: Sized {
+pub trait BitBuffer {
     /// Number of bits stored by this buffer.
     fn num_bits(&self) -> usize;
 
@@ -30,7 +30,10 @@ pub trait BitBuffer: Sized {
 
     /// Iterate over the bits of the array.
     fn bits(&self) -> Bits<Self> {
-        Bits::new(self)
+        Bits {
+            buffer: self,
+            next_bit: 0,
+        }
     }
 
     /// Return true if the number 1 bits is even.
@@ -91,23 +94,14 @@ where
 /// An [`Iterator`] over the bits in a [`BitBuffer`].
 ///
 /// `true` represents 1 and `false` 0.
-pub struct Bits<'a, T> {
+pub struct Bits<'a, T: ?Sized> {
     buffer: &'a T,
     next_bit: usize,
 }
 
-impl<'a, T> Bits<'a, T> {
-    pub fn new(buffer: &'a T) -> Self {
-        Self {
-            buffer,
-            next_bit: 0,
-        }
-    }
-}
-
 impl<'a, T> Iterator for Bits<'a, T>
 where
-    T: BitBuffer,
+    T: BitBuffer + ?Sized,
 {
     type Item = bool;
 

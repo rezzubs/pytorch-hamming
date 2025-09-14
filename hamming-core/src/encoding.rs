@@ -122,9 +122,12 @@ pub trait Decodable: BitBuffer {
 
     /// Decode into the original bit representation.
     ///
+    /// [`Decodable::correct_error`] will be called on `self` so this function should only be used
+    /// once.
+    ///
     /// The second returned value will be false for failed error correction. See
     /// [`Decodable::correct_error`] for details.
-    fn decode(mut self) -> (Self::Target, bool) {
+    fn decode(&mut self) -> (Self::Target, bool) {
         let mut output_buffer = Self::Target::empty();
 
         let success = self.correct_error();

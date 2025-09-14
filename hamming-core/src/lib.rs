@@ -82,7 +82,8 @@ mod hamming_core {
             let mut failed_decodings: u64 = 0;
 
             for _ in 0..num_encoded_buffers {
-                let encoded: [u8; NUM_ENCODED_BYTES] = iter.next_array().expect("Within bounds");
+                let mut encoded: [u8; NUM_ENCODED_BYTES] =
+                    iter.next_array().expect("Within bounds");
 
                 let (decoded, success) = encoded.decode();
 
@@ -150,7 +151,8 @@ mod hamming_core {
             let mut failed_decodings: u64 = 0;
 
             for _ in 0..num_encoded_buffers {
-                let encoded: [u8; NUM_ENCODED_BYTES] = iter.next_array().expect("Within bounds");
+                let mut encoded: [u8; NUM_ENCODED_BYTES] =
+                    iter.next_array().expect("Within bounds");
 
                 let (decoded, success) = encoded.decode();
 
