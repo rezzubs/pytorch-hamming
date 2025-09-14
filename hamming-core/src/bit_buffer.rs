@@ -1,7 +1,8 @@
+mod float;
+mod int;
 mod sequence;
 #[cfg(test)]
 mod tests;
-mod unsigned;
 
 use rand::seq::SliceRandom;
 
