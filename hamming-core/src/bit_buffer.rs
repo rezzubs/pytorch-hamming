@@ -56,7 +56,7 @@ pub trait BitBuffer {
 }
 
 /// A [`BitBuffer`] with a comptime known length.
-trait SizedBitBuffer: BitBuffer {
+pub trait SizedBitBuffer: BitBuffer {
     /// Total number of bits in the buffer.
     ///
     /// Must be an exact match with [`BitBuffer::num_bits`].
