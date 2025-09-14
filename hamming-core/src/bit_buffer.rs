@@ -33,9 +33,9 @@ pub trait BitBuffer: Sized {
         Bits::new(self)
     }
 
-    /// Return true if the number of high bits is even.
+    /// Return true if the number 1 bits is even.
     fn total_parity_is_even(&self) -> bool {
-        self.bits().filter(|bit_is_high| *bit_is_high).count() % 2 == 0
+        self.bits().filter(|is_1| *is_1).count() % 2 == 0
     }
 
     /// Return a string of the bit representation.
@@ -126,11 +126,11 @@ mod tests {
     #[test]
     fn total_even() {
         assert!([0b00000000u8].total_parity_is_even());
-        assert!([0b00000001u8].total_parity_is_even());
+        assert!(![0b00000001u8].total_parity_is_even());
         assert!([0b00000011u8].total_parity_is_even());
-        assert!([0b00000111u8].total_parity_is_even());
+        assert!(![0b00000111u8].total_parity_is_even());
         assert!([0b10000001u8].total_parity_is_even());
-        assert!([0b10010001u8].total_parity_is_even());
+        assert!(![0b10010001u8].total_parity_is_even());
         assert!([0b11111111u8].total_parity_is_even());
     }
 }
