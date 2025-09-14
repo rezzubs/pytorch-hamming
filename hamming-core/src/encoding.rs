@@ -1,3 +1,5 @@
+//! Traits for hamming encoding [`BitBuffer`]s.
+
 use crate::{BitBuffer, SizedBitBuffer};
 
 /// Check if an index is reserved for parity (a power of two or 0).
@@ -17,6 +19,38 @@ pub trait Init {
     fn init() -> Self;
 }
 
+/// Buffers which can be encoded as a hamming code.
+///
+/// All BitBuffers can implement this without restrictions. This trait is always paired with
+/// [`Decodable`]. To be able to encode a buffer you must also define the decodable variant.
+///
+/// # Type parameters
+///
+/// - `D` is the buffer which is going to store the encoded data. Must be able to store at least as
+///   many bits as the encoded data (`original.num_bits() + original.num_bits().ilog2() + 2`). There
+///   is no way to verify this at compile time. If the buffer doesn't have enough space then the
+///   behavior is undefined, most likely will cause a crash.
+/// - `O` is the buffer which is going to store the decoded data. This can be the same type as the
+///   original buffer as long as the number of bits in the buffer is known at compile time - see
+///   [`SizedBitBuffer`].
+///
+/// Both `D` and `O` need to implement [`Init`] which will be used to create a blank slate value
+/// during encoding/decoding.
+///
+/// [`PaddedBuffer`] Might be useful for `D` if the number of bytes in the result doesn't fill the
+/// whole `D` buffer. A newtype wrapper may need to be used outside of this crate.
+///
+/// # Example for implementing `Encoding` and `Decoding`.
+///
+/// Assuming both `D` and `O` implement [`Init`].
+///
+/// ```ignore
+/// type EncodedU8 = PaddedBuffer<[u8; 2], 13, 3>;
+///
+/// impl Encodable<EncodedU8, u8> for u8 {}
+///
+/// impl Decodable<u8> for EncodedU8 {}
+/// ```
 pub trait Encodable<D, O>: BitBuffer
 where
     D: Decodable<O> + Init,
@@ -64,6 +98,9 @@ where
     }
 }
 
+/// A hamming encoded buffer that can be decoded.
+///
+/// See [`Encodable`] for details.
 pub trait Decodable<O>: SizedBitBuffer
 where
     O: SizedBitBuffer + Init,
@@ -197,8 +234,6 @@ impl Init for [u8; 34] {
 impl Encodable<[u8; 34], [u8; 32]> for [u8; 32] {}
 
 impl Decodable<[u8; 32]> for [u8; 34] {}
-
-// TODO: tests + Decodable const rework + module docs
 
 #[cfg(test)]
 mod tests {

@@ -4,7 +4,7 @@ mod encoding;
 mod padded_buffer;
 
 pub use bit_buffer::{BitBuffer, SizedBitBuffer};
-pub use encoding::{Decodable, Encodable};
+pub use encoding::{Decodable, Encodable, Init};
 pub use padded_buffer::PaddedBuffer;
 
 use itertools::Itertools;
