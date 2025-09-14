@@ -8,24 +8,28 @@ fn is_par_i(i: usize) -> bool {
     (i & (i - 1)) == 0
 }
 
-pub trait Encodable: BitBuffer {
-    /// The type of the buffer which holds the encoded data;
-    type Target: Decodable;
-
+/// A trait for getting an arbitrary buffer from a type.
+///
+/// The actual value doesn't matter. This is just used as the default value in other functions. Can
+/// be delegated to [`Default::default`] if your type implements it.
+pub trait Init {
     /// Return a value.
-    ///
-    /// The actual value doesn't matter. This is just used as the default value in other functions.
-    // Delegating to [`Default::default()`] is sufficient.
-    fn empty() -> Self;
+    fn init() -> Self;
+}
 
+pub trait Encodable<D, O>: BitBuffer
+where
+    D: Decodable<O> + Init,
+    O: BitBuffer + Init,
+{
     /// Encode the buffer with a hamming code.
-    fn encode(&self) -> Self::Target {
-        let mut output_buffer = Self::Target::empty();
+    fn encode(&self) -> D {
+        let mut output_buffer = D::init();
 
         let mut input_idx = 0;
 
         // NOTE: starting from 3 because 0, 1, 2 are all reserved for parity.
-        for output_idx in 3..Self::Target::NUM_ENCODED_BITS {
+        for output_idx in 3..D::NUM_ENCODED_BITS {
             if is_par_i(output_idx) {
                 continue;
             }
@@ -44,7 +48,7 @@ pub trait Encodable: BitBuffer {
 
         let bits_to_toggle = [bits_to_toggle];
 
-        for i in 0..Self::Target::NUM_ERROR_CORRECTION_BITS {
+        for i in 0..D::NUM_ERROR_CORRECTION_BITS {
             let parity_bit = 1 << i;
 
             if bits_to_toggle.is_1(i) {
@@ -60,17 +64,12 @@ pub trait Encodable: BitBuffer {
     }
 }
 
-pub trait Decodable: BitBuffer {
-    type Target: Encodable;
-
+pub trait Decodable<O>: BitBuffer
+where
+    O: BitBuffer + Init,
+{
     const NUM_ENCODED_BITS: usize;
     const NUM_ERROR_CORRECTION_BITS: usize;
-
-    /// Return a value.
-    ///
-    /// The actual value doesn't matter. This is just used as the default value in other functions.
-    // Delegating to [`Default::default()`] is sufficient.
-    fn empty() -> Self;
 
     /// Get the index of a flipped bit in case of a single bit flip.
     ///
@@ -127,8 +126,8 @@ pub trait Decodable: BitBuffer {
     ///
     /// The second returned value will be false for failed error correction. See
     /// [`Decodable::correct_error`] for details.
-    fn decode(&mut self) -> (Self::Target, bool) {
-        let mut output_buffer = Self::Target::empty();
+    fn decode(&mut self) -> (O, bool) {
+        let mut output_buffer = O::init();
 
         let success = self.correct_error();
 
@@ -151,65 +150,65 @@ pub trait Decodable: BitBuffer {
     }
 }
 
-impl Encodable for [u8; 8] {
-    type Target = [u8; 9];
-
-    fn empty() -> Self {
+impl Init for [u8; 8] {
+    fn init() -> Self {
         Default::default()
     }
 }
 
-impl Decodable for [u8; 9] {
-    type Target = [u8; 8];
+impl Init for [u8; 9] {
+    fn init() -> Self {
+        Default::default()
+    }
+}
 
+impl Encodable<[u8; 9], [u8; 8]> for [u8; 8] {}
+
+impl Decodable<[u8; 8]> for [u8; 9] {
     // 64 data + 7 SEC + 1 DED.
     const NUM_ENCODED_BITS: usize = 64 + 7 + 1;
 
     const NUM_ERROR_CORRECTION_BITS: usize = 7;
+}
 
-    fn empty() -> Self {
+impl Init for [u8; 16] {
+    fn init() -> Self {
         Default::default()
     }
 }
 
-impl Encodable for [u8; 16] {
-    type Target = [u8; 18];
-
-    fn empty() -> Self {
+impl Init for [u8; 18] {
+    fn init() -> Self {
         Default::default()
     }
 }
 
-impl Decodable for [u8; 18] {
-    type Target = [u8; 16];
+impl Encodable<[u8; 18], [u8; 16]> for [u8; 16] {}
 
+impl Decodable<[u8; 16]> for [u8; 18] {
     // 128 data + 8 SEC + 1 DED.
     const NUM_ENCODED_BITS: usize = 128 + 8 + 1;
 
     const NUM_ERROR_CORRECTION_BITS: usize = 8;
+}
 
-    fn empty() -> Self {
+impl Init for [u8; 32] {
+    fn init() -> Self {
         Default::default()
     }
 }
 
-impl Encodable for [u8; 32] {
-    type Target = [u8; 34];
-
-    fn empty() -> Self {
-        Default::default()
-    }
-}
-
-impl Decodable for [u8; 34] {
-    type Target = [u8; 32];
-
-    // 128 data + 8 SEC + 1 DED.
-    const NUM_ENCODED_BITS: usize = 128 + 8 + 1;
-
-    const NUM_ERROR_CORRECTION_BITS: usize = 8;
-
-    fn empty() -> Self {
+impl Init for [u8; 34] {
+    fn init() -> Self {
         [0u8; 34]
     }
+}
+
+impl Encodable<[u8; 34], [u8; 32]> for [u8; 32] {}
+
+impl Decodable<[u8; 32]> for [u8; 34] {
+    // 128 data + 8 SEC + 1 DED.
+    const NUM_ENCODED_BITS: usize = 128 + 8 + 1;
+
+    const NUM_ERROR_CORRECTION_BITS: usize = 8;
 }
