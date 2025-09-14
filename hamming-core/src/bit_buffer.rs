@@ -1,3 +1,5 @@
+use rand::seq::SliceRandom;
+
 pub trait BitBuffer {
     /// Number of bits stored by this buffer.
     fn num_bits(&self) -> usize;
@@ -52,6 +54,44 @@ pub trait BitBuffer {
             .rev();
 
         "0b".chars().chain(bits).collect()
+    }
+
+    /// Count the number of bits which are 1.
+    fn num_1_bits(&self) -> usize {
+        self.bits().filter(|is_1| *is_1).count()
+    }
+
+    /// Flip exactly n bits randomly in the buffer.
+    ///
+    /// All bit flips will be unique.
+    ///
+    /// # Panics
+    ///
+    /// - If `n > self.num_bits()`
+    fn flip_n_bits(&mut self, n: usize) {
+        assert!(n <= self.num_bits());
+
+        let mut possible_faults = (0..self.num_bits()).collect::<Vec<usize>>();
+        let mut rng = rand::rng();
+        possible_faults.shuffle(&mut rng);
+
+        for _ in 0..n {
+            let fault_target = possible_faults.pop().expect("checked the range");
+            self.flip_bit(fault_target);
+        }
+    }
+
+    /// Flip a number of bits by the given bit error rate.
+    ///
+    /// All bit flips will be unique.
+    ///
+    /// # Panics
+    ///
+    /// - if `ber` does not fit within `0..=1`.
+    fn flip_by_ber(&mut self, ber: f64) {
+        assert!((0f64..=1f64).contains(&ber));
+
+        self.flip_n_bits((self.num_bits() as f64 * ber) as usize);
     }
 }
 
@@ -189,17 +229,6 @@ where
 mod tests {
     use super::*;
 
-    #[test]
-    fn total_even() {
-        assert!([0b00000000u8].total_parity_is_even());
-        assert!(![0b00000001u8].total_parity_is_even());
-        assert!([0b00000011u8].total_parity_is_even());
-        assert!(![0b00000111u8].total_parity_is_even());
-        assert!([0b10000001u8].total_parity_is_even());
-        assert!(![0b10010001u8].total_parity_is_even());
-        assert!([0b11111111u8].total_parity_is_even());
-    }
-
     mod u8 {
         use super::*;
 
@@ -276,6 +305,46 @@ mod tests {
             let mut val = 0b1111;
             val.flip_bit(0);
             assert_eq!(val, 0b1110);
+        }
+
+        #[test]
+        fn total_even() {
+            assert!(0b00000000u8.total_parity_is_even());
+            assert!(!0b00000001u8.total_parity_is_even());
+            assert!(0b00000011u8.total_parity_is_even());
+            assert!(!0b00000111u8.total_parity_is_even());
+            assert!(0b10000001u8.total_parity_is_even());
+            assert!(!0b10010001u8.total_parity_is_even());
+            assert!(0b11111111u8.total_parity_is_even());
+        }
+
+        #[test]
+        fn num_1_bits() {
+            assert_eq!(0b00101100u8.num_1_bits(), 3);
+            assert_eq!(0b1000001u8.num_1_bits(), 2);
+        }
+
+        #[test]
+        fn fault_injection() {
+            let mut buf = 0u8;
+            buf.flip_n_bits(1);
+            assert_eq!(buf.num_1_bits(), 1);
+
+            let mut buf = 0u8;
+            buf.flip_n_bits(2);
+            assert_eq!(buf.num_1_bits(), 2);
+
+            let mut buf = 0u8;
+            buf.flip_n_bits(3);
+            assert_eq!(buf.num_1_bits(), 3);
+
+            let mut buf = 0u8;
+            buf.flip_n_bits(4);
+            assert_eq!(buf.num_1_bits(), 4);
+
+            let mut buf = 0u8;
+            buf.flip_by_ber(1.);
+            assert_eq!(buf.num_1_bits(), 8);
         }
     }
 
