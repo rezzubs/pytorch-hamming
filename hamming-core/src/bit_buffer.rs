@@ -54,33 +54,37 @@ pub trait BitBuffer: Sized {
     }
 }
 
-impl<const N: usize> BitBuffer for [u8; N] {
+impl<T> BitBuffer for T
+where
+    T: AsRef<[u8]>,
+    T: AsMut<[u8]>,
+{
     fn num_bits(&self) -> usize {
-        N * 8
+        self.as_ref().len() * 8
     }
 
     fn set_1(&mut self, bit_idx: usize) {
         assert!(bit_idx < self.num_bits());
         let byte_idx = bit_idx / 8;
-        self[byte_idx] = set_1(self[byte_idx], bit_idx % 8);
+        self.as_mut()[byte_idx] = set_1(self.as_ref()[byte_idx], bit_idx % 8);
     }
 
     fn set_0(&mut self, bit_idx: usize) {
         assert!(bit_idx < self.num_bits());
         let byte_idx = bit_idx / 8;
-        self[byte_idx] = set_0(self[byte_idx], bit_idx % 8);
+        self.as_mut()[byte_idx] = set_0(self.as_ref()[byte_idx], bit_idx % 8);
     }
 
     fn is_1(&self, bit_idx: usize) -> bool {
         assert!(bit_idx < self.num_bits());
         let byte_idx = bit_idx / 8;
-        is_1(self[byte_idx], bit_idx % 8)
+        is_1(self.as_ref()[byte_idx], bit_idx % 8)
     }
 
     fn flip_bit(&mut self, bit_idx: usize) {
         assert!(bit_idx < self.num_bits());
         let byte_idx = bit_idx / 8;
-        self[byte_idx] = flip(self[byte_idx], bit_idx % 8);
+        self.as_mut()[byte_idx] = flip(self.as_ref()[byte_idx], bit_idx % 8);
     }
 }
 
