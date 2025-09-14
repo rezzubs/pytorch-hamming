@@ -1,4 +1,4 @@
-use crate::BitBuffer;
+use crate::{BitBuffer, SizedBitBuffer};
 
 /// A [`BitBuffer`] with padding in regular intervals.
 ///
@@ -12,6 +12,7 @@ use crate::BitBuffer;
 /// original u8:  0bDDDDDDDD
 /// PaddedBuffer: 0bPDDDPDDD
 /// ```
+#[derive(Debug, PartialEq, Eq, Default, Hash)]
 pub struct PaddedBuffer<T, const D: usize, const P: usize> {
     buffer: T,
 }
@@ -74,6 +75,13 @@ where
     }
 }
 
+impl<T, const D: usize, const P: usize> SizedBitBuffer for PaddedBuffer<T, D, P>
+where
+    T: SizedBitBuffer,
+{
+    const NUM_BITS: usize = (T::NUM_BITS / Self::CONTAINER_BITS) * D;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,5 +131,12 @@ mod tests {
         assert!(buf.is_1(3));
         assert!(buf.is_0(4));
         assert!(buf.is_0(5));
+    }
+
+    #[test]
+    fn num_bits() {
+        type T = PaddedBuffer<[u8; 2], 3, 5>;
+        let buf = T::new(Default::default());
+        assert_eq!(T::NUM_BITS, buf.num_bits())
     }
 }
