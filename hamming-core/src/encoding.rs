@@ -212,3 +212,19 @@ impl Decodable<[u8; 32]> for [u8; 34] {
 
     const NUM_ERROR_CORRECTION_BITS: usize = 8;
 }
+
+// TODO: tests + Decodable const rework + module docs
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_faults() {
+        let initial: [u8; 8] = Init::init();
+        let mut encoded = initial.encode();
+        let (decoded, success) = encoded.decode();
+        assert!(success);
+        assert_eq!(initial, decoded);
+    }
+}
