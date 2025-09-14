@@ -1,9 +1,11 @@
 mod bit_buffer;
 pub mod conversions;
 mod encoding;
+mod padded_buffer;
 
 pub use bit_buffer::{BitBuffer, SizedBitBuffer};
 pub use encoding::{Decodable, Encodable};
+pub use padded_buffer::PaddedBuffer;
 
 use itertools::Itertools;
 use numpy::{PyArray1, PyReadonlyArray1};
