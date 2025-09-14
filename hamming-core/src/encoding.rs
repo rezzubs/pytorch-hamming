@@ -26,25 +26,25 @@ where
     fn encode(&self) -> D {
         let mut output_buffer = D::init();
 
-        let mut input_idx = 0;
+        let mut input_index = 0;
 
         // NOTE: starting from 3 because 0, 1, 2 are all reserved for parity.
-        for output_idx in 3..D::NUM_ENCODED_BITS {
-            if is_par_i(output_idx) {
+        for output_index in 3..D::NUM_ENCODED_BITS {
+            if is_par_i(output_index) {
                 continue;
             }
 
-            if self.is_1(input_idx) {
-                output_buffer.set_1(output_idx);
+            if self.is_1(input_index) {
+                output_buffer.set_1(output_index);
             } else {
-                output_buffer.set_0(output_idx);
+                output_buffer.set_0(output_index);
             }
 
-            input_idx += 1;
+            input_index += 1;
         }
 
-        let bits_to_toggle =
-            u8::try_from(output_buffer.error_idx()).expect("ByteArray<9> index must fit inside u8");
+        let bits_to_toggle = u8::try_from(output_buffer.error_index())
+            .expect("ByteArray<9> index must fit inside u8");
 
         let bits_to_toggle = [bits_to_toggle];
 
@@ -74,7 +74,7 @@ where
     /// Get the index of a flipped bit in case of a single bit flip.
     ///
     /// 0 marks a successful case.
-    fn error_idx(&self) -> usize {
+    fn error_index(&self) -> usize {
         use std::ops::BitXor;
 
         self.bits()
@@ -96,7 +96,7 @@ where
         // The parity check provides double error detection. During encoding the
         // 0th bit is set so the parity across all bits is even. For single bit
         // errors we expect an odd parity.
-        match (self.error_idx(), self.total_parity_is_even()) {
+        match (self.error_index(), self.total_parity_is_even()) {
             // We couldn't find an error location and the total parity has not
             // changed.
             (0, true) => true,
@@ -131,19 +131,19 @@ where
 
         let success = self.correct_error();
 
-        let mut output_idx = 0;
-        for input_idx in 0..Self::NUM_ENCODED_BITS {
-            if is_par_i(input_idx) {
+        let mut output_index = 0;
+        for input_index in 0..Self::NUM_ENCODED_BITS {
+            if is_par_i(input_index) {
                 continue;
             }
 
-            if self.is_1(input_idx) {
-                output_buffer.set_1(output_idx);
+            if self.is_1(input_index) {
+                output_buffer.set_1(output_index);
             } else {
-                output_buffer.set_0(output_idx);
+                output_buffer.set_0(output_index);
             }
 
-            output_idx += 1;
+            output_index += 1;
         }
 
         (output_buffer, success)

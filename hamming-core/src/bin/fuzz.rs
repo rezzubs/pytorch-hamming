@@ -14,17 +14,17 @@ fn single_bitflip(num_iterations: usize) {
 
         let encoded = original.encode();
 
-        let error_idx = rand::random_range::<u16, _>(0..72) as usize;
+        let error_index = rand::random_range::<u16, _>(0..72) as usize;
         let mut tampered = encoded;
-        tampered.flip_bit(error_idx);
+        tampered.flip_bit(error_index);
         assert_ne!(encoded, tampered);
 
-        let predicted_error = tampered.error_idx();
-        assert_eq!(error_idx, predicted_error);
+        let predicted_error = tampered.error_index();
+        assert_eq!(error_index, predicted_error);
 
         let (decoded, success) = tampered.decode();
 
-        if error_idx == 0 {
+        if error_index == 0 {
             assert!(!success);
         } else {
             assert!(success);
@@ -50,7 +50,7 @@ fn double_bitflip(num_iterations: usize) {
         tampered.flip_bit(errors[1]);
         assert_ne!(encoded, tampered);
 
-        let predicted_error = tampered.error_idx();
+        let predicted_error = tampered.error_index();
         if errors.iter().all(|x| *x != 0) {
             // NOTE: if one of the flips is 0 then the prediction will be the other flip.
             assert_ne!(predicted_error, errors[0]);

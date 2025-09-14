@@ -2,27 +2,27 @@ pub trait BitBuffer {
     /// Number of bits stored by this buffer.
     fn num_bits(&self) -> usize;
 
-    /// Set a bit with index `bit_idx` to 1.
-    fn set_1(&mut self, bit_idx: usize);
+    /// Set a bit with index `bit_index` to 1.
+    fn set_1(&mut self, bit_index: usize);
 
-    /// Set a bit with index `bit_idx` to 0.
-    fn set_0(&mut self, bit_idx: usize);
+    /// Set a bit with index `bit_index` to 0.
+    fn set_0(&mut self, bit_index: usize);
 
-    /// Check if the bit at index `bit_idx` is 1.
-    fn is_1(&self, bit_idx: usize) -> bool;
+    /// Check if the bit at index `bit_index` is 1.
+    fn is_1(&self, bit_index: usize) -> bool;
 
-    /// Check if the bit with index `bit_idx` is 0.
-    fn is_0(&self, bit_idx: usize) -> bool {
-        !self.is_1(bit_idx)
+    /// Check if the bit with index `bit_index` is 0.
+    fn is_0(&self, bit_index: usize) -> bool {
+        !self.is_1(bit_index)
     }
 
-    /// Flip the bit with index `bit_idx`.
-    fn flip_bit(&mut self, bit_idx: usize) {
+    /// Flip the bit with index `bit_index`.
+    fn flip_bit(&mut self, bit_index: usize) {
         // NOTE: It's likely that a custom implementation for a specific type will be faster.
-        if self.is_0(bit_idx) {
-            self.set_1(bit_idx);
+        if self.is_0(bit_index) {
+            self.set_1(bit_index);
         } else {
-            self.set_0(bit_idx);
+            self.set_0(bit_index);
         }
     }
 
@@ -102,28 +102,28 @@ where
         self.len() * T::NUM_BITS
     }
 
-    fn set_1(&mut self, bit_idx: usize) {
-        assert!(bit_idx < self.num_bits());
-        let item_index = bit_idx / T::NUM_BITS;
-        self[item_index].set_1(bit_idx % T::NUM_BITS);
+    fn set_1(&mut self, bit_index: usize) {
+        assert!(bit_index < self.num_bits());
+        let item_index = bit_index / T::NUM_BITS;
+        self[item_index].set_1(bit_index % T::NUM_BITS);
     }
 
-    fn set_0(&mut self, bit_idx: usize) {
-        assert!(bit_idx < self.num_bits());
-        let item_index = bit_idx / T::NUM_BITS;
-        self[item_index].set_0(bit_idx % T::NUM_BITS);
+    fn set_0(&mut self, bit_index: usize) {
+        assert!(bit_index < self.num_bits());
+        let item_index = bit_index / T::NUM_BITS;
+        self[item_index].set_0(bit_index % T::NUM_BITS);
     }
 
-    fn is_1(&self, bit_idx: usize) -> bool {
-        assert!(bit_idx < self.num_bits());
-        let item_index = bit_idx / T::NUM_BITS;
-        self[item_index].is_1(bit_idx % T::NUM_BITS)
+    fn is_1(&self, bit_index: usize) -> bool {
+        assert!(bit_index < self.num_bits());
+        let item_index = bit_index / T::NUM_BITS;
+        self[item_index].is_1(bit_index % T::NUM_BITS)
     }
 
-    fn flip_bit(&mut self, bit_idx: usize) {
-        assert!(bit_idx < self.num_bits());
-        let item_index = bit_idx / T::NUM_BITS;
-        self[item_index].flip_bit(bit_idx % T::NUM_BITS);
+    fn flip_bit(&mut self, bit_index: usize) {
+        assert!(bit_index < self.num_bits());
+        let item_index = bit_index / T::NUM_BITS;
+        self[item_index].flip_bit(bit_index % T::NUM_BITS);
     }
 }
 
@@ -142,20 +142,20 @@ where
         self.as_slice().num_bits()
     }
 
-    fn set_1(&mut self, bit_idx: usize) {
-        self.as_mut_slice().set_1(bit_idx);
+    fn set_1(&mut self, bit_index: usize) {
+        self.as_mut_slice().set_1(bit_index);
     }
 
-    fn set_0(&mut self, bit_idx: usize) {
-        self.as_mut_slice().set_0(bit_idx);
+    fn set_0(&mut self, bit_index: usize) {
+        self.as_mut_slice().set_0(bit_index);
     }
 
-    fn is_1(&self, bit_idx: usize) -> bool {
-        self.as_slice().is_1(bit_idx)
+    fn is_1(&self, bit_index: usize) -> bool {
+        self.as_slice().is_1(bit_index)
     }
 
-    fn flip_bit(&mut self, bit_idx: usize) {
-        self.as_mut_slice().flip_bit(bit_idx);
+    fn flip_bit(&mut self, bit_index: usize) {
+        self.as_mut_slice().flip_bit(bit_index);
     }
 }
 

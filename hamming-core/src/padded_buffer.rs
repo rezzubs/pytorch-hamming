@@ -57,20 +57,20 @@ where
         self.num_containers() * D
     }
 
-    fn set_1(&mut self, bit_idx: usize) {
-        self.buffer.set_1(self.true_index(bit_idx));
+    fn set_1(&mut self, bit_index: usize) {
+        self.buffer.set_1(self.true_index(bit_index));
     }
 
-    fn set_0(&mut self, bit_idx: usize) {
-        self.buffer.set_0(self.true_index(bit_idx));
+    fn set_0(&mut self, bit_index: usize) {
+        self.buffer.set_0(self.true_index(bit_index));
     }
 
-    fn is_1(&self, bit_idx: usize) -> bool {
-        self.buffer.is_1(self.true_index(bit_idx))
+    fn is_1(&self, bit_index: usize) -> bool {
+        self.buffer.is_1(self.true_index(bit_index))
     }
 
-    fn flip_bit(&mut self, bit_idx: usize) {
-        self.buffer.flip_bit(self.true_index(bit_idx));
+    fn flip_bit(&mut self, bit_index: usize) {
+        self.buffer.flip_bit(self.true_index(bit_index));
     }
 }
 
