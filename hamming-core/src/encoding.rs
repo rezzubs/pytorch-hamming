@@ -1,4 +1,4 @@
-use crate::BitBuffer;
+use crate::{BitBuffer, SizedBitBuffer};
 
 /// Check if an index is reserved for parity (a power of two or 0).
 fn is_par_i(i: usize) -> bool {
@@ -20,7 +20,7 @@ pub trait Init {
 pub trait Encodable<D, O>: BitBuffer
 where
     D: Decodable<O> + Init,
-    O: BitBuffer + Init,
+    O: SizedBitBuffer + Init,
 {
     /// Encode the buffer with a hamming code.
     fn encode(&self) -> D {
@@ -64,12 +64,12 @@ where
     }
 }
 
-pub trait Decodable<O>: BitBuffer
+pub trait Decodable<O>: SizedBitBuffer
 where
-    O: BitBuffer + Init,
+    O: SizedBitBuffer + Init,
 {
-    const NUM_ENCODED_BITS: usize;
-    const NUM_ERROR_CORRECTION_BITS: usize;
+    const NUM_ERROR_CORRECTION_BITS: usize = O::NUM_BITS.ilog2() as usize + 1;
+    const NUM_ENCODED_BITS: usize = O::NUM_BITS + Self::NUM_ERROR_CORRECTION_BITS + 1;
 
     /// Get the index of a flipped bit in case of a single bit flip.
     ///
@@ -164,12 +164,7 @@ impl Init for [u8; 9] {
 
 impl Encodable<[u8; 9], [u8; 8]> for [u8; 8] {}
 
-impl Decodable<[u8; 8]> for [u8; 9] {
-    // 64 data + 7 SEC + 1 DED.
-    const NUM_ENCODED_BITS: usize = 64 + 7 + 1;
-
-    const NUM_ERROR_CORRECTION_BITS: usize = 7;
-}
+impl Decodable<[u8; 8]> for [u8; 9] {}
 
 impl Init for [u8; 16] {
     fn init() -> Self {
@@ -185,12 +180,7 @@ impl Init for [u8; 18] {
 
 impl Encodable<[u8; 18], [u8; 16]> for [u8; 16] {}
 
-impl Decodable<[u8; 16]> for [u8; 18] {
-    // 128 data + 8 SEC + 1 DED.
-    const NUM_ENCODED_BITS: usize = 128 + 8 + 1;
-
-    const NUM_ERROR_CORRECTION_BITS: usize = 8;
-}
+impl Decodable<[u8; 16]> for [u8; 18] {}
 
 impl Init for [u8; 32] {
     fn init() -> Self {
@@ -206,12 +196,7 @@ impl Init for [u8; 34] {
 
 impl Encodable<[u8; 34], [u8; 32]> for [u8; 32] {}
 
-impl Decodable<[u8; 32]> for [u8; 34] {
-    // 128 data + 8 SEC + 1 DED.
-    const NUM_ENCODED_BITS: usize = 128 + 8 + 1;
-
-    const NUM_ERROR_CORRECTION_BITS: usize = 8;
-}
+impl Decodable<[u8; 32]> for [u8; 34] {}
 
 // TODO: tests + Decodable const rework + module docs
 
@@ -222,6 +207,12 @@ mod tests {
     #[test]
     fn no_faults() {
         let initial: [u8; 8] = Init::init();
+        let mut encoded = initial.encode();
+        let (decoded, success) = encoded.decode();
+        assert!(success);
+        assert_eq!(initial, decoded);
+
+        let initial: [u8; 8] = [u8::MAX; 8];
         let mut encoded = initial.encode();
         let (decoded, success) = encoded.decode();
         assert!(success);
@@ -262,5 +253,28 @@ mod tests {
             let (_, success) = encoded.decode();
             assert!(!success);
         }
+    }
+
+    #[test]
+    fn auto_constants() {
+        type EncodingFor8Byte = [u8; 9];
+        assert_eq!(
+            <EncodingFor8Byte as Decodable<[u8; 8]>>::NUM_ENCODED_BITS,
+            72
+        );
+        assert_eq!(
+            <EncodingFor8Byte as Decodable<[u8; 8]>>::NUM_ERROR_CORRECTION_BITS,
+            7
+        );
+
+        type EncodingFor16Byte = [u8; 18];
+        assert_eq!(
+            <EncodingFor16Byte as Decodable<[u8; 16]>>::NUM_ENCODED_BITS,
+            137
+        );
+        assert_eq!(
+            <EncodingFor16Byte as Decodable<[u8; 16]>>::NUM_ERROR_CORRECTION_BITS,
+            8
+        );
     }
 }
