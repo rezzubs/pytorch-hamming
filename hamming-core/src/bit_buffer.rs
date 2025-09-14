@@ -278,4 +278,19 @@ mod tests {
             assert_eq!(val, 0b1110);
         }
     }
+
+    mod sequence {
+        use super::*;
+
+        #[test]
+        fn is_1() {
+            let a = [0u8, 0b110u8];
+            for i in 0..=8 {
+                assert!(a.is_0(i))
+            }
+            assert!(a.is_1(9));
+            assert!(a.is_1(10));
+            assert!(a.is_0(11));
+        }
+    }
 }
