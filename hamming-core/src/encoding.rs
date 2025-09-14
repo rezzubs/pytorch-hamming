@@ -227,4 +227,40 @@ mod tests {
         assert!(success);
         assert_eq!(initial, decoded);
     }
+
+    #[test]
+    fn exactly_1_fault() {
+        let original: [u8; 8] = Init::init();
+        let encoded = original.encode();
+
+        for i in 1..encoded.num_bits() {
+            let mut encoded = encoded;
+            encoded.flip_bit(i);
+            let (decoded, success) = encoded.decode();
+            assert!(success);
+            assert_eq!(decoded, original);
+        }
+
+        // If bit 0 flips then we cannot verify that the data is correct.
+        let mut encoded = encoded;
+        encoded.flip_bit(0);
+        let (decoded, success) = encoded.decode();
+
+        assert!(!success);
+        assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn exactly_2_faults() {
+        let original: [u8; 8] = Init::init();
+        let encoded = original.encode();
+
+        for i in 1..encoded.num_bits() {
+            let mut encoded = encoded;
+            encoded.flip_bit(i);
+            encoded.flip_bit(i - 1);
+            let (_, success) = encoded.decode();
+            assert!(!success);
+        }
+    }
 }
