@@ -109,7 +109,7 @@ pub trait Decodable: BitBuffer {
             (_, true) => false,
             // If only one of our protected bits flipped it will cause the error
             // index to be in our protected range.
-            (e, false) if e >= Self::NUM_BITS => false,
+            (e, false) if e >= self.num_bits() => false,
             // We found an error location and the parity changed which means we
             // either have 1 error which we will attempt to correct or an
             // undetectable odd number of errors.

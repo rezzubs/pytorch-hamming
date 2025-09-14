@@ -2,7 +2,7 @@ use crate::byte_ops::{flip, is_1, set_0, set_1};
 
 pub trait BitBuffer: Sized {
     /// Number of bits stored by this buffer.
-    const NUM_BITS: usize;
+    fn num_bits(&self) -> usize;
 
     /// Set a bit with index `bit_idx` to 1.
     fn set_1(&mut self, bit_idx: usize);
@@ -55,28 +55,30 @@ pub trait BitBuffer: Sized {
 }
 
 impl<const N: usize> BitBuffer for [u8; N] {
-    const NUM_BITS: usize = N * 8;
+    fn num_bits(&self) -> usize {
+        N * 8
+    }
 
     fn set_1(&mut self, bit_idx: usize) {
-        assert!(bit_idx < Self::NUM_BITS);
+        assert!(bit_idx < self.num_bits());
         let byte_idx = bit_idx / 8;
         self[byte_idx] = set_1(self[byte_idx], bit_idx % 8);
     }
 
     fn set_0(&mut self, bit_idx: usize) {
-        assert!(bit_idx < Self::NUM_BITS);
+        assert!(bit_idx < self.num_bits());
         let byte_idx = bit_idx / 8;
         self[byte_idx] = set_0(self[byte_idx], bit_idx % 8);
     }
 
     fn is_1(&self, bit_idx: usize) -> bool {
-        assert!(bit_idx < Self::NUM_BITS);
+        assert!(bit_idx < self.num_bits());
         let byte_idx = bit_idx / 8;
         is_1(self[byte_idx], bit_idx % 8)
     }
 
     fn flip_bit(&mut self, bit_idx: usize) {
-        assert!(bit_idx < Self::NUM_BITS);
+        assert!(bit_idx < self.num_bits());
         let byte_idx = bit_idx / 8;
         self[byte_idx] = flip(self[byte_idx], bit_idx % 8);
     }
@@ -106,8 +108,8 @@ where
     type Item = bool;
 
     fn next(&mut self) -> Option<Self::Item> {
-        assert!(self.next_bit <= T::NUM_BITS);
-        if self.next_bit == T::NUM_BITS {
+        assert!(self.next_bit <= self.buffer.num_bits());
+        if self.next_bit == self.buffer.num_bits() {
             return None;
         }
 
