@@ -28,10 +28,6 @@ mod hamming_core {
     /// The decoding functions additionally return the number of detected faults.
     #[pymodule]
     mod u64 {
-        use crate::conversions::{
-            f32x2_to_le_bytes, le_bytes_to_f32x2, le_bytes_to_u16x4, u16x4_to_le_bytes,
-        };
-
         use super::*;
 
         /// Encode an array of float32 values as an array of uint8 values.
@@ -54,7 +50,7 @@ mod hamming_core {
                 input
                     .into_iter()
                     .tuples()
-                    .flat_map(|(a, b)| f32x2_to_le_bytes([a, b]).encode()),
+                    .flat_map(|(a, b)| [a, b].encode()),
             )
         }
 
@@ -86,7 +82,7 @@ mod hamming_core {
                 let mut encoded: [u8; NUM_ENCODED_BYTES] =
                     iter.next_array().expect("Within bounds");
 
-                let (decoded, success) = encoded.decode();
+                let ([a, b], success) = encoded.decode();
 
                 if !success {
                     failed_decodings = failed_decodings
@@ -94,7 +90,6 @@ mod hamming_core {
                         .expect("Unexpectedly large number of unmasked faults");
                 }
 
-                let [a, b] = le_bytes_to_f32x2(decoded);
                 output.push(a);
                 output.push(b);
             }
@@ -123,7 +118,7 @@ mod hamming_core {
                 input
                     .into_iter()
                     .tuples()
-                    .flat_map(|(a, b, c, d)| u16x4_to_le_bytes([a, b, c, d]).encode()),
+                    .flat_map(|(a, b, c, d)| [a, b, c, d].encode()),
             )
         }
 
@@ -147,7 +142,7 @@ mod hamming_core {
 
             let mut iter = input.iter().copied();
             let num_encoded_buffers = input.len() / NUM_ENCODED_BYTES;
-            let mut output = Vec::with_capacity(num_encoded_buffers * 2);
+            let mut output = Vec::with_capacity(num_encoded_buffers * 4);
 
             let mut failed_decodings: u64 = 0;
 
@@ -155,7 +150,7 @@ mod hamming_core {
                 let mut encoded: [u8; NUM_ENCODED_BYTES] =
                     iter.next_array().expect("Within bounds");
 
-                let (decoded, success) = encoded.decode();
+                let (decoded, success): ([u16; 4], bool) = encoded.decode();
 
                 if !success {
                     failed_decodings = failed_decodings
@@ -163,7 +158,7 @@ mod hamming_core {
                         .expect("Unexpectedly large number of unmasked faults");
                 }
 
-                output.extend(le_bytes_to_u16x4(decoded));
+                output.extend(decoded);
             }
 
             Ok((PyArray1::from_slice(py, &output), failed_decodings))

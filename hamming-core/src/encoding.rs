@@ -187,21 +187,45 @@ where
     }
 }
 
-impl Init for [u8; 8] {
-    fn init() -> Self {
-        Default::default()
+/// 8 byte data.
+mod u64 {
+    use super::*;
+
+    type EncodedU64 = [u8; 9];
+
+    impl Init for EncodedU64 {
+        fn init() -> Self {
+            Default::default()
+        }
     }
-}
 
-impl Init for [u8; 9] {
-    fn init() -> Self {
-        Default::default()
+    impl Init for [u8; 8] {
+        fn init() -> Self {
+            Default::default()
+        }
     }
+
+    impl Encodable<EncodedU64, [u8; 8]> for [u8; 8] {}
+    impl Decodable<[u8; 8]> for EncodedU64 {}
+
+    impl Init for [f32; 2] {
+        fn init() -> Self {
+            Default::default()
+        }
+    }
+
+    impl Encodable<EncodedU64, [f32; 2]> for [f32; 2] {}
+    impl Decodable<[f32; 2]> for EncodedU64 {}
+
+    impl Init for [u16; 4] {
+        fn init() -> Self {
+            Default::default()
+        }
+    }
+
+    impl Encodable<EncodedU64, [u16; 4]> for [u16; 4] {}
+    impl Decodable<[u16; 4]> for EncodedU64 {}
 }
-
-impl Encodable<[u8; 9], [u8; 8]> for [u8; 8] {}
-
-impl Decodable<[u8; 8]> for [u8; 9] {}
 
 impl Init for [u8; 16] {
     fn init() -> Self {
@@ -241,28 +265,30 @@ mod tests {
 
     #[test]
     fn no_faults() {
-        let initial: [u8; 8] = Init::init();
+        type T = [u8; 8];
+        let initial: T = Init::init();
         let mut encoded = initial.encode();
-        let (decoded, success) = encoded.decode();
+        let (decoded, success): (T, bool) = encoded.decode();
         assert!(success);
         assert_eq!(initial, decoded);
 
         let initial: [u8; 8] = [u8::MAX; 8];
         let mut encoded = initial.encode();
-        let (decoded, success) = encoded.decode();
+        let (decoded, success): (T, bool) = encoded.decode();
         assert!(success);
         assert_eq!(initial, decoded);
     }
 
     #[test]
     fn exactly_1_fault() {
-        let original: [u8; 8] = Init::init();
+        type T = [u8; 8];
+        let original: T = Init::init();
         let encoded = original.encode();
 
         for i in 1..encoded.num_bits() {
             let mut encoded = encoded;
             encoded.flip_bit(i);
-            let (decoded, success) = encoded.decode();
+            let (decoded, success): (T, bool) = encoded.decode();
             assert!(success);
             assert_eq!(decoded, original);
         }
@@ -270,7 +296,7 @@ mod tests {
         // If bit 0 flips then we cannot verify that the data is correct.
         let mut encoded = encoded;
         encoded.flip_bit(0);
-        let (decoded, success) = encoded.decode();
+        let (decoded, success): (T, bool) = encoded.decode();
 
         assert!(!success);
         assert_eq!(decoded, original);
@@ -278,14 +304,15 @@ mod tests {
 
     #[test]
     fn exactly_2_faults() {
-        let original: [u8; 8] = Init::init();
+        type T = [u8; 8];
+        let original: T = Init::init();
         let encoded = original.encode();
 
         for i in 1..encoded.num_bits() {
             let mut encoded = encoded;
             encoded.flip_bit(i);
             encoded.flip_bit(i - 1);
-            let (_, success) = encoded.decode();
+            let (_, success): (T, bool) = encoded.decode();
             assert!(!success);
         }
     }
