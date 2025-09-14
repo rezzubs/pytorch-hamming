@@ -1,8 +1,10 @@
-pub mod byte_array;
-mod u64;
+mod bit_buffer;
+pub mod byte_ops;
+pub mod conversions;
+mod encoding;
 
-pub use crate::u64::Hamming64;
-pub use byte_array::ByteArray;
+pub use bit_buffer::BitBuffer;
+pub use encoding::{Decodable, Encodable};
 
 use itertools::Itertools;
 use numpy::{PyArray1, PyReadonlyArray1};
@@ -25,6 +27,10 @@ mod hamming_core {
     /// The decoding functions additionally return the number of detected faults.
     #[pymodule]
     mod u64 {
+        use crate::conversions::{
+            f32x2_to_le_bytes, le_bytes_to_f32x2, le_bytes_to_u16x4, u16x4_to_le_bytes,
+        };
+
         use super::*;
 
         /// Encode an array of float32 values as an array of uint8 values.
@@ -47,7 +53,7 @@ mod hamming_core {
                 input
                     .into_iter()
                     .tuples()
-                    .flat_map(|(a, b)| Hamming64::encode([a, b]).0.into_bytes()),
+                    .flat_map(|(a, b)| f32x2_to_le_bytes([a, b]).encode()),
             )
         }
 
@@ -61,23 +67,23 @@ mod hamming_core {
         ) -> PyResult<(Bound<'py, PyArray1<f32>>, u64)> {
             let input = input.as_array();
 
-            if input.len() % Hamming64::NUM_BYTES != 0 {
+            const NUM_ENCODED_BYTES: usize = 9;
+
+            if input.len() % NUM_ENCODED_BYTES != 0 {
                 return Err(PyValueError::new_err(format!(
-                    "Expected a number of bytes divisible by {}",
-                    Hamming64::NUM_BYTES
+                    "Expected a number of bytes divisible by {NUM_ENCODED_BYTES}"
                 )));
             }
 
             let mut iter = input.iter().copied();
-            let num_encoded = input.len() / Hamming64::NUM_BYTES;
-            let mut output = Vec::with_capacity(num_encoded * 2);
+            let num_encoded_buffers = input.len() / NUM_ENCODED_BYTES;
+            let mut output = Vec::with_capacity(num_encoded_buffers * 2);
 
             let mut failed_decodings: u64 = 0;
 
-            for _ in 0..num_encoded {
-                let bytes: [u8; Hamming64::NUM_BYTES] = iter.next_array().expect("Within bounds");
+            for _ in 0..num_encoded_buffers {
+                let encoded: [u8; NUM_ENCODED_BYTES] = iter.next_array().expect("Within bounds");
 
-                let encoded = Hamming64(bytes.into());
                 let (decoded, success) = encoded.decode();
 
                 if !success {
@@ -86,7 +92,7 @@ mod hamming_core {
                         .expect("Unexpectedly large number of unmasked faults");
                 }
 
-                let [a, b]: [f32; 2] = decoded.into();
+                let [a, b] = le_bytes_to_f32x2(decoded);
                 output.push(a);
                 output.push(b);
             }
@@ -106,7 +112,8 @@ mod hamming_core {
         ) -> Bound<'py, PyArray1<u8>> {
             let mut input = input.as_array().into_iter().copied().collect::<Vec<u16>>();
 
-            let required_padding = input.len() % 4;
+            const ITEMS_PER_CONTAINER: usize = 4;
+            let required_padding = input.len() % ITEMS_PER_CONTAINER;
             input.extend(std::iter::repeat_n(0, required_padding));
 
             PyArray1::from_iter(
@@ -114,9 +121,10 @@ mod hamming_core {
                 input
                     .into_iter()
                     .tuples()
-                    .flat_map(|(a, b, c, d)| Hamming64::encode([a, b, c, d]).0.into_bytes()),
+                    .flat_map(|(a, b, c, d)| u16x4_to_le_bytes([a, b, c, d]).encode()),
             )
         }
+
         /// Decode an array of uint8 values into an array of float32 values.
         ///
         /// Returns: (decoded_array, num_unmasked_faults)
@@ -127,23 +135,23 @@ mod hamming_core {
         ) -> PyResult<(Bound<'py, PyArray1<u16>>, u64)> {
             let input = input.as_array();
 
-            if input.len() % Hamming64::NUM_BYTES != 0 {
+            const NUM_ENCODED_BYTES: usize = 9;
+
+            if input.len() % NUM_ENCODED_BYTES != 0 {
                 return Err(PyValueError::new_err(format!(
-                    "Expected a number of bytes divisible by {}",
-                    Hamming64::NUM_BYTES
+                    "Expected a number of bytes divisible by {NUM_ENCODED_BYTES}"
                 )));
             }
 
             let mut iter = input.iter().copied();
-            let num_encoded = input.len() / Hamming64::NUM_BYTES;
-            let mut output = Vec::with_capacity(num_encoded * 2);
+            let num_encoded_buffers = input.len() / NUM_ENCODED_BYTES;
+            let mut output = Vec::with_capacity(num_encoded_buffers * 2);
 
             let mut failed_decodings: u64 = 0;
 
-            for _ in 0..num_encoded {
-                let bytes: [u8; Hamming64::NUM_BYTES] = iter.next_array().expect("Within bounds");
+            for _ in 0..num_encoded_buffers {
+                let encoded: [u8; NUM_ENCODED_BYTES] = iter.next_array().expect("Within bounds");
 
-                let encoded = Hamming64(bytes.into());
                 let (decoded, success) = encoded.decode();
 
                 if !success {
@@ -152,8 +160,7 @@ mod hamming_core {
                         .expect("Unexpectedly large number of unmasked faults");
                 }
 
-                let [a, b, c, d]: [u16; 4] = decoded.into();
-                output.extend([a, b, c, d]);
+                output.extend(le_bytes_to_u16x4(decoded));
             }
 
             Ok((PyArray1::from_slice(py, &output), failed_decodings))
