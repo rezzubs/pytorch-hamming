@@ -11,7 +11,6 @@ from ._core import (
     encode_module,
     nonprotected_fi,
     protected_fi,
-    BITS_PER_CONTAINER,
     compare_module_bitwise,
 )
 
@@ -38,13 +37,11 @@ def num_set_bits32(number: int) -> int:
 class HammingStats:
     """Statistics for a encode, inject, decode cycle."""
 
-    def __init__(self, track_injections: bool = False) -> None:
-        self.was_protected: bool = False
-        self.accuracy: float | None = None
-        self.injected_faults: list[int] | None = [] if track_injections else None
+    def __init__(self, is_protected: bool) -> None:
+        self.was_protected = is_protected
+        self.accuracy: float = 0
         self.num_faults: int = 0
-        self.total_bits: int | None = None
-        self.unsuccessful_corrections: int | None = None
+        self.total_bits: int = 0
         # The xors between all true and faulty parameters.
         self.non_matching_parameters: list[int] = []
 
@@ -54,9 +51,7 @@ class HammingStats:
         return (
             self.was_protected == value.was_protected
             and self.accuracy == value.accuracy
-            and self.injected_faults == value.injected_faults
             and self.total_bits == value.total_bits
-            and self.unsuccessful_corrections == value.unsuccessful_corrections
             and self.non_matching_parameters == value.non_matching_parameters
         )
 
@@ -67,16 +62,15 @@ class HammingStats:
         bit_error_rate: float,
         accuracy_fn: Callable[[nn.Module, bool], float],
         half: bool,
-        track_injections: bool = False,
     ) -> HammingStats:
-        stats = cls(track_injections)
+        stats = cls(True)
         if half:
             module = module.half()
         original = copy.deepcopy(module)
 
         encode_module(module)
         protected_fi(module, bit_error_rate=bit_error_rate, stats=stats)
-        decode_module(module, stats=stats)
+        decode_module(module)
 
         stats.accuracy = accuracy_fn(module, half)
         stats.non_matching_parameters = compare_module_bitwise(module, original)
@@ -90,9 +84,8 @@ class HammingStats:
         bit_error_rate: float,
         accuracy_fn: Callable[[nn.Module, bool], float],
         half: bool,
-        track_injections: bool = False,
     ) -> HammingStats:
-        stats = cls(track_injections)
+        stats = cls(False)
         original = copy.deepcopy(module)
 
         nonprotected_fi(module, bit_error_rate=bit_error_rate, stats=stats)
@@ -101,26 +94,6 @@ class HammingStats:
         stats.non_matching_parameters = compare_module_bitwise(module, original)
 
         return stats
-
-    def faulty_containers(self) -> dict[int, list[int]] | None:
-        """Return a map from the index of the container to the indices of the bits that were flipped.
-
-        Returns None if HammingStats is not set up to track injections.
-        """
-        if self.injected_faults is None:
-            return None
-
-        output: dict[int, list[int]] = dict()
-
-        for bit in self.injected_faults:
-            container_idx = bit // BITS_PER_CONTAINER
-            bit_idx = bit % BITS_PER_CONTAINER
-
-            faults_per_container = output.get(container_idx, [])
-            faults_per_container.append(bit_idx)
-            output[container_idx] = faults_per_container
-
-        return output
 
     def get_accuracy(self) -> float:
         assert self.accuracy is not None
@@ -166,22 +139,6 @@ class HammingStats:
         )
         print(f"  Accuracy: {self.accuracy:.2f}%")
 
-        if self.was_protected:
-            faulty = self.faulty_containers()
-            if faulty is not None:
-                exactly_one = len([v for v in faulty.values() if len(v) == 1])
-                exactly_two = len([v for v in faulty.values() if len(v) == 2])
-                three_or_more = len([v for v in faulty.values() if len(v) >= 3])
-                print(f"  {exactly_one} containers had exactly 1 fault")
-                print(f"  {exactly_two} containers had exactly 2 faults")
-                print(f"  {three_or_more} containers had 3 or more faults")
-
-            # NOTE: Should not be none for a protected case
-            assert self.unsuccessful_corrections is not None
-            print(
-                f"  Decoding detected {self.unsuccessful_corrections} non-correctable containers (an even number of faults or bit 0)"
-            )
-
         print(
             f"  {len(self.non_matching_parameters)} parameters were messed up from injection"
         )
@@ -197,7 +154,6 @@ class HammingStats:
             raise ValueError("Incomplete stats, accuracy missing, run inference")
 
         out["accuracy"] = self.accuracy
-        out["injected_faults"] = self.injected_faults
         out["num_faults"] = self.num_faults
 
         if self.total_bits is None:
@@ -206,21 +162,18 @@ class HammingStats:
             )
 
         out["total_bits"] = self.total_bits
-
         out["was_protected"] = self.was_protected
-        if self.was_protected:
-            assert self.unsuccessful_corrections is not None
-            out["unsuccessful_corrections"] = self.unsuccessful_corrections
-        else:
-            assert self.unsuccessful_corrections is None
-
         out["non_matching_parameters"] = self.non_matching_parameters
 
         return out
 
     @classmethod
     def from_dict(cls, obj: Any) -> HammingStats:
-        out = cls()
+        was_protected = obj["was_protected"]
+        if not isinstance(was_protected, bool):
+            raise ValueError(f"Expected bool, got {type(was_protected)}")
+
+        out = cls(was_protected)
 
         if not isinstance(obj, dict):
             raise ValueError(f"Expected a dictionary, got {type(obj)}")
@@ -229,16 +182,6 @@ class HammingStats:
         if not isinstance(accuracy, float):
             raise ValueError(f"Expected float, got {type(accuracy)}")
         out.accuracy = accuracy
-
-        injected_faults = obj.get("injected_faults")
-        if isinstance(injected_faults, list):
-            for x in injected_faults:
-                if not isinstance(x, int):
-                    raise ValueError(f"Expected int, got {type(x)}")
-        elif injected_faults is not None:
-            raise ValueError(f"Expected a list or None, got {type(injected_faults)}")
-
-        out.injected_faults = injected_faults
 
         num_faults = obj["num_faults"]
         if not isinstance(num_faults, int):
@@ -249,17 +192,6 @@ class HammingStats:
         if not isinstance(total_bits, int):
             raise ValueError(f"Expected int, got {type(total_bits)}")
         out.total_bits = total_bits
-
-        was_protected = obj["was_protected"]
-        if not isinstance(was_protected, bool):
-            raise ValueError(f"Expected bool, got {type(was_protected)}")
-        out.was_protected = was_protected
-
-        if was_protected:
-            unsuccessful_corrections = obj["unsuccessful_corrections"]
-            if not isinstance(unsuccessful_corrections, int):
-                raise ValueError(f"Expected int, got {type(unsuccessful_corrections)}")
-            out.unsuccessful_corrections = unsuccessful_corrections
 
         non_matching_parameters = obj["non_matching_parameters"]
         if not isinstance(non_matching_parameters, list):

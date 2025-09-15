@@ -333,28 +333,20 @@ def encode_module(module: nn.Module) -> None:
         setattr(module, name, HammingLayer(child))
 
 
-def decode_module(module: nn.Module, *, stats: HammingStats | None = None):
+def decode_module(module: nn.Module):
     """Decodes all `HammingLayer` children into their original instances.
 
     This corrects all single bit errors in a memory line caused by `hamming_layer_fi`.
 
     See `hamming_encode_module`.
     """
-    if stats is not None:
-        stats.was_protected = True
-
     for name, child in module.named_children():
-        decode_module(child, stats=stats)
+        decode_module(child)
 
         if not isinstance(child, HammingLayer):
             continue
 
         result = child.decode()
-        if stats is not None:
-            if stats.unsuccessful_corrections is None:
-                stats.unsuccessful_corrections = result[1]
-            else:
-                stats.unsuccessful_corrections += result[1]
 
         setattr(module, name, result[0])
 
@@ -512,8 +504,6 @@ def buffers_fi(
 
     for _ in range(num_faults):
         bit_to_flip = flip_candidates.pop()
-        if stats is not None and stats.injected_faults is not None:
-            stats.injected_faults.append(bit_to_flip)
         if stats is not None:
             stats.num_faults += 1
 
