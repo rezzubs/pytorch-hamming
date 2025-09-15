@@ -1,10 +1,12 @@
 //! Functions for 64 bit data.
 
-use crate::encoding::{Decodable, Encodable};
+use crate::{BitBuffer, Decodable, Encodable, SizedBitBuffer};
 
 use itertools::Itertools;
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*, pyfunction, Python};
+
+type Encoded = [u8; 9];
 
 /// Encode an array of float32 values as an array of uint8 values.
 ///
@@ -136,4 +138,25 @@ pub fn decode_u16<'py>(
     }
 
     Ok((PyArray1::from_slice(py, &output), failed_decodings))
+}
+
+#[pyfunction]
+pub fn fault_injection<'py>(
+    py: Python<'py>,
+    input: PyReadonlyArray1<'py, u8>,
+    ber: f64,
+) -> PyResult<Bound<'py, PyArray1<u8>>> {
+    let mut buffer = input.as_array().into_iter().copied().collect::<Vec<u8>>();
+
+    if buffer.num_bits() % Encoded::NUM_BITS != 0 {
+        return Err(PyValueError::new_err(format!(
+            "Invalid number of bits, expected a multiple of {}, got {}",
+            Encoded::NUM_BITS,
+            buffer.num_bits()
+        )));
+    }
+
+    buffer.flip_by_ber(ber);
+
+    Ok(PyArray1::from_slice(py, &buffer))
 }

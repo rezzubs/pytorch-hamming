@@ -33,5 +33,7 @@ mod hamming_core {
         use crate::python::u64::encode_f32;
         #[pymodule_export]
         use crate::python::u64::encode_u16;
+        #[pymodule_export]
+        use crate::python::u64::fault_injection;
     }
 }
