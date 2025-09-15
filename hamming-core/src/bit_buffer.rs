@@ -1,41 +1,50 @@
-use crate::byte_ops::{flip, is_1, set_0, set_1};
+mod float;
+mod int;
+mod sequence;
+#[cfg(test)]
+mod tests;
 
-pub trait BitBuffer: Sized {
+use rand::seq::SliceRandom;
+
+pub trait BitBuffer {
     /// Number of bits stored by this buffer.
-    const NUM_BITS: usize;
+    fn num_bits(&self) -> usize;
 
-    /// Set a bit with index `bit_idx` to 1.
-    fn set_1(&mut self, bit_idx: usize);
+    /// Set a bit with index `bit_index` to 1.
+    fn set_1(&mut self, bit_index: usize);
 
-    /// Set a bit with index `bit_idx` to 0.
-    fn set_0(&mut self, bit_idx: usize);
+    /// Set a bit with index `bit_index` to 0.
+    fn set_0(&mut self, bit_index: usize);
 
-    /// Check if the bit at index `bit_idx` is 1.
-    fn is_1(&self, bit_idx: usize) -> bool;
+    /// Check if the bit at index `bit_index` is 1.
+    fn is_1(&self, bit_index: usize) -> bool;
 
-    /// Check if the bit with index `bit_idx` is 0.
-    fn is_0(&self, bit_idx: usize) -> bool {
-        !self.is_1(bit_idx)
+    /// Check if the bit with index `bit_index` is 0.
+    fn is_0(&self, bit_index: usize) -> bool {
+        !self.is_1(bit_index)
     }
 
-    /// Flip the bit with index `bit_idx`.
-    fn flip_bit(&mut self, bit_idx: usize) {
+    /// Flip the bit with index `bit_index`.
+    fn flip_bit(&mut self, bit_index: usize) {
         // NOTE: It's likely that a custom implementation for a specific type will be faster.
-        if self.is_0(bit_idx) {
-            self.set_1(bit_idx);
+        if self.is_0(bit_index) {
+            self.set_1(bit_index);
         } else {
-            self.set_0(bit_idx);
+            self.set_0(bit_index);
         }
     }
 
     /// Iterate over the bits of the array.
     fn bits(&self) -> Bits<Self> {
-        Bits::new(self)
+        Bits {
+            buffer: self,
+            next_bit: 0,
+        }
     }
 
-    /// Return true if the number of high bits is even.
+    /// Return true if the number 1 bits is even.
     fn total_parity_is_even(&self) -> bool {
-        self.bits().filter(|bit_is_high| *bit_is_high).count() % 2 == 0
+        self.bits().filter(|is_1| *is_1).count() % 2 == 0
     }
 
     /// Return a string of the bit representation.
@@ -52,83 +61,75 @@ pub trait BitBuffer: Sized {
 
         "0b".chars().chain(bits).collect()
     }
+
+    /// Count the number of bits which are 1.
+    fn num_1_bits(&self) -> usize {
+        self.bits().filter(|is_1| *is_1).count()
+    }
+
+    /// Flip exactly n bits randomly in the buffer.
+    ///
+    /// All bit flips will be unique.
+    ///
+    /// # Panics
+    ///
+    /// - If `n > self.num_bits()`
+    fn flip_n_bits(&mut self, n: usize) {
+        assert!(n <= self.num_bits());
+
+        let mut possible_faults = (0..self.num_bits()).collect::<Vec<usize>>();
+        let mut rng = rand::rng();
+        possible_faults.shuffle(&mut rng);
+
+        for _ in 0..n {
+            let fault_target = possible_faults.pop().expect("checked the range");
+            self.flip_bit(fault_target);
+        }
+    }
+
+    /// Flip a number of bits by the given bit error rate.
+    ///
+    /// All bit flips will be unique.
+    ///
+    /// # Panics
+    ///
+    /// - if `ber` does not fit within `0..=1`.
+    fn flip_by_ber(&mut self, ber: f64) {
+        assert!((0f64..=1f64).contains(&ber));
+
+        self.flip_n_bits((self.num_bits() as f64 * ber) as usize);
+    }
 }
 
-impl<const N: usize> BitBuffer for [u8; N] {
-    const NUM_BITS: usize = N * 8;
-
-    fn set_1(&mut self, bit_idx: usize) {
-        assert!(bit_idx < Self::NUM_BITS);
-        let byte_idx = bit_idx / 8;
-        self[byte_idx] = set_1(self[byte_idx], bit_idx % 8);
-    }
-
-    fn set_0(&mut self, bit_idx: usize) {
-        assert!(bit_idx < Self::NUM_BITS);
-        let byte_idx = bit_idx / 8;
-        self[byte_idx] = set_0(self[byte_idx], bit_idx % 8);
-    }
-
-    fn is_1(&self, bit_idx: usize) -> bool {
-        assert!(bit_idx < Self::NUM_BITS);
-        let byte_idx = bit_idx / 8;
-        is_1(self[byte_idx], bit_idx % 8)
-    }
-
-    fn flip_bit(&mut self, bit_idx: usize) {
-        assert!(bit_idx < Self::NUM_BITS);
-        let byte_idx = bit_idx / 8;
-        self[byte_idx] = flip(self[byte_idx], bit_idx % 8);
-    }
+/// A [`BitBuffer`] with a comptime known length.
+pub trait SizedBitBuffer: BitBuffer {
+    /// Total number of bits in the buffer.
+    ///
+    /// Must be an exact match with [`BitBuffer::num_bits`].
+    const NUM_BITS: usize;
 }
-
 /// An [`Iterator`] over the bits in a [`BitBuffer`].
 ///
 /// `true` represents 1 and `false` 0.
-pub struct Bits<'a, T> {
+pub struct Bits<'a, T: ?Sized> {
     buffer: &'a T,
     next_bit: usize,
 }
 
-impl<'a, T> Bits<'a, T> {
-    pub fn new(buffer: &'a T) -> Self {
-        Self {
-            buffer,
-            next_bit: 0,
-        }
-    }
-}
-
 impl<'a, T> Iterator for Bits<'a, T>
 where
-    T: BitBuffer,
+    T: BitBuffer + ?Sized,
 {
     type Item = bool;
 
     fn next(&mut self) -> Option<Self::Item> {
-        assert!(self.next_bit <= T::NUM_BITS);
-        if self.next_bit == T::NUM_BITS {
+        assert!(self.next_bit <= self.buffer.num_bits());
+        if self.next_bit == self.buffer.num_bits() {
             return None;
         }
 
         let result = self.buffer.is_1(self.next_bit);
         self.next_bit += 1;
         Some(result)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn total_even() {
-        assert!([0b00000000u8].total_parity_is_even());
-        assert!([0b00000001u8].total_parity_is_even());
-        assert!([0b00000011u8].total_parity_is_even());
-        assert!([0b00000111u8].total_parity_is_even());
-        assert!([0b10000001u8].total_parity_is_even());
-        assert!([0b10010001u8].total_parity_is_even());
-        assert!([0b11111111u8].total_parity_is_even());
     }
 }
