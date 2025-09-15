@@ -1,5 +1,4 @@
 mod bit_buffer;
-pub mod conversions;
 mod encoding;
 mod padded_buffer;
 
