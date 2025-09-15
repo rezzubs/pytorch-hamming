@@ -1,11 +1,10 @@
 mod bit_buffer;
 mod encoding;
-mod padded_buffer;
 mod python;
+pub mod wrapper;
 
 pub use bit_buffer::{BitBuffer, SizedBitBuffer};
 pub use encoding::{Decodable, Encodable, Init};
-pub use padded_buffer::PaddedBuffer;
 use pyo3::pymodule;
 
 /// Encoding and decoding floating point arrays with hamming codes.

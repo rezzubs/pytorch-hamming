@@ -1,6 +1,5 @@
 mod float;
 mod int;
-mod non_uniform;
 mod sequence;
 #[cfg(test)]
 mod tests;

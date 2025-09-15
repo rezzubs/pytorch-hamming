@@ -1,4 +1,4 @@
-use super::BitBuffer;
+use crate::BitBuffer;
 
 /// Gives a [`BitBuffer`] implementation to sequences where the items cannot satisfy
 /// [`SizedBitBuffer`].
