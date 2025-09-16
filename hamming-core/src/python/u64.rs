@@ -1,21 +1,21 @@
 //! Functions for 64 bit data.
 
-use crate::{BitBuffer, Decodable, Encodable, SizedBitBuffer};
+use std::collections::HashMap;
+
+use crate::{wrapper::NonUniformSequence, BitBuffer, Decodable, Encodable, SizedBitBuffer};
 
 use itertools::Itertools;
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*, pyfunction, Python};
 
 type Encoded = [u8; 9];
+type EncodedOutput<'py> = Bound<'py, PyArray1<u8>>;
 
 /// Encode an array of float32 values as an array of uint8 values.
 ///
 /// See module docs for details.
 #[pyfunction]
-pub fn encode_f32<'py>(
-    py: Python<'py>,
-    input: PyReadonlyArray1<'py, f32>,
-) -> Bound<'py, PyArray1<u8>> {
+pub fn encode_f32<'py>(py: Python<'py>, input: PyReadonlyArray1<'py, f32>) -> EncodedOutput<'py> {
     let mut input = input.as_array().into_iter().copied().collect::<Vec<f32>>();
 
     // Add padding for odd length arrays
@@ -80,10 +80,7 @@ pub fn decode_f32<'py>(
 ///
 /// See module docs for details.
 #[pyfunction]
-pub fn encode_u16<'py>(
-    py: Python<'py>,
-    input: PyReadonlyArray1<'py, u16>,
-) -> Bound<'py, PyArray1<u8>> {
+pub fn encode_u16<'py>(py: Python<'py>, input: PyReadonlyArray1<'py, u16>) -> EncodedOutput<'py> {
     let mut input = input.as_array().into_iter().copied().collect::<Vec<u16>>();
 
     const ITEMS_PER_CONTAINER: usize = 4;
@@ -140,23 +137,45 @@ pub fn decode_u16<'py>(
     Ok((PyArray1::from_slice(py, &output), failed_decodings))
 }
 
-#[pyfunction]
-pub fn fault_injection<'py>(
-    py: Python<'py>,
-    input: PyReadonlyArray1<'py, u8>,
-    ber: f64,
-) -> PyResult<Bound<'py, PyArray1<u8>>> {
-    let mut buffer = input.as_array().into_iter().copied().collect::<Vec<u8>>();
+type FiContext = HashMap<&'static str, usize>;
 
-    if buffer.num_bits() % Encoded::NUM_BITS != 0 {
-        return Err(PyValueError::new_err(format!(
-            "Invalid number of bits, expected a multiple of {}, got {}",
-            Encoded::NUM_BITS,
-            buffer.num_bits()
-        )));
+#[pyfunction]
+pub fn array_list_fi<'py>(
+    py: Python<'py>,
+    input: Vec<PyReadonlyArray1<'py, u8>>,
+    ber: f64,
+) -> PyResult<(Vec<EncodedOutput<'py>>, FiContext)> {
+    let mut buffer = NonUniformSequence(
+        input
+            .into_iter()
+            .map(|arr| arr.as_array().into_iter().copied().collect::<Vec<u8>>())
+            .collect::<Vec<Vec<u8>>>(),
+    );
+
+    for (i, arr) in buffer.0.iter().enumerate() {
+        if arr.num_bits() % Encoded::NUM_BITS != 0 {
+            return Err(PyValueError::new_err(format!(
+                "Invalid number of bits in array {}, expected a multiple of {}, got {}",
+                i,
+                Encoded::NUM_BITS,
+                buffer.num_bits()
+            )));
+        }
     }
 
-    buffer.flip_by_ber(ber);
+    let num_faults = buffer.flip_by_ber(ber);
 
-    Ok(PyArray1::from_slice(py, &buffer))
+    let context = HashMap::from([
+        ("num_faults", num_faults),
+        ("total_bits", buffer.num_bits()),
+    ]);
+
+    Ok((
+        buffer
+            .0
+            .into_iter()
+            .map(|arr| PyArray1::from_slice(py, &arr))
+            .collect::<Vec<_>>(),
+        context,
+    ))
 }

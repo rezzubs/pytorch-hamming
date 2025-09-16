@@ -69,7 +69,7 @@ class HammingStats:
         original = copy.deepcopy(module)
 
         encode_module(module)
-        protected_fi(module, bit_error_rate=bit_error_rate, stats=stats)
+        protected_fi(module, bit_error_rate, stats=stats)
         decode_module(module)
 
         stats.accuracy = accuracy_fn(module, half)
@@ -88,7 +88,7 @@ class HammingStats:
         stats = cls(False)
         original = copy.deepcopy(module)
 
-        nonprotected_fi(module, bit_error_rate=bit_error_rate, stats=stats)
+        nonprotected_fi(module, bit_error_rate, stats=stats)
 
         stats.accuracy = accuracy_fn(module, half)
         stats.non_matching_parameters = compare_module_bitwise(module, original)
