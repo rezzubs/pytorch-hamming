@@ -18,7 +18,7 @@ where
         for (i, buffer) in self.0.into_iter().enumerate() {
             let start_of_next = start_of_current + buffer.num_bits();
             if index < start_of_next {
-                return dbg!((i, dbg!(index) - dbg!(start_of_current)));
+                return (i, index - start_of_current);
             }
             start_of_current = start_of_next
         }
