@@ -57,7 +57,7 @@ pub fn validate_encoded_array(
 ) -> PyResult<()> {
     if buffer.len() % num_encoded_bytes != 0 {
         return Err(PyValueError::new_err(format!(
-            "Invalid number of bits{}, expected a multiple of {}, got {}",
+            "Invalid number of bytes{}, expected a multiple of {}, got {}",
             index.map(|i| format!(" in array {i}")).unwrap_or("".into()),
             num_encoded_bytes,
             buffer.len()
