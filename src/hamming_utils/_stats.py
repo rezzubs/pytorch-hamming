@@ -61,6 +61,7 @@ class HammingStats:
         module: nn.Module,
         bit_error_rate: float,
         accuracy_fn: Callable[[nn.Module, bool], float],
+        data_buffer_size: int,
         half: bool,
     ) -> HammingStats:
         stats = cls(True)
@@ -68,7 +69,7 @@ class HammingStats:
             module = module.half()
         original = copy.deepcopy(module)
 
-        encode_module(module)
+        encode_module(module, data_buffer_size)
         protected_fi(module, bit_error_rate, stats=stats)
         decode_module(module)
 
@@ -83,8 +84,10 @@ class HammingStats:
         module: nn.Module,
         bit_error_rate: float,
         accuracy_fn: Callable[[nn.Module, bool], float],
+        data_buffer_size: int,
         half: bool,
     ) -> HammingStats:
+        _ = data_buffer_size
         stats = cls(False)
         original = copy.deepcopy(module)
 

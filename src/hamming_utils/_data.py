@@ -146,6 +146,7 @@ class Data:
         autosave: bool = True,
         device: torch.device | None = None,
         summary: bool = True,
+        data_buffer_size: int = 64,
     ) -> None:
         if protected:
             eval_fn = HammingStats.eval
@@ -155,7 +156,13 @@ class Data:
         if device is None:
             device = torch.device("cpu")
 
-        stats = eval_fn(get_resnet(), bit_error_rate, evaluate_resnet(device), half)
+        stats = eval_fn(
+            get_resnet(),
+            bit_error_rate,
+            evaluate_resnet(device),
+            data_buffer_size,
+            half,
+        )
         if summary:
             stats.summary()
         self.entries.append(stats)
@@ -173,6 +180,7 @@ class Data:
         autosave: bool | int = True,
         device: torch.device | None = None,
         summary: bool = False,
+        data_buffer_size: int = 64,
     ) -> None:
         if n < 1:
             raise ValueError("Expected at least 1 iteration")
@@ -195,6 +203,7 @@ class Data:
                 autosave=save,
                 device=device,
                 summary=summary,
+                data_buffer_size=data_buffer_size,
             )
 
         if autosave != 0:
