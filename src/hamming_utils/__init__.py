@@ -3,27 +3,25 @@
 from hamming_utils._core import (
     HammingLayer,
     SupportsHamming,
-    decode_f32,
     decode_module,
-    encode_f32,
     encode_module,
     nonprotected_fi,
     protected_fi,
-    tensor_list_fi,
 )
 from hamming_utils._data import Data
 from hamming_utils._stats import HammingStats
+from . import u64
+from . import generic
 
 __all__ = [
     "Data",
     "HammingLayer",
     "HammingStats",
     "SupportsHamming",
-    "decode_f32",
     "decode_module",
-    "encode_f32",
     "encode_module",
-    "protected_fi",
+    "generic",
     "nonprotected_fi",
-    "tensor_list_fi",
+    "protected_fi",
+    "u64",
 ]

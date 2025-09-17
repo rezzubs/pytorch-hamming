@@ -19,6 +19,12 @@ def main() -> None:
         action="store_true",
         required=False,
     )
+    parser.add_argument(
+        "--data-buffer-size",
+        help="Chunk size for data to be encoded - power of two",
+        type=int,
+        default=64,
+    )
 
     args = parser.parse_args()
 
@@ -40,6 +46,7 @@ def main() -> None:
         args.f16,
         autosave=args.autosave,
         device=device,
+        data_buffer_size=args.data_buffer_size,
     )
 
 

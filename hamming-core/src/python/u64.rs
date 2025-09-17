@@ -11,16 +11,18 @@ use crate::{
 use numpy::PyArray1;
 use pyo3::prelude::*;
 
+/// Bytes used for the **storage** of the encoded format.
 const NUM_ENCODED_BYTES: usize = 9;
-const NUM_F32: usize = 2;
-const NUM_U16: usize = 4;
+
+const FITS_F32: usize = 2;
+const FITS_U16: usize = 4;
 
 /// Encode an array of float32 values as an array of uint8 values.
 ///
 /// See module docs for details.
 #[pyfunction]
 pub fn encode_f32<'py>(py: Python<'py>, input: InputArr<'py, f32>) -> OutputArr<'py, u8> {
-    encode::<NUM_F32, NUM_ENCODED_BYTES, f32>(py, input)
+    encode::<FITS_F32, NUM_ENCODED_BYTES, f32>(py, input)
 }
 
 /// Decode an array of uint8 values into an array of float32 values.
@@ -31,7 +33,7 @@ pub fn decode_f32<'py>(
     py: Python<'py>,
     input: InputArr<'py, u8>,
 ) -> PyResult<(OutputArr<'py, f32>, u64)> {
-    decode::<NUM_ENCODED_BYTES, NUM_F32, f32>(py, input)
+    decode::<NUM_ENCODED_BYTES, FITS_F32, f32>(py, input)
 }
 
 /// Encode an array of uint16 values as an array of uint8 values.
@@ -41,7 +43,7 @@ pub fn decode_f32<'py>(
 /// See module docs for details.
 #[pyfunction]
 pub fn encode_u16<'py>(py: Python<'py>, input: InputArr<'py, u16>) -> OutputArr<'py, u8> {
-    encode::<NUM_U16, NUM_ENCODED_BYTES, u16>(py, input)
+    encode::<FITS_U16, NUM_ENCODED_BYTES, u16>(py, input)
 }
 
 /// Decode an array of uint8 values into an array of float32 values.
@@ -52,7 +54,7 @@ pub fn decode_u16<'py>(
     py: Python<'py>,
     input: InputArr<'py, u8>,
 ) -> PyResult<(OutputArr<'py, u16>, u64)> {
-    decode::<NUM_ENCODED_BYTES, NUM_U16, u16>(py, input)
+    decode::<NUM_ENCODED_BYTES, FITS_U16, u16>(py, input)
 }
 
 #[pyfunction]

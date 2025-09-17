@@ -4,7 +4,7 @@ use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use std::collections::HashMap;
 
-use crate::{wrapper::NonUniformSequence, BitBuffer, Decodable, Encodable, Init, SizedBitBuffer};
+use crate::{wrapper::NonUniformSequence, Decodable, Encodable, Init, SizedBitBuffer};
 
 pub type OutputArr<'py, T> = Bound<'py, PyArray1<T>>;
 pub type InputArr<'py, T> = PyReadonlyArray1<'py, T>;
@@ -39,7 +39,13 @@ where
 
 /// Helper for encoding functions that adds padding to make the `buffer` a multiple of `chunk_size`.
 pub fn add_padding<T: Default + Clone>(buffer: &mut Vec<T>, chunk_size: usize) {
-    let required_padding = buffer.len() % chunk_size;
+    let length = buffer.len();
+    let required_padding = if length < chunk_size {
+        chunk_size - length
+    } else {
+        chunk_size - buffer.len() % chunk_size
+    };
+
     buffer.extend(std::iter::repeat_n(Default::default(), required_padding));
 }
 
@@ -51,10 +57,10 @@ pub fn validate_encoded_array(
 ) -> PyResult<()> {
     if buffer.len() % num_encoded_bytes != 0 {
         return Err(PyValueError::new_err(format!(
-            "Invalid number of bits{}, expected a multiple of {}, got {}",
+            "Invalid number of bytes{}, expected a multiple of {}, got {}",
             index.map(|i| format!(" in array {i}")).unwrap_or("".into()),
             num_encoded_bytes,
-            buffer.num_bits()
+            buffer.len()
         )));
     }
 

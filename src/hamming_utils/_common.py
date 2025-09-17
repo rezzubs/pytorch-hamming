@@ -9,7 +9,7 @@ def tensor_fi_impl(
     bit_error_rate: float,
     dtype: torch.dtype,
     view: torch.dtype | None,
-    fi_fn: Callable[[np.ndarray, float], Any],
+    rust_fn: Callable[[np.ndarray, float], Any],
     context: dict[str, int] | None,
 ) -> torch.Tensor:
     if tensor.dtype != dtype:
@@ -21,7 +21,7 @@ def tensor_fi_impl(
     flattened = tensor.flatten()
     input = flattened if view is None else flattened.view(view)
 
-    result, context_ = fi_fn(input.numpy(), bit_error_rate)
+    result, context_ = rust_fn(input.numpy(), bit_error_rate)
     assert isinstance(result, np.ndarray)
     assert isinstance(context_, dict)
 
@@ -46,7 +46,7 @@ def tensor_list_fi_impl(
     bit_error_rate: float,
     dtype: torch.dtype,
     view: torch.dtype | None,
-    fi_fn: Callable[[list[np.ndarray], float], Any],
+    rust_fn: Callable[[list[np.ndarray], float], Any],
     context: dict[str, int] | None,
 ) -> list[torch.Tensor]:
     for i, tensor in enumerate(tensors):
@@ -62,7 +62,7 @@ def tensor_list_fi_impl(
         item = tensor if view is None else tensor.view(view)
         input.append(item)
 
-    result, context_ = fi_fn([t.numpy() for t in input], bit_error_rate)
+    result, context_ = rust_fn([t.numpy() for t in input], bit_error_rate)
     assert isinstance(result, list)
     assert isinstance(context_, dict)
 
@@ -94,3 +94,51 @@ def tensor_list_dtype(tensors: list[torch.Tensor]) -> torch.dtype | None:
             raise ValueError(f"Received different dtypes {dtype} vs {tensor.dtype}")
 
     return dtype
+
+
+def encode_impl(
+    tensor: torch.Tensor,
+    dtype: torch.dtype,
+    view: torch.dtype | None,
+    rust_fn: Callable[[np.ndarray], Any],
+) -> torch.Tensor:
+    if tensor.dtype != dtype:
+        raise ValueError(f"Expected dtype={dtype}, got {tensor.dtype}")
+
+    if view is not None:
+        tensor = tensor.view(view)
+
+    result = rust_fn(tensor.flatten().numpy())
+    assert isinstance(result, np.ndarray)
+
+    torch_result = torch.from_numpy(result)
+    assert torch_result.dtype == torch.uint8
+
+    return torch_result
+
+
+def decode_impl(
+    tensor: torch.Tensor,
+    dtype: torch.dtype,
+    view: torch.dtype | None,
+    rust_fn: Callable[[np.ndarray], Any],
+) -> tuple[torch.Tensor, int]:
+    if tensor.dtype != torch.uint8:
+        raise ValueError(f"Expected dtype=uint8, got {tensor.dtype}")
+
+    if len(tensor.shape) != 1:
+        raise ValueError(f"Expected a single dimensional tensor, got {tensor.shape}")
+
+    result, num_failures = rust_fn(tensor.numpy())
+    assert isinstance(result, np.ndarray)
+    assert isinstance(num_failures, int)
+
+    torch_result = torch.from_numpy(result)
+
+    if view is not None:
+        assert torch_result.dtype == view
+        torch_result = torch_result.view(dtype)
+    else:
+        assert torch_result.dtype == dtype
+
+    return torch_result, num_failures
