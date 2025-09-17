@@ -91,13 +91,19 @@ pub trait BitBuffer {
     ///
     /// All bit flips will be unique.
     ///
+    /// Returns the number of bits flipped
+    ///
     /// # Panics
     ///
     /// - if `ber` does not fit within `0..=1`.
-    fn flip_by_ber(&mut self, ber: f64) {
+    fn flip_by_ber(&mut self, ber: f64) -> usize {
         assert!((0f64..=1f64).contains(&ber));
 
-        self.flip_n_bits((self.num_bits() as f64 * ber) as usize);
+        let num_flips = (self.num_bits() as f64 * ber) as usize;
+
+        self.flip_n_bits(num_flips);
+
+        num_flips
     }
 }
 

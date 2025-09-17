@@ -67,3 +67,28 @@ where
         self.as_mut_slice().flip_bit(bit_index);
     }
 }
+
+impl<T> BitBuffer for Vec<T>
+where
+    T: SizedBitBuffer,
+{
+    fn num_bits(&self) -> usize {
+        self.as_slice().num_bits()
+    }
+
+    fn set_1(&mut self, bit_index: usize) {
+        self.as_mut_slice().set_1(bit_index);
+    }
+
+    fn set_0(&mut self, bit_index: usize) {
+        self.as_mut_slice().set_0(bit_index);
+    }
+
+    fn is_1(&self, bit_index: usize) -> bool {
+        self.as_slice().is_1(bit_index)
+    }
+
+    fn flip_bit(&mut self, bit_index: usize) {
+        self.as_mut_slice().flip_bit(bit_index);
+    }
+}

@@ -9,6 +9,7 @@ from hamming_utils._core import (
     encode_module,
     nonprotected_fi,
     protected_fi,
+    tensor_list_fi,
 )
 from hamming_utils._data import Data
 from hamming_utils._stats import HammingStats
@@ -24,4 +25,5 @@ __all__ = [
     "encode_module",
     "protected_fi",
     "nonprotected_fi",
+    "tensor_list_fi",
 ]

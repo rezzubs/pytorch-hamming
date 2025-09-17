@@ -9,7 +9,6 @@ name = "hamming_core"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-itertools = "0.14.0"
 numpy = "0.25.0"
 pyo3 = "0.25.0"
 rand = "0.9.2"

@@ -28,6 +28,9 @@ pub trait Init {
 /// All BitBuffers can implement this without restrictions. This trait is always paired with
 /// [`Decodable`]. To be able to encode a buffer you must also define the decodable variant.
 ///
+/// All bits in the buffer will be encoded. If this is not desired then wrapping the input with
+/// [`crate::PaddedBuffer`] may be of use.
+///
 /// # Type parameters
 ///
 /// - `D` is the buffer which is going to store the encoded data. Must be able to store at least as
@@ -36,13 +39,13 @@ pub trait Init {
 ///   behavior is undefined, most likely will cause a crash.
 /// - `O` is the buffer which is going to store the decoded data. This can be the same type as the
 ///   original buffer as long as the number of bits in the buffer is known at compile time - see
-///   [`SizedBitBuffer`].
+///   [`SizedBitBuffer`]. The size should match with the initial input buffer.
 ///
 /// Both `D` and `O` need to implement [`Init`] which will be used to create a blank slate value
 /// during encoding/decoding.
 ///
-/// [`PaddedBuffer`] Might be useful for `D` if the number of bytes in the result doesn't fill the
-/// whole `D` buffer. A newtype wrapper may need to be used outside of this crate.
+/// [`crate::PaddedBuffer`] Might be useful for `D` if the number of bytes in the result doesn't
+/// fill the whole `D` buffer. A newtype wrapper may need to be used outside of this crate.
 ///
 /// # Example for implementing `Encoding` and `Decoding`.
 ///
