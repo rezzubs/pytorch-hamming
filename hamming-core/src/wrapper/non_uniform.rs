@@ -5,6 +5,7 @@ use crate::BitBuffer;
 ///
 /// If a sequence satisfies [`BitBuffer`] by itself then that implementation should always be
 /// preferred. This wrapper should be used as a last resort due to performance reasons.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default, Hash)]
 pub struct NonUniformSequence<I>(pub I);
 
 impl<I, T> NonUniformSequence<I>

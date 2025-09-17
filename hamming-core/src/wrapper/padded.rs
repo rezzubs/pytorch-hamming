@@ -12,7 +12,7 @@ use crate::{BitBuffer, SizedBitBuffer};
 /// original u8:  0bDDDDDDDD
 /// PaddedBuffer: 0bPDDDPDDD
 /// ```
-#[derive(Debug, PartialEq, Eq, Default, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default, Hash)]
 pub struct PaddedBuffer<T, const D: usize, const P: usize> {
     buffer: T,
 }
