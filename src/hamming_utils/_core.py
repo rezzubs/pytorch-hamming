@@ -8,7 +8,10 @@ import torch
 from torch import nn
 
 from . import generic
+from . import u32 as u32_impl
 from . import u64 as u64_impl
+from . import u128 as u128_impl
+from . import u256 as u256_impl
 
 
 if TYPE_CHECKING:
@@ -48,7 +51,10 @@ class HammingImpl(Protocol):
 
 
 DATA_BUFFER_SIZES: dict[int, HammingImpl] = {
+    DATA_BUFFER_U32: u32_impl,
     DATA_BUFFER_U64: u64_impl,
+    DATA_BUFFER_U128: u128_impl,
+    DATA_BUFFER_U256: u256_impl,
 }
 
 
