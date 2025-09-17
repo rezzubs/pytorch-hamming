@@ -39,7 +39,13 @@ where
 
 /// Helper for encoding functions that adds padding to make the `buffer` a multiple of `chunk_size`.
 pub fn add_padding<T: Default + Clone>(buffer: &mut Vec<T>, chunk_size: usize) {
-    let required_padding = buffer.len() % chunk_size;
+    let length = buffer.len();
+    let required_padding = if length < chunk_size {
+        chunk_size - length
+    } else {
+        buffer.len() % chunk_size
+    };
+
     buffer.extend(std::iter::repeat_n(Default::default(), required_padding));
 }
 
