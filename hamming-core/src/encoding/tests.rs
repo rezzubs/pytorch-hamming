@@ -65,6 +65,10 @@ fn auto_constants() {
         <EncodingFor8Byte as Decodable<[u8; 8]>>::NUM_ERROR_CORRECTION_BITS,
         7
     );
+    assert_eq!(
+        <EncodingFor8Byte as Decodable<[u8; 8]>>::NUM_PADDING_BITS,
+        0
+    );
 
     type EncodingFor16Byte = [u8; 18];
     assert_eq!(
@@ -74,5 +78,9 @@ fn auto_constants() {
     assert_eq!(
         <EncodingFor16Byte as Decodable<[u8; 16]>>::NUM_ERROR_CORRECTION_BITS,
         8
+    );
+    assert_eq!(
+        <EncodingFor16Byte as Decodable<[u8; 16]>>::NUM_PADDING_BITS,
+        7
     );
 }

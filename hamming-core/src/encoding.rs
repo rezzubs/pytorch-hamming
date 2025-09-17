@@ -112,8 +112,20 @@ pub trait Decodable<O>: SizedBitBuffer
 where
     O: SizedBitBuffer + Init,
 {
+    /// The number of bits that map to the original data.
+    const NUM_DATA_BITS: usize = O::NUM_BITS;
+
+    /// The number of bits that are used for error correction.
     const NUM_ERROR_CORRECTION_BITS: usize = O::NUM_BITS.ilog2() as usize + 1;
-    const NUM_ENCODED_BITS: usize = O::NUM_BITS + Self::NUM_ERROR_CORRECTION_BITS + 1;
+
+    /// The number of bits bits that are used for parity checks (SEC + DED).
+    const NUM_PARITY_BITS: usize = Self::NUM_ERROR_CORRECTION_BITS + 1;
+
+    /// The number of bits that are used by the encoding in total.
+    const NUM_ENCODED_BITS: usize = Self::NUM_DATA_BITS + Self::NUM_PARITY_BITS;
+
+    /// How many bits are left as padding - not used for encoding.
+    const NUM_PADDING_BITS: usize = Self::NUM_BITS - Self::NUM_ENCODED_BITS;
 
     /// Get the index of a flipped bit in case of a single bit flip.
     ///
