@@ -4,7 +4,7 @@ use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use std::collections::HashMap;
 
-use crate::{wrapper::NonUniformSequence, BitBuffer, Decodable, Init, SizedBitBuffer};
+use crate::{wrapper::NonUniformSequence, BitBuffer, Decodable, Encodable, Init, SizedBitBuffer};
 
 pub type OutputArr<'py, T> = Bound<'py, PyArray1<T>>;
 pub type InputArr<'py, T> = PyReadonlyArray1<'py, T>;
@@ -99,4 +99,38 @@ where
     }
 
     Ok((PyArray1::from_vec(py, output), failed_decodings))
+}
+
+/// Helper for encoding arrays of various types.
+pub fn encode<'py, const NI: usize, const NO: usize, I>(
+    py: Python<'py>,
+    input: InputArr<'py, I>,
+) -> OutputArr<'py, u8>
+where
+    I: numpy::Element + Copy + Default + SizedBitBuffer,
+    [I; NI]: Encodable<[u8; NO], [I; NI]> + Init,
+    [u8; NO]: Decodable<[I; NI]> + Init,
+{
+    let mut buffer = prep_input_array(input);
+
+    add_padding(&mut buffer, NI);
+
+    let num_items = buffer.len() / NI;
+    let mut output: Vec<u8> = Vec::with_capacity(num_items * NO);
+
+    let mut iter = buffer.into_iter();
+    for _ in 0..num_items {
+        let mut unprotected: [I; NI] = [Default::default(); NI];
+
+        for item in unprotected.iter_mut() {
+            *item = iter
+                .next()
+                .expect("The length is known to be num_items * NI")
+        }
+
+        let encoded: [u8; NO] = unprotected.encode();
+        output.extend_from_slice(&encoded);
+    }
+
+    PyArray1::from_vec(py, output)
 }

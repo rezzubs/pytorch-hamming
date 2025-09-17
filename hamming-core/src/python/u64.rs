@@ -2,13 +2,12 @@
 
 use crate::{
     python::common::{
-        add_padding, decode, fi_context_create, prep_input_array, prep_input_array_list,
-        validate_encoded_array, FiContext, InputArr, OutputArr,
+        decode, encode, fi_context_create, prep_input_array_list, validate_encoded_array,
+        FiContext, InputArr, OutputArr,
     },
-    BitBuffer, Encodable,
+    BitBuffer,
 };
 
-use itertools::Itertools;
 use numpy::PyArray1;
 use pyo3::prelude::*;
 
@@ -21,17 +20,7 @@ const NUM_U16: usize = 4;
 /// See module docs for details.
 #[pyfunction]
 pub fn encode_f32<'py>(py: Python<'py>, input: InputArr<'py, f32>) -> OutputArr<'py, u8> {
-    let mut buffer = prep_input_array(input);
-
-    add_padding(&mut buffer, NUM_F32);
-
-    PyArray1::from_iter(
-        py,
-        buffer
-            .into_iter()
-            .tuples()
-            .flat_map(|(a, b)| [a, b].encode()),
-    )
+    encode::<NUM_F32, NUM_ENCODED_BYTES, f32>(py, input)
 }
 
 /// Decode an array of uint8 values into an array of float32 values.
@@ -52,17 +41,7 @@ pub fn decode_f32<'py>(
 /// See module docs for details.
 #[pyfunction]
 pub fn encode_u16<'py>(py: Python<'py>, input: InputArr<'py, u16>) -> OutputArr<'py, u8> {
-    let mut buffer = prep_input_array(input);
-
-    add_padding(&mut buffer, NUM_U16);
-
-    PyArray1::from_iter(
-        py,
-        buffer
-            .into_iter()
-            .tuples()
-            .flat_map(|(a, b, c, d)| [a, b, c, d].encode()),
-    )
+    encode::<NUM_U16, NUM_ENCODED_BYTES, u16>(py, input)
 }
 
 /// Decode an array of uint8 values into an array of float32 values.
