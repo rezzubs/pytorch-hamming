@@ -60,7 +60,7 @@ pub fn validate_encoded_array(
             "Invalid number of bits{}, expected a multiple of {}, got {}",
             index.map(|i| format!(" in array {i}")).unwrap_or("".into()),
             num_encoded_bytes,
-            buffer.num_bits()
+            buffer.len()
         )));
     }
 
