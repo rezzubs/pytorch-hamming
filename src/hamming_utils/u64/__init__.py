@@ -13,7 +13,9 @@ The encoding and decoding functions do not touch the original tensors and return
 new ones instead. The fault injection function replaces the original tensor
 in place.
 
-The decoding functions cannot know the original shapes and return flattened
+The encoding functions will return a single dimensional tensor of bytes. The
+decoding functions expect the same format as input and also return flattened
+tensors because there's no way to know the original shape.
 tensors instead.
 """
 

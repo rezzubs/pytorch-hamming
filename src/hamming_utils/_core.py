@@ -31,13 +31,13 @@ SupportsHamming = nn.Linear | nn.Conv2d | nn.BatchNorm2d
 
 
 class HammingImpl(Protocol):
-    def encode_f32(self, t: torch.Tensor) -> torch.Tensor: ...
+    def encode_f32(self, tensor: torch.Tensor) -> torch.Tensor: ...
 
-    def decode_f32(self, t: torch.Tensor) -> tuple[torch.Tensor, int]: ...
+    def decode_f32(self, tensor: torch.Tensor) -> tuple[torch.Tensor, int]: ...
 
-    def encode_f16(self, t: torch.Tensor) -> torch.Tensor: ...
+    def encode_f16(self, tensor: torch.Tensor) -> torch.Tensor: ...
 
-    def decode_f16(self, t: torch.Tensor) -> tuple[torch.Tensor, int]: ...
+    def decode_f16(self, tensor: torch.Tensor) -> tuple[torch.Tensor, int]: ...
 
     def encoded_tensor_list_fi(
         self,
@@ -192,10 +192,10 @@ class HammingLayer(nn.Module):
 
         if t.dtype == torch.float32:
             dtype = DTYPE_F32
-            protected_data = impl.encode_f32(t.flatten())
+            protected_data = impl.encode_f32(t)
         elif t.dtype == torch.float16:
             dtype = DTYPE_F16
-            protected_data = impl.encode_f16(t.flatten())
+            protected_data = impl.encode_f16(t)
         else:
             raise ValueError(f"Unsupported datatype {t.dtype}")
         self.register_buffer(DATA_PREFIX + name, protected_data)

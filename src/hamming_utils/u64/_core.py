@@ -1,81 +1,47 @@
-from hamming_utils._common import tensor_list_fi_impl
+from hamming_utils._common import decode_impl, encode_impl, tensor_list_fi_impl
 import torch
 import hamming_core
 import numpy as np
 
 
-def encode_f32(t: torch.Tensor) -> torch.Tensor:
+# FIXME: Remove `type: ignore` comments after the hamming_core functions get
+# type hints.
+
+
+def encode_f32(tensor: torch.Tensor) -> torch.Tensor:
     """Enocde a flattened float32 tensor as 9 byte hamming codes.
 
     See module docs for details.
     """
-    if len(t.shape) != 1:
-        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
-
-    # TODO: match on dtype and add support for f16-f64.
-    if t.dtype != torch.float32:
-        raise ValueError(f"Only float32 tensors are supported, got {t.dtype}")
-
-    # FIXME: Ignored because there are no type signatures for the hamming module.
-    out: np.ndarray = hamming_core.u64.encode_f32(t.numpy())  # pyright: ignore
-
-    return torch.from_numpy(out)
+    f = hamming_core.u64.encode_f32  # type: ignore
+    return encode_impl(tensor, torch.float32, None, f)
 
 
-def decode_f32(t: torch.Tensor) -> tuple[torch.Tensor, int]:
+def decode_f32(tensor: torch.Tensor) -> tuple[torch.Tensor, int]:
     """Decode the output of `encode_f32`.
 
     See module docs for details.
     """
-    if len(t.shape) != 1:
-        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
-
-    if t.dtype != torch.uint8:
-        raise ValueError(f"Expected dtype=uint8, got {t.dtype}")
-
-    # NOTE: Length checks are handled in rust.
-    # FIXME: Ignored because there are no type signatures for the hamming module.
-    result: tuple[np.ndarray, int] = hamming_core.u64.decode_f32(t.numpy())  # pyright: ignore
-
-    return torch.from_numpy(result[0]), result[1]
+    f = hamming_core.u64.decode_f32
+    return decode_impl(tensor, torch.float32, None, f)
 
 
-def encode_f16(t: torch.Tensor) -> torch.Tensor:
+def encode_f16(tensor: torch.Tensor) -> torch.Tensor:
     """Enocde a flattened float32 tensor as 9 byte hamming codes.
 
     See module docs for details.
     """
-    if len(t.shape) != 1:
-        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
-
-    if t.dtype != torch.float16:
-        raise ValueError(f"Expected dtype=float16, got {t.dtype}")
-
-    result: np.ndarray = hamming_core.u64.encode_u16(t.view(torch.uint16).numpy())  # pyright: ignore
-    torch_result = torch.from_numpy(result)
-    assert torch_result.dtype == torch.uint8
-
-    return torch_result
+    f = hamming_core.u64.encode_f16  # type: ignore
+    return encode_impl(tensor, torch.float16, torch.uint16, f)
 
 
-def decode_f16(t: torch.Tensor) -> tuple[torch.Tensor, int]:
+def decode_f16(tensor: torch.Tensor) -> tuple[torch.Tensor, int]:
     """Decode the output of `encode_f16`.
 
     See module docs for details.
     """
-    if len(t.shape) != 1:
-        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
-
-    if t.dtype != torch.uint8:
-        raise ValueError(f"Expected dtype=uint8, got {t.dtype}")
-
-    # NOTE: Length checks are handled in rust.
-    # FIXME: Ignored because there are no type signatures for the hamming module.
-    result: tuple[np.ndarray, int] = hamming_core.u64.decode_u16(t.numpy())  # pyright: ignore
-    torch_result = torch.from_numpy(result[0])
-    assert torch_result.dtype == torch.uint16
-
-    return torch_result.view(torch.float16), result[1]
+    f = hamming_core.u64.decode_f16  # type: ignore
+    return decode_impl(tensor, torch.float16, torch.uint16, f)
 
 
 def encoded_tensor_list_fi(
