@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+import hamming_core
+from hamming_utils._common import tensor_list_fi_impl
 import numpy
 import torch
 from torch import nn
 
-import hamming_core
-
-from typing import TYPE_CHECKING
+from . import generic
 
 if TYPE_CHECKING:
     from ._stats import HammingStats
@@ -17,10 +19,6 @@ DATA_PREFIX = "hamming_protected_"
 ORIGINAL_PREFIX = "hamming_original_"
 DTYPE_F32 = 0
 DTYPE_F16 = 1
-
-BITS_PER_BYTE = 8
-BYTES_PER_CONTAINER = 9
-BITS_PER_CONTAINER = BITS_PER_BYTE * BYTES_PER_CONTAINER
 
 
 def encode_f32(t: torch.Tensor) -> torch.Tensor:
@@ -116,33 +114,20 @@ def decode_f16(t: torch.Tensor) -> tuple[torch.Tensor, int]:
 
 
 def tensor_list_fi(
-    ts: list[torch.Tensor], bit_error_rate: float, *, stats: HammingStats | None = None
+    tensors: list[torch.Tensor],
+    bit_error_rate: float,
+    context: dict[str, int],
 ) -> None:
     """Inject faults uniformly in a list of tensors by the given bit error rate."""
-    if not (0 <= bit_error_rate <= 1):
-        raise ValueError("Bit error rate must be between 0 and 1 inclusive")
-
-    for i, t in enumerate(ts):
-        if t.dtype != torch.uint8:
-            raise ValueError(f"Expected dtype=uint8, got {t.dtype} (tensor {i}")
-
-    flattened = [t.flatten() for t in ts]
-
-    # FIXME: Ignored because there are no type signatures for the hamming module.
-    (result, context) = hamming_core.u64.array_list_fi(  # type: ignore
-        [t.numpy() for t in flattened], bit_error_rate
+    f = hamming_core.u64.array_list_fi  # type: ignore
+    tensor_list_fi_impl(
+        tensors,
+        bit_error_rate,
+        torch.uint8,
+        None,
+        f,
+        context,
     )
-    assert isinstance(result, list)
-    assert isinstance(context, dict)
-
-    if stats is not None:
-        stats.num_faults = context["num_faults"]
-        stats.total_bits = context["total_bits"]
-
-    for old, new in zip(flattened, result, strict=True):
-        new = torch.from_numpy(new)
-        assert new.dtype == torch.uint8
-        old.copy_(new)
 
 
 SupportsHamming = nn.Linear | nn.Conv2d | nn.BatchNorm2d
@@ -384,8 +369,13 @@ def protected_fi(
         for x in module.named_buffers(recurse=True, remove_duplicate=False)
         if DATA_PREFIX in x[0]
     )
+    context = dict()
 
-    tensor_list_fi(buffers, bit_error_rate, stats=stats)
+    tensor_list_fi(buffers, bit_error_rate, context)
+
+    if stats is not None:
+        stats.num_faults = context["num_faults"]
+        stats.total_bits = context["total_bits"]
 
 
 def collect_supports_hamming_tensors(module: nn.Module) -> list[torch.Tensor]:
@@ -421,4 +411,10 @@ def nonprotected_fi(
 ) -> None:
     """Uniformly inject faults into all modules which could be encoded as HammingLayers."""
     buffers = collect_supports_hamming_tensors(module)
-    tensor_list_fi(buffers, bit_error_rate, stats=stats)
+    context = dict()
+
+    generic.tensor_list_fi(buffers, bit_error_rate, context)
+
+    if stats is not None:
+        stats.num_faults = context["num_faults"]
+        stats.total_bits = context["total_bits"]
