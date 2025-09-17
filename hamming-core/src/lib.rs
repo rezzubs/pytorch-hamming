@@ -35,4 +35,16 @@ mod hamming_core {
         #[pymodule_export]
         use crate::python::u64::encode_u16;
     }
+
+    #[pymodule]
+    mod generic {
+        #[pymodule_export]
+        use crate::python::generic::f32_array_fi;
+        #[pymodule_export]
+        use crate::python::generic::f32_array_list_fi;
+        #[pymodule_export]
+        use crate::python::generic::u16_array_fi;
+        #[pymodule_export]
+        use crate::python::generic::u16_array_list_fi;
+    }
 }
