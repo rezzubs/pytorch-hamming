@@ -2,135 +2,54 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
-import hamming_core
-from hamming_utils._common import tensor_list_fi_impl
-import numpy
 import torch
 from torch import nn
 
 from . import generic
+from . import u64 as u64_impl
+
 
 if TYPE_CHECKING:
     from ._stats import HammingStats
 
 DATA_PREFIX = "hamming_protected_"
 ORIGINAL_PREFIX = "hamming_original_"
+DATA_PREFIX = "hamming_protected_"
+
 DTYPE_F32 = 0
 DTYPE_F16 = 1
 
-
-def encode_f32(t: torch.Tensor) -> torch.Tensor:
-    """Enocde a flattened float32 tensor as 9 byte hamming codes.
-
-    Returns:
-        A 1 dimensional tensor with dtype=uint8
-
-    Note that encoding adds an extra 0 for odd length tensors which needs to be
-    removed manually after decoding.
-    """
-    if len(t.shape) != 1:
-        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
-
-    # TODO: match on dtype and add support for f16-f64.
-    if t.dtype != torch.float32:
-        raise ValueError(f"Only float32 tensors are supported, got {t.dtype}")
-
-    # FIXME: Ignored because there are no type signatures for the hamming module.
-    out: numpy.ndarray = hamming_core.u64.encode_f32(t.numpy())  # pyright: ignore
-
-    return torch.from_numpy(out)
-
-
-def decode_f32(t: torch.Tensor) -> tuple[torch.Tensor, int]:
-    """Decode the output of `encode_f32`.
-
-    Returns:
-        A 1 dimensional tensor with dtype=float32 and the number of faults that
-        could not be corrected but were still detected.
-
-    Note that encoding adds an extra 0 for odd length tensors which needs to be
-    removed manually after decoding.
-    """
-    if len(t.shape) != 1:
-        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
-
-    if t.dtype != torch.uint8:
-        raise ValueError(f"Expected dtype=uint8, got {t.dtype}")
-
-    # NOTE: Length checks are handled in rust.
-    # FIXME: Ignored because there are no type signatures for the hamming module.
-    result: tuple[numpy.ndarray, int] = hamming_core.u64.decode_f32(t.numpy())  # pyright: ignore
-
-    return torch.from_numpy(result[0]), result[1]
-
-
-def encode_f16(t: torch.Tensor) -> torch.Tensor:
-    """Enocde a flattened float32 tensor as 9 byte hamming codes.
-
-    Returns:
-        A 1 dimensional tensor with dtype=uint8
-
-    Note that encoding adds padding zeros to make the length a multiple of 4.
-    These need to be removed manually after decoding.
-    """
-    if len(t.shape) != 1:
-        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
-
-    if t.dtype != torch.float16:
-        raise ValueError(f"Expected dtype=float16, got {t.dtype}")
-
-    result: numpy.ndarray = hamming_core.u64.encode_u16(t.view(torch.uint16).numpy())  # pyright: ignore
-    torch_result = torch.from_numpy(result)
-    assert torch_result.dtype == torch.uint8
-
-    return torch_result
-
-
-def decode_f16(t: torch.Tensor) -> tuple[torch.Tensor, int]:
-    """Decode the output of `encode_f16`.
-
-    Returns:
-        A 1 dimensional tensor with dtype=float16 and the number of faults that
-        could not be corrected but were still detected.
-
-    Note that encoding adds padding zeros to make the length a multiple of 4.
-    These need to be removed manually after decoding.
-    """
-    if len(t.shape) != 1:
-        raise ValueError(f"Expected a flattened tensor, got shape {t.shape}")
-
-    if t.dtype != torch.uint8:
-        raise ValueError(f"Expected dtype=uint8, got {t.dtype}")
-
-    # NOTE: Length checks are handled in rust.
-    # FIXME: Ignored because there are no type signatures for the hamming module.
-    result: tuple[numpy.ndarray, int] = hamming_core.u64.decode_u16(t.numpy())  # pyright: ignore
-    torch_result = torch.from_numpy(result[0])
-    assert torch_result.dtype == torch.uint16
-
-    return torch_result.view(torch.float16), result[1]
-
-
-def tensor_list_fi(
-    tensors: list[torch.Tensor],
-    bit_error_rate: float,
-    context: dict[str, int],
-) -> None:
-    """Inject faults uniformly in a list of tensors by the given bit error rate."""
-    f = hamming_core.u64.array_list_fi  # type: ignore
-    tensor_list_fi_impl(
-        tensors,
-        bit_error_rate,
-        torch.uint8,
-        None,
-        f,
-        context,
-    )
+DATA_BUFFER_U32 = 32
+DATA_BUFFER_U64 = 64
+DATA_BUFFER_U128 = 128
+DATA_BUFFER_U256 = 256
 
 
 SupportsHamming = nn.Linear | nn.Conv2d | nn.BatchNorm2d
+
+
+class HammingImpl(Protocol):
+    def encode_f32(self, t: torch.Tensor) -> torch.Tensor: ...
+
+    def decode_f32(self, t: torch.Tensor) -> tuple[torch.Tensor, int]: ...
+
+    def encode_f16(self, t: torch.Tensor) -> torch.Tensor: ...
+
+    def decode_f16(self, t: torch.Tensor) -> tuple[torch.Tensor, int]: ...
+
+    def encoded_tensor_list_fi(
+        self,
+        tensors: list[torch.Tensor],
+        bit_error_rate: float,
+        context: dict[str, int],
+    ) -> None: ...
+
+
+DATA_BUFFER_SIZES: dict[int, HammingImpl] = {
+    DATA_BUFFER_U64: u64_impl,
+}
 
 
 def compare_parameter_bitwise(a: torch.Tensor, b: torch.Tensor) -> list[int]:
@@ -203,12 +122,24 @@ class HammingLayer(nn.Module):
     Must be decoded before usage.
     """
 
-    def __init__(self, original: SupportsHamming, *args, **kwargs) -> None:
+    def __init__(
+        self,
+        original: SupportsHamming,
+        data_buffer_size: int = DATA_BUFFER_U64,
+        *args,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
         if not isinstance(original, SupportsHamming):
             raise ValueError(
                 f"Module {type(original)} is not a valid HammingLayer target"
             )
+
+        if data_buffer_size not in DATA_BUFFER_SIZES:
+            raise ValueError(
+                f"Unsupported data buffer size {data_buffer_size}, supported: {DATA_BUFFER_SIZES}"
+            )
+        self.register_buffer("hamming_buffer_size", torch.tensor(data_buffer_size))
 
         self._original = original
         # Used as a shared buffer during decoding
@@ -234,6 +165,19 @@ class HammingLayer(nn.Module):
 
             self._protect_tensor("running_var", original.running_var.data)
 
+    def data_buffer_size(self) -> int:
+        item = self.get_buffer("hamming_buffer_size").item()
+        assert isinstance(item, int)
+        return item
+
+    def _hamming_impl(self) -> HammingImpl:
+        buffer_size = self.data_buffer_size()
+
+        try:
+            return DATA_BUFFER_SIZES[buffer_size]
+        except KeyError:
+            raise RuntimeError(f"Unexpected data buffer size {buffer_size}")
+
     def _protect_tensor(self, name: str, t: torch.Tensor) -> None:
         """Protect a parameter by encoding it as a hamming code.
 
@@ -244,12 +188,14 @@ class HammingLayer(nn.Module):
         og = ORIGINAL_PREFIX + name
         t = t.data
 
+        impl = self._hamming_impl()
+
         if t.dtype == torch.float32:
             dtype = DTYPE_F32
-            protected_data = encode_f32(t.flatten())
+            protected_data = impl.encode_f32(t.flatten())
         elif t.dtype == torch.float16:
             dtype = DTYPE_F16
-            protected_data = encode_f16(t.flatten())
+            protected_data = impl.encode_f16(t.flatten())
         else:
             raise ValueError(f"Unsupported datatype {t.dtype}")
         self.register_buffer(DATA_PREFIX + name, protected_data)
@@ -273,10 +219,12 @@ class HammingLayer(nn.Module):
         length = self.get_buffer(og + "_len").item()
         dtype = self.get_buffer(og + "_dtype").item()
 
+        impl = self._hamming_impl()
+
         if dtype == DTYPE_F32:
-            result = decode_f32(protected_data)
+            result = impl.decode_f32(protected_data)
         elif dtype == DTYPE_F16:
-            result = decode_f16(protected_data)
+            result = impl.decode_f16(protected_data)
         else:
             raise ValueError(f"Unexpected dtype variant `{dtype}`")
 
@@ -315,7 +263,7 @@ class HammingLayer(nn.Module):
         )
 
 
-def encode_module(module: nn.Module) -> None:
+def encode_module(module: nn.Module, data_buffer_size: int = DATA_BUFFER_U64) -> None:
     """Recursively replace child layers of the module with `HammingLayer`
 
     A module that has been prepared like this can be used as an input for
@@ -331,7 +279,7 @@ def encode_module(module: nn.Module) -> None:
         if not isinstance(child, SupportsHamming):
             continue
 
-        setattr(module, name, HammingLayer(child))
+        setattr(module, name, HammingLayer(child, data_buffer_size))
 
 
 def decode_module(module: nn.Module):
@@ -352,6 +300,28 @@ def decode_module(module: nn.Module):
         setattr(module, name, result[0])
 
 
+def validate_hamming_layers(module: nn.Module, size: int | None) -> HammingImpl | None:
+    impl = None
+
+    if isinstance(module, HammingLayer):
+        impl = module._hamming_impl()
+        if size is None:
+            size = module.data_buffer_size()
+        else:
+            module_size = module.data_buffer_size
+            if size != module_size:
+                raise ValueError(
+                    f"Expected all child modules to have the same data buffer size. First saw {size}, then {module_size}"
+                )
+
+    for child in module.children():
+        child_impl = validate_hamming_layers(child, size)
+        if impl is None:
+            impl = child_impl
+
+    return impl
+
+
 def protected_fi(
     module: nn.Module,
     bit_error_rate: float,
@@ -364,6 +334,14 @@ def protected_fi(
     See `hamming_encode_module` to prepare the input.
     See `non_protected_fi` for the unprotected variant.
     """
+    impl = validate_hamming_layers(module, None)
+
+    if impl is None:
+        print(
+            "Warning: Didn't detect any HammingLayer instances. Skipping fault injection."
+        )
+        return
+
     buffers = list(
         x[1]
         for x in module.named_buffers(recurse=True, remove_duplicate=False)
@@ -371,7 +349,7 @@ def protected_fi(
     )
     context = dict()
 
-    tensor_list_fi(buffers, bit_error_rate, context)
+    impl.encoded_tensor_list_fi(buffers, bit_error_rate, context)
 
     if stats is not None:
         stats.num_faults = context["num_faults"]
