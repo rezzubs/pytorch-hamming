@@ -1,5 +1,44 @@
 use super::*;
 
+mod u32 {
+    use super::*;
+
+    type EncodedU32 = [u8; 5];
+
+    impl Init for EncodedU32 {
+        fn init() -> Self {
+            Default::default()
+        }
+    }
+
+    impl Init for [u8; 4] {
+        fn init() -> Self {
+            Default::default()
+        }
+    }
+
+    impl Encodable<EncodedU32, [u8; 4]> for [u8; 4] {}
+    impl Decodable<[u8; 4]> for EncodedU32 {}
+
+    impl Init for [f32; 1] {
+        fn init() -> Self {
+            Default::default()
+        }
+    }
+
+    impl Encodable<EncodedU32, [f32; 1]> for [f32; 1] {}
+    impl Decodable<[f32; 1]> for EncodedU32 {}
+
+    impl Init for [u16; 2] {
+        fn init() -> Self {
+            Default::default()
+        }
+    }
+
+    impl Encodable<EncodedU32, [u16; 2]> for [u16; 2] {}
+    impl Decodable<[u16; 2]> for EncodedU32 {}
+}
+
 /// 8 byte data.
 mod u64 {
     use super::*;
@@ -43,8 +82,6 @@ mod u64 {
 /// 16 byte data
 mod u128 {
     use super::*;
-
-    // TODO: PaddedBuffer usage.
 
     impl Init for [u8; 16] {
         fn init() -> Self {
