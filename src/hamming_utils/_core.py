@@ -280,7 +280,7 @@ def encode_module(module: nn.Module, data_buffer_size: int = DATA_BUFFER_U64) ->
     See `SupportsHamming` for supported layer types.
     """
     for name, child in module.named_children():
-        encode_module(child)
+        encode_module(child, data_buffer_size)
 
         if not isinstance(child, SupportsHamming):
             continue
