@@ -126,7 +126,10 @@ def decode_impl(
     if tensor.dtype != torch.uint8:
         raise ValueError(f"Expected dtype=uint8, got {tensor.dtype}")
 
-    result, num_failures = rust_fn(tensor.flatten().numpy())
+    if len(tensor.shape) != 1:
+        raise ValueError(f"Expected a single dimensional tensor, got {tensor.shape}")
+
+    result, num_failures = rust_fn(tensor.numpy())
     assert isinstance(result, np.ndarray)
     assert isinstance(num_failures, int)
 
