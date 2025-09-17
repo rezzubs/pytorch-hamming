@@ -11,6 +11,21 @@ use pyo3::pymodule;
 mod hamming_core {
     use pyo3::pymodule;
 
+    /// Functions related to encoding 32 byte data
+    #[pymodule]
+    mod u32 {
+        #[pymodule_export]
+        use crate::python::u32::array_list_fi;
+        #[pymodule_export]
+        use crate::python::u32::decode_f32;
+        #[pymodule_export]
+        use crate::python::u32::decode_u16;
+        #[pymodule_export]
+        use crate::python::u32::encode_f32;
+        #[pymodule_export]
+        use crate::python::u32::encode_u16;
+    }
+
     /// Functions related to encoding 64 byte data
     #[pymodule]
     mod u64 {
@@ -24,6 +39,36 @@ mod hamming_core {
         use crate::python::u64::encode_f32;
         #[pymodule_export]
         use crate::python::u64::encode_u16;
+    }
+
+    /// Functions related to encoding 128 byte data
+    #[pymodule]
+    mod u128 {
+        #[pymodule_export]
+        use crate::python::u128::array_list_fi;
+        #[pymodule_export]
+        use crate::python::u128::decode_f32;
+        #[pymodule_export]
+        use crate::python::u128::decode_u16;
+        #[pymodule_export]
+        use crate::python::u128::encode_f32;
+        #[pymodule_export]
+        use crate::python::u128::encode_u16;
+    }
+
+    /// Functions related to encoding 256 byte data
+    #[pymodule]
+    mod u256 {
+        #[pymodule_export]
+        use crate::python::u256::array_list_fi;
+        #[pymodule_export]
+        use crate::python::u256::decode_f32;
+        #[pymodule_export]
+        use crate::python::u256::decode_u16;
+        #[pymodule_export]
+        use crate::python::u256::encode_f32;
+        #[pymodule_export]
+        use crate::python::u256::encode_u16;
     }
 
     /// Fault injection for generic arrays.

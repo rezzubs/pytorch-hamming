@@ -1,21 +1,29 @@
-//! Functions for 64 bit data.
+//! Functions for 32 bit data.
 
 use crate::{
     python::common::{
         decode, encode, fi_context_create, prep_input_array_list, validate_encoded_array,
         FiContext, InputArr, OutputArr,
     },
-    BitBuffer,
+    wrapper::PaddedBuffer,
+    BitBuffer, Decodable,
 };
 
 use numpy::PyArray1;
 use pyo3::prelude::*;
 
+const NUM_ORIGINAL_BYTES: usize = 4;
 /// Bytes used for the **storage** of the encoded format.
-const NUM_ENCODED_BYTES: usize = 9;
+const NUM_ENCODED_BYTES: usize = 5;
 
-const FITS_F32: usize = 2;
-const FITS_U16: usize = 4;
+const FITS_F32: usize = 1;
+const FITS_U16: usize = 2;
+
+type Original = [u8; NUM_ORIGINAL_BYTES];
+type Encoded = [u8; NUM_ENCODED_BYTES];
+
+const NUM_PADDING_BITS: usize = <Encoded as Decodable<Original>>::NUM_PADDING_BITS;
+const NUM_ENCODED_BITS: usize = <Encoded as Decodable<Original>>::NUM_ENCODED_BITS;
 
 /// Encode an array of float32 values as an array of uint8 values.
 ///
@@ -63,17 +71,20 @@ pub fn array_list_fi<'py>(
     input: Vec<InputArr<'py, u8>>,
     ber: f64,
 ) -> PyResult<(Vec<OutputArr<'py, u8>>, FiContext)> {
-    let mut buffer = prep_input_array_list(input);
+    let buffer = prep_input_array_list(input);
 
     for (i, arr) in buffer.0.iter().enumerate() {
         validate_encoded_array(arr, NUM_ENCODED_BYTES, Some(i))?;
     }
+
+    let mut buffer: PaddedBuffer<_, NUM_ENCODED_BITS, NUM_PADDING_BITS> = PaddedBuffer::new(buffer);
 
     let num_faults = buffer.flip_by_ber(ber);
     let num_bits = buffer.num_bits();
 
     Ok((
         buffer
+            .into_inner()
             .0
             .into_iter()
             .map(|arr| PyArray1::from_slice(py, &arr))
