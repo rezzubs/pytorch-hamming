@@ -83,7 +83,10 @@ def encoded_tensor_list_fi(
     bit_error_rate: float,
     context: dict[str, int],
 ) -> None:
-    """Inject faults uniformly in a list of tensors by the given bit error rate."""
+    """Inject faults uniformly in a list of tensors by the given bit error rate.
+
+    See module docs for details.
+    """
     f = hamming_core.u64.array_list_fi  # type: ignore
     tensor_list_fi_impl(
         tensors,
