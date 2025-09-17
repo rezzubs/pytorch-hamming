@@ -4,7 +4,7 @@ use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use std::collections::HashMap;
 
-use crate::{wrapper::NonUniformSequence, BitBuffer, Decodable, Encodable, Init, SizedBitBuffer};
+use crate::{wrapper::NonUniformSequence, Decodable, Encodable, Init, SizedBitBuffer};
 
 pub type OutputArr<'py, T> = Bound<'py, PyArray1<T>>;
 pub type InputArr<'py, T> = PyReadonlyArray1<'py, T>;
