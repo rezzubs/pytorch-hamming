@@ -84,10 +84,8 @@ where
             input_index += 1;
         }
 
-        let bits_to_toggle = u8::try_from(output_buffer.error_index())
-            .expect("ByteArray<9> index must fit inside u8");
-
-        let bits_to_toggle = [bits_to_toggle];
+        let bits_to_toggle =
+            u64::try_from(output_buffer.error_index()).expect("error index out of bounds");
 
         for i in 0..D::NUM_ERROR_CORRECTION_BITS {
             let parity_bit = 1 << i;
