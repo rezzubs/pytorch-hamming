@@ -30,7 +30,7 @@ def encode_f16(tensor: torch.Tensor) -> torch.Tensor:
 
     See module docs for details.
     """
-    f = hamming_core.u256.encode_f16  # type: ignore
+    f = hamming_core.u256.encode_u16  # type: ignore
     return encode_impl(tensor, torch.float16, torch.uint16, f)
 
 
@@ -39,7 +39,7 @@ def decode_f16(tensor: torch.Tensor) -> tuple[torch.Tensor, int]:
 
     See module docs for details.
     """
-    f = hamming_core.u256.decode_f16  # type: ignore
+    f = hamming_core.u256.decode_u16  # type: ignore
     return decode_impl(tensor, torch.float16, torch.uint16, f)
 
 
