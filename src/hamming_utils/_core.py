@@ -235,8 +235,10 @@ class HammingLayer(nn.Module):
             raise ValueError(f"Unexpected dtype variant `{dtype}`")
 
         self._failed_decodings += result[1]
+        whole_buffer = result[0]
+        assert len(whole_buffer) >= length
 
-        return result[0][:length].reshape(shape)
+        return whole_buffer[:length].reshape(shape)
 
     def decode(self) -> tuple[SupportsHamming, int]:
         """Decode the hamming module into the type it was initialized with.

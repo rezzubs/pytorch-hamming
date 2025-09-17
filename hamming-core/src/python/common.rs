@@ -43,7 +43,7 @@ pub fn add_padding<T: Default + Clone>(buffer: &mut Vec<T>, chunk_size: usize) {
     let required_padding = if length < chunk_size {
         chunk_size - length
     } else {
-        buffer.len() % chunk_size
+        chunk_size - buffer.len() % chunk_size
     };
 
     buffer.extend(std::iter::repeat_n(Default::default(), required_padding));
