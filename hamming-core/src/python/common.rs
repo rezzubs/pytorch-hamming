@@ -1,8 +1,10 @@
+//! Components that are shared between different bit-widths and types.
+
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use std::collections::HashMap;
 
-use crate::{wrapper::NonUniformSequence, BitBuffer};
+use crate::{wrapper::NonUniformSequence, BitBuffer, Decodable, Init, SizedBitBuffer};
 
 pub type OutputArr<'py, T> = Bound<'py, PyArray1<T>>;
 pub type InputArr<'py, T> = PyReadonlyArray1<'py, T>;
@@ -57,4 +59,44 @@ pub fn validate_encoded_array(
     }
 
     Ok(())
+}
+
+/// Helper for decoding into arrays of various types.
+pub fn decode<'py, const NI: usize, const NO: usize, O>(
+    py: Python<'py>,
+    input: InputArr<'py, u8>,
+) -> PyResult<(OutputArr<'py, O>, u64)>
+where
+    [u8; NI]: Decodable<[O; NO]>,
+    [O; NO]: Init,
+    O: SizedBitBuffer + numpy::Element,
+{
+    let buffer = prep_input_array(input);
+
+    validate_encoded_array(&buffer, NI, None)?;
+
+    let num_encoded_buffers = buffer.len() / NI;
+    let mut output: Vec<O> = Vec::with_capacity(num_encoded_buffers * NO);
+
+    let mut iter = buffer.into_iter();
+    let mut failed_decodings: u64 = 0;
+    for _ in 0..num_encoded_buffers {
+        let mut encoded: [u8; NI] = [0; NI];
+
+        for item in encoded.iter_mut() {
+            *item = iter.next().expect("Length is known to be a multiple of N")
+        }
+
+        let (decoded, success): ([O; NO], bool) = encoded.decode();
+
+        if !success {
+            failed_decodings = failed_decodings
+                .checked_add(1)
+                .expect("Unexpectedly large number of unmasked faults");
+        }
+
+        output.extend(decoded);
+    }
+
+    Ok((PyArray1::from_vec(py, output), failed_decodings))
 }

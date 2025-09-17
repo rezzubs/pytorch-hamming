@@ -2,10 +2,10 @@
 
 use crate::{
     python::common::{
-        add_padding, fi_context_create, prep_input_array, prep_input_array_list,
+        add_padding, decode, fi_context_create, prep_input_array, prep_input_array_list,
         validate_encoded_array, FiContext, InputArr, OutputArr,
     },
-    BitBuffer, Decodable, Encodable,
+    BitBuffer, Encodable,
 };
 
 use itertools::Itertools;
@@ -13,6 +13,8 @@ use numpy::PyArray1;
 use pyo3::prelude::*;
 
 const NUM_ENCODED_BYTES: usize = 9;
+const NUM_F32: usize = 2;
+const NUM_U16: usize = 4;
 
 /// Encode an array of float32 values as an array of uint8 values.
 ///
@@ -21,7 +23,7 @@ const NUM_ENCODED_BYTES: usize = 9;
 pub fn encode_f32<'py>(py: Python<'py>, input: InputArr<'py, f32>) -> OutputArr<'py, u8> {
     let mut buffer = prep_input_array(input);
 
-    add_padding(&mut buffer, 2);
+    add_padding(&mut buffer, NUM_F32);
 
     PyArray1::from_iter(
         py,
@@ -40,32 +42,7 @@ pub fn decode_f32<'py>(
     py: Python<'py>,
     input: InputArr<'py, u8>,
 ) -> PyResult<(OutputArr<'py, f32>, u64)> {
-    let buffer = prep_input_array(input);
-
-    validate_encoded_array(&buffer, NUM_ENCODED_BYTES, None)?;
-
-    let mut iter = buffer.iter().copied();
-    let num_encoded_buffers = buffer.len() / NUM_ENCODED_BYTES;
-    let mut output = Vec::with_capacity(num_encoded_buffers * 2);
-
-    let mut failed_decodings: u64 = 0;
-
-    for _ in 0..num_encoded_buffers {
-        let mut encoded: [u8; NUM_ENCODED_BYTES] = iter.next_array().expect("Within bounds");
-
-        let ([a, b], success) = encoded.decode();
-
-        if !success {
-            failed_decodings = failed_decodings
-                .checked_add(1)
-                .expect("Unexpectedly large number of unmasked faults");
-        }
-
-        output.push(a);
-        output.push(b);
-    }
-
-    Ok((PyArray1::from_slice(py, &output), failed_decodings))
+    decode::<NUM_ENCODED_BYTES, NUM_F32, f32>(py, input)
 }
 
 /// Encode an array of uint16 values as an array of uint8 values.
@@ -77,7 +54,7 @@ pub fn decode_f32<'py>(
 pub fn encode_u16<'py>(py: Python<'py>, input: InputArr<'py, u16>) -> OutputArr<'py, u8> {
     let mut buffer = prep_input_array(input);
 
-    add_padding(&mut buffer, 4);
+    add_padding(&mut buffer, NUM_U16);
 
     PyArray1::from_iter(
         py,
@@ -96,31 +73,7 @@ pub fn decode_u16<'py>(
     py: Python<'py>,
     input: InputArr<'py, u8>,
 ) -> PyResult<(OutputArr<'py, u16>, u64)> {
-    let buffer = prep_input_array(input);
-
-    validate_encoded_array(&buffer, NUM_ENCODED_BYTES, None)?;
-
-    let mut iter = buffer.iter().copied();
-    let num_encoded_buffers = buffer.len() / NUM_ENCODED_BYTES;
-    let mut output = Vec::with_capacity(num_encoded_buffers * 4);
-
-    let mut failed_decodings: u64 = 0;
-
-    for _ in 0..num_encoded_buffers {
-        let mut encoded: [u8; NUM_ENCODED_BYTES] = iter.next_array().expect("Within bounds");
-
-        let (decoded, success): ([u16; 4], bool) = encoded.decode();
-
-        if !success {
-            failed_decodings = failed_decodings
-                .checked_add(1)
-                .expect("Unexpectedly large number of unmasked faults");
-        }
-
-        output.extend(decoded);
-    }
-
-    Ok((PyArray1::from_slice(py, &output), failed_decodings))
+    decode::<NUM_ENCODED_BYTES, NUM_U16, u16>(py, input)
 }
 
 #[pyfunction]
