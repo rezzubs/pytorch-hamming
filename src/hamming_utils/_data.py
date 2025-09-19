@@ -209,27 +209,16 @@ class Data:
         if autosave != 0:
             self.save(self.autosave_path or "./")
 
-    def partition(self) -> dict[float, dict[str, list[float]]]:
-        """Group the accuracy metrics by bit error rate and if it was protected or not."""
+    def partition(self) -> dict[float, list[float]]:
+        """Group the accuracy metrics by bit error rate."""
 
-        bers: dict[float, dict[str, list[float]]] = dict()
+        bers: dict[float, list[float]] = dict()
 
         for entry in self.entries:
             ber = entry.bit_error_rate()
-            ber_group = bers.get(ber, dict())
+            ber_group = bers.get(ber, [])
 
-            if entry.accuracy is None:
-                print("WARNING: got entry without accuracty")
-                continue
-
-            if entry.was_protected:
-                target = ber_group.get("protected", [])
-                target.append(entry.accuracy)
-                ber_group["protected"] = target
-            else:
-                target = ber_group.get("unprotected", [])
-                target.append(entry.accuracy)
-                ber_group["unprotected"] = target
+            ber_group.append(entry.accuracy)
 
             bers[ber] = ber_group
 
@@ -242,7 +231,7 @@ class Data:
         bers.sort(key=lambda x: x[0])
 
         print("Bit Error Rate")
-        for i, (ber, groups) in enumerate(bers):
+        for i, (ber, entries) in enumerate(bers):
             if i != len(bers) - 1:
                 prefix0 = "├── "
                 prefix1 = "│   "
@@ -251,15 +240,6 @@ class Data:
                 prefix1 = "    "
 
             print(prefix0 + f"{ber:.3}")
-            groups = list(sorted(groups.items(), key=lambda x: x[0]))
-            for j, (group, entries) in enumerate(groups):
-                if j != len(groups) - 1:
-                    prefix2 = "├── "
-                    prefix3 = "│   "
-                else:
-                    prefix2 = "└── "
-                    prefix3 = "    "
-                print(prefix1 + prefix2 + f"{group}")
-                print(prefix1 + prefix3 + f"├── runs: {len(entries)}")
-                print(prefix1 + prefix3 + f"├── mean: {np.mean(entries):.3}")
-                print(prefix1 + prefix3 + f"└── std: {np.std(entries):.3}")
+            print(prefix1 + f"├── runs: {len(entries)}")
+            print(prefix1 + f"├── mean: {np.mean(entries):.3}")
+            print(prefix1 + f"└── std: {np.std(entries):.3}")

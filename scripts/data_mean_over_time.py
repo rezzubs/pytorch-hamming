@@ -20,10 +20,6 @@ def main():
 
     max_len = 0
     for i, (key, val) in enumerate(data.items()):
-        val = val.get("protected")
-        if val is None:
-            continue
-
         max_len = max(max_len, len(val))
 
         means = []

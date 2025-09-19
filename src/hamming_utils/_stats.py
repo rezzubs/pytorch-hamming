@@ -37,8 +37,7 @@ def num_set_bits32(number: int) -> int:
 class HammingStats:
     """Statistics for a encode, inject, decode cycle."""
 
-    def __init__(self, is_protected: bool) -> None:
-        self.was_protected = is_protected
+    def __init__(self) -> None:
         self.accuracy: float = 0
         self.num_faults: int = 0
         self.total_bits: int = 0
@@ -49,8 +48,7 @@ class HammingStats:
         if not isinstance(value, HammingStats):
             raise ValueError(f"Can't compare HammingStats with {type(value)}")
         return (
-            self.was_protected == value.was_protected
-            and self.accuracy == value.accuracy
+            self.accuracy == value.accuracy
             and self.total_bits == value.total_bits
             and self.non_matching_parameters == value.non_matching_parameters
         )
@@ -64,7 +62,7 @@ class HammingStats:
         data_buffer_size: int,
         half: bool,
     ) -> HammingStats:
-        stats = cls(True)
+        stats = cls()
         if half:
             module = module.half()
         original = copy.deepcopy(module)
@@ -88,7 +86,7 @@ class HammingStats:
         half: bool,
     ) -> HammingStats:
         _ = data_buffer_size
-        stats = cls(False)
+        stats = cls()
         original = copy.deepcopy(module)
 
         nonprotected_fi(module, bit_error_rate, stats=stats)
@@ -165,18 +163,13 @@ class HammingStats:
             )
 
         out["total_bits"] = self.total_bits
-        out["was_protected"] = self.was_protected
         out["non_matching_parameters"] = self.non_matching_parameters
 
         return out
 
     @classmethod
     def from_dict(cls, obj: Any) -> HammingStats:
-        was_protected = obj["was_protected"]
-        if not isinstance(was_protected, bool):
-            raise ValueError(f"Expected bool, got {type(was_protected)}")
-
-        out = cls(was_protected)
+        out = cls()
 
         if not isinstance(obj, dict):
             raise ValueError(f"Expected a dictionary, got {type(obj)}")
