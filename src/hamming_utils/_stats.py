@@ -87,6 +87,8 @@ class HammingStats:
     ) -> HammingStats:
         _ = data_buffer_size
         stats = cls()
+        if half:
+            module = module.half()
         original = copy.deepcopy(module)
 
         nonprotected_fi(module, bit_error_rate, stats=stats)
