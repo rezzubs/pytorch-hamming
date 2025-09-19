@@ -1,5 +1,6 @@
 import argparse
 
+from hamming_utils._data import MetaData
 import torch
 
 from hamming_utils import Data
@@ -10,7 +11,7 @@ def main() -> None:
     parser.add_argument("-b", "--bit_error_rate", type=float, required=True)
     parser.add_argument("-i", "--iterations", type=int, required=True)
     parser.add_argument("-a", "--autosave", type=int, default=1, required=False)
-    parser.add_argument("-d", "--data-path", type=str, required=False)
+    parser.add_argument("-d", "--data-path", type=str, default="./")
     parser.add_argument("-p", "--protected", action="store_true", required=False)
     parser.add_argument("-c", "--cuda", action="store_true", required=False)
     parser.add_argument(
@@ -28,7 +29,9 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    data = Data.load(args.data_path or "./")
+    buffer_size = None if not args.protected else args.data_buffer_size
+    dtype = "f32" if not args.f16 else "f16"
+    data = Data.load(args.data_path or "./", MetaData(buffer_size, dtype))
 
     device_str = "cpu"
     if args.cuda:
@@ -44,6 +47,7 @@ def main() -> None:
         args.bit_error_rate,
         args.protected,
         args.f16,
+        args.data_path,
         autosave=args.autosave,
         device=device,
         data_buffer_size=args.data_buffer_size,

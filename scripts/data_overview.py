@@ -8,7 +8,7 @@ def main():
 
     args = parser.parse_args()
 
-    Data.load(args.path).overview()
+    Data.load(args.path, None).overview()
 
 
 if __name__ == "__main__":

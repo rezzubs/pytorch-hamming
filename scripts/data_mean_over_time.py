@@ -14,7 +14,7 @@ def main():
 
     args = parser.parse_args()
 
-    data = Data.load(args.path).partition()
+    data = Data.load(args.path, None).partition()
 
     _, axes = plt.subplots(len(data), figsize=(6, 3 * len(data)))
 

@@ -108,40 +108,73 @@ def evaluate_resnet(device: torch.device):
 
 
 @dataclass
+class MetaData:
+    buffer_size: int | None
+    dtype: str
+
+
+@dataclass
 class Data:
     entries: list[HammingStats]
-    autosave_path: str | None
+    # how many bits to use for the protected buffer
+    meta: MetaData
 
     @classmethod
-    def load(cls, path: str) -> Data:
+    def load(cls, path: str, metadata: MetaData | None) -> Data:
         with open(data_file(path)) as f:
             str_data = f.read()
+
             if len(str_data) == 0:
-                data = []
-            else:
-                data = json.loads(str_data)
+                if metadata is not None:
+                    return cls([], metadata)
+                else:
+                    raise RuntimeError("file is empty")
 
-        if not isinstance(data, list):
-            raise ValueError(f"Expected a list, got {type(data)}")
+            data = json.loads(str_data)
 
-        mapped = [HammingStats.from_dict(x) for x in data]
+        if not isinstance(data, dict):
+            raise ValueError(f"Expected a dictionary, got {type(data)}")
 
-        return cls(mapped, path)
+        entries = data["entries"]
+        if not isinstance(entries, list):
+            raise ValueError(f"Expected a list, got {type(entries)}")
+        entries = [HammingStats.from_dict(x) for x in entries]
+
+        buffer_size = data["buffer_size"]
+        if not isinstance(buffer_size, int | None):
+            raise ValueError(f"Expected in or None, got {type(buffer_size)}")
+
+        dtype = data["dtype"]
+        if not isinstance(dtype, str):
+            raise ValueError(f"Expected a string, got {type(dtype)}")
+
+        if metadata is not None and buffer_size != metadata.buffer_size:
+            raise ValueError(
+                f"Buffer size mismatch {buffer_size} vs {metadata.buffer_size}"
+            )
+        if metadata is not None and dtype != metadata.dtype:
+            raise ValueError(f"Data type mismatch {dtype} vs {metadata.dtype}")
+
+        return cls(entries, MetaData(buffer_size, dtype))
 
     def save(self, path: str) -> None:
-        serializable = [x.to_dict() for x in self.entries]
+        output = dict()
+        output["entries"] = [x.to_dict() for x in self.entries]
+        output["buffer_size"] = self.meta.buffer_size
+        output["dtype"] = self.meta.dtype
 
         file = data_file(path)
         print(f"saving data to {file}")
 
         with open(file, "w") as f:
-            json.dump(serializable, f)
+            json.dump(output, f)
 
     def record(
         self,
         bit_error_rate: float,
         protected: bool,
         half: bool,
+        save_path: str,
         *,
         autosave: bool = True,
         device: torch.device | None = None,
@@ -168,7 +201,7 @@ class Data:
         self.entries.append(stats)
 
         if autosave:
-            self.save(self.autosave_path or "./")
+            self.save(save_path)
 
     def record_n(
         self,
@@ -176,6 +209,7 @@ class Data:
         bit_error_rate: float,
         protected: bool,
         half: bool,
+        save_path: str,
         *,
         autosave: bool | int = True,
         device: torch.device | None = None,
@@ -200,6 +234,7 @@ class Data:
                 bit_error_rate,
                 protected,
                 half,
+                save_path,
                 autosave=save,
                 device=device,
                 summary=summary,
@@ -207,7 +242,7 @@ class Data:
             )
 
         if autosave != 0:
-            self.save(self.autosave_path or "./")
+            self.save(save_path)
 
     def partition(self) -> dict[float, list[float]]:
         """Group the accuracy metrics by bit error rate."""
@@ -230,7 +265,9 @@ class Data:
         bers = list(self.partition().items())
         bers.sort(key=lambda x: x[0])
 
-        print("Bit Error Rate")
+        print(f"buffer size: {self.meta.buffer_size}")
+        print(f"dtype: {self.meta.dtype}")
+        print("Entries by Bit Error Rate:")
         for i, (ber, entries) in enumerate(bers):
             if i != len(bers) - 1:
                 prefix0 = "├── "

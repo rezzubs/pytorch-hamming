@@ -8,7 +8,7 @@ from hamming_utils._core import (
     nonprotected_fi,
     protected_fi,
 )
-from hamming_utils._data import Data
+from hamming_utils._data import Data, MetaData
 from hamming_utils._stats import HammingStats
 from . import u64
 from . import generic
@@ -17,6 +17,7 @@ __all__ = [
     "Data",
     "HammingLayer",
     "HammingStats",
+    "MetaData",
     "SupportsHamming",
     "decode_module",
     "encode_module",
