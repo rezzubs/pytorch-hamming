@@ -16,46 +16,104 @@ from hamming_utils._stats import HammingStats
 
 __all__ = ["Data"]
 
-dataloader: DataLoader | None = None
-resnet: nn.Module | None = None
+models: dict[str, nn.Module] = dict()
+dataloaders: dict[str, DataLoader] = dict()
 
 
-def get_dataloader() -> DataLoader:
-    global dataloader
+def get_dataloader(dataset_name: str) -> DataLoader:
+    global dataloaders
 
-    if dataloader is not None:
-        return dataloader
+    try:
+        return dataloaders[dataset_name]
+    except KeyError:
+        print(f"Loading {dataset_name}")
 
-    mean = (0.49139968, 0.48215827, 0.44653124)
-    std = (0.24703233, 0.24348505, 0.26158768)
+    match dataset_name:
+        case "cifar10":
+            mean = (0.49139968, 0.48215827, 0.44653124)
+            std = (0.24703233, 0.24348505, 0.26158768)
+            transform = transforms.Compose(
+                [transforms.ToTensor(), transforms.Normalize(mean, std)]
+            )
+        case "cifar100":
+            mean = (0.5070751592371323, 0.48654887331495095, 0.4409178433670343)
+            std = (0.2673342858792401, 0.2564384629170883, 0.27615047132568404)
+            transform = transforms.Compose(
+                [
+                    transforms.RandomCrop(32, padding=4),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomRotation(15),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean, std),
+                ]
+            )
+        case _:
+            raise ValueError(f"Unsupported dataset {dataset_name}")
 
-    transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize(mean, std)]
-    )
-    testset = torchvision.datasets.CIFAR10(
+    dataset = torchvision.datasets.CIFAR10(
         root="./dataset_cache", train=False, download=True, transform=transform
     )
-    dataloader = torch.utils.data.DataLoader(
-        testset,
+    loader = torch.utils.data.DataLoader(
+        dataset,
         batch_size=1000,
         shuffle=False,
     )
+    dataloaders[dataset_name] = loader
 
-    return dataloader
+    return loader
 
 
-def get_resnet() -> nn.Module:
-    global resnet
+def get_model(model_name: str, dataset_name) -> nn.Module:
+    global models
 
-    if resnet is not None:
-        return copy.deepcopy(resnet)
+    name = f"{dataset_name}_{model_name}"
 
-    resnet = torch.hub.load(
-        "chenyaofo/pytorch-cifar-models", "cifar10_resnet20", pretrained=True
-    )  # type: ignore
-    assert isinstance(resnet, nn.Module)
+    try:
+        return copy.deepcopy(models[name])
+    except KeyError:
+        print(f"Loading {name}")
 
-    return copy.deepcopy(resnet)
+    model = torch.hub.load("chenyaofo/pytorch-cifar-models", name, pretrained=True)  # type: ignore
+    assert isinstance(model, nn.Module)
+
+    models[name] = model
+    return copy.deepcopy(model)
+
+
+def build_accuracy_fn(dataloader: DataLoader, device: torch.device, model_name: str):
+    def accuracy_fn(module: nn.Module, half: bool):
+        nonlocal device
+        nonlocal dataloader
+        nonlocal model_name
+
+        module = module.to(device)
+        if half:
+            module = module.half()
+
+        module.eval()
+        num_samples = torch.tensor(0).to(device)
+        num_correct = torch.tensor(0).to(device)
+
+        print(f"Running {model_name} on {device}")
+        for data in dataloader:
+            inputs, targets = data[0].to(device), data[1].to(device)
+            assert isinstance(inputs, torch.Tensor)
+            assert isinstance(targets, torch.Tensor)
+            if half:
+                inputs = inputs.half()
+                targets = targets.half()
+
+            outputs = module(inputs)
+
+            # Convert logits to class indices
+            outputs = outputs.argmax(dim=1)
+
+            num_samples += targets.size(0)
+            num_correct += (outputs == targets).sum()
+
+        return (num_correct / num_samples * 100).item()
+
+    return accuracy_fn
 
 
 def data_file(path: str) -> Path:
@@ -72,45 +130,12 @@ def data_file(path: str) -> Path:
     return p
 
 
-def evaluate_resnet(device: torch.device):
-    def inner(model: nn.Module, half: bool):
-        global dataloader
-        nonlocal device
-
-        model = model.to(device)
-        if half:
-            model = model.half()
-
-        model.eval()
-        num_samples = torch.tensor(0).to(device)
-        num_correct = torch.tensor(0).to(device)
-
-        print(f"Running resnet on {device}")
-        for data in get_dataloader():
-            inputs, targets = data[0].to(device), data[1].to(device)
-            assert isinstance(inputs, torch.Tensor)
-            assert isinstance(targets, torch.Tensor)
-            if half:
-                inputs = inputs.half()
-                targets = targets.half()
-
-            outputs = model(inputs)
-
-            # Convert logits to class indices
-            outputs = outputs.argmax(dim=1)
-
-            num_samples += targets.size(0)
-            num_correct += (outputs == targets).sum()
-
-        return (num_correct / num_samples * 100).item()
-
-    return inner
-
-
 @dataclass
 class MetaData:
     buffer_size: int | None
     dtype: str
+    model: str
+    dataset: str
 
 
 @dataclass
@@ -148,6 +173,22 @@ class Data:
         if not isinstance(dtype, str):
             raise ValueError(f"Expected a string, got {type(dtype)}")
 
+        try:
+            model = data["model"]
+        except KeyError:
+            model = "resnet20"
+
+        if not isinstance(model, str):
+            raise ValueError(f"Expected a string, got {type(model)}")
+
+        try:
+            dataset = data["dataset"]
+        except KeyError:
+            dataset = "cifar10"
+
+        if not isinstance(dataset, str):
+            raise ValueError(f"Expected a string, got {type(dataset)}")
+
         if metadata is not None and buffer_size != metadata.buffer_size:
             raise ValueError(
                 f"Buffer size mismatch {buffer_size} vs {metadata.buffer_size}"
@@ -155,13 +196,21 @@ class Data:
         if metadata is not None and dtype != metadata.dtype:
             raise ValueError(f"Data type mismatch {dtype} vs {metadata.dtype}")
 
-        return cls(entries, MetaData(buffer_size, dtype))
+        if metadata is not None and model != metadata.model:
+            raise ValueError(f"Model mismatch {model} vs {metadata.model}")
+
+        if metadata is not None and dataset != metadata.dataset:
+            raise ValueError(f"Dataset mismatch {dataset} vs {metadata.dataset}")
+
+        return cls(entries, MetaData(buffer_size, dtype, model, dataset))
 
     def save(self, path: str) -> None:
         output = dict()
         output["entries"] = [x.to_dict() for x in self.entries]
         output["buffer_size"] = self.meta.buffer_size
         output["dtype"] = self.meta.dtype
+        output["model"] = self.meta.model
+        output["dataset"] = self.meta.dataset
 
         file = data_file(path)
         print(f"saving data to {file}")
@@ -189,10 +238,13 @@ class Data:
         if device is None:
             device = torch.device("cpu")
 
+        model = get_model(self.meta.model, self.meta.dataset)
+        loader = get_dataloader(self.meta.dataset)
+
         stats = eval_fn(
-            get_resnet(),
+            model,
             bit_error_rate,
-            evaluate_resnet(device),
+            build_accuracy_fn(loader, device, self.meta.model),
             data_buffer_size,
             half,
         )
@@ -265,6 +317,8 @@ class Data:
         bers = list(self.partition().items())
         bers.sort(key=lambda x: x[0])
 
+        print(f"model: {self.meta.model}")
+        print(f"dataset: {self.meta.dataset}")
         print(f"buffer size: {self.meta.buffer_size}")
         print(f"dtype: {self.meta.dtype}")
         print("Entries by Bit Error Rate:")

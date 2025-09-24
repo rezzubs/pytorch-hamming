@@ -8,12 +8,14 @@ from hamming_utils import Data
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("-b", "--bit_error_rate", type=float, required=True)
-    parser.add_argument("-i", "--iterations", type=int, required=True)
-    parser.add_argument("-a", "--autosave", type=int, default=1, required=False)
-    parser.add_argument("-d", "--data-path", type=str, default="./")
-    parser.add_argument("-p", "--protected", action="store_true", required=False)
-    parser.add_argument("-c", "--cuda", action="store_true", required=False)
+    parser.add_argument("--bit_error_rate", type=float, required=True)
+    parser.add_argument("--iterations", type=int, required=True)
+    parser.add_argument("--autosave", type=int, default=1, required=False)
+    parser.add_argument("--output-path", type=str, default="./")
+    parser.add_argument("--protected", action="store_true", required=False)
+    parser.add_argument("--cuda", action="store_true", required=False)
+    parser.add_argument("--dataset", type=str)
+    parser.add_argument("--model", type=str)
     parser.add_argument(
         "--f16",
         help="Use 16 bit precision for the model instead of the default 32",
@@ -31,7 +33,9 @@ def main() -> None:
 
     buffer_size = None if not args.protected else args.data_buffer_size
     dtype = "f32" if not args.f16 else "f16"
-    data = Data.load(args.data_path or "./", MetaData(buffer_size, dtype))
+    data = Data.load(
+        args.output_path or "./", MetaData(buffer_size, dtype, args.model, args.dataset)
+    )
 
     device_str = "cpu"
     if args.cuda:
@@ -47,7 +51,7 @@ def main() -> None:
         args.bit_error_rate,
         args.protected,
         args.f16,
-        args.data_path,
+        args.output_path,
         autosave=args.autosave,
         device=device,
         data_buffer_size=args.data_buffer_size,
