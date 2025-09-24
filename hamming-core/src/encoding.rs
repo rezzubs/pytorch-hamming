@@ -3,6 +3,9 @@
 mod impls;
 #[cfg(test)]
 mod tests;
+mod zeroable;
+
+pub use zeroable::ZeroableArray;
 
 use crate::{BitBuffer, SizedBitBuffer};
 
@@ -12,15 +15,6 @@ fn is_par_i(i: usize) -> bool {
         return true;
     }
     (i & (i - 1)) == 0
-}
-
-/// A trait for getting an arbitrary buffer from a type.
-///
-/// The actual value doesn't matter. This is just used as the default value in other functions. Can
-/// be delegated to [`Default::default`] if your type implements it.
-pub trait Init {
-    /// Return a value.
-    fn init() -> Self;
 }
 
 /// Buffers which can be encoded as a hamming code.
@@ -60,12 +54,12 @@ pub trait Init {
 /// ```
 pub trait Encodable<D, O>: BitBuffer
 where
-    D: Decodable<O> + Init,
-    O: SizedBitBuffer + Init,
+    D: Decodable<O> + Default,
+    O: SizedBitBuffer + Default,
 {
     /// Encode the buffer with a hamming code.
     fn encode(&self) -> D {
-        let mut output_buffer = D::init();
+        let mut output_buffer = D::default();
 
         let mut input_index = 0;
 
@@ -108,7 +102,7 @@ where
 /// See [`Encodable`] for details.
 pub trait Decodable<O>: SizedBitBuffer
 where
-    O: SizedBitBuffer + Init,
+    O: SizedBitBuffer + Default,
 {
     /// The number of bits that map to the original data.
     const NUM_DATA_BITS: usize = O::NUM_BITS;
@@ -181,7 +175,7 @@ where
     /// The second returned value will be false for failed error correction. See
     /// [`Decodable::correct_error`] for details.
     fn decode(&mut self) -> (O, bool) {
-        let mut output_buffer = O::init();
+        let mut output_buffer = O::default();
 
         let success = self.correct_error();
 

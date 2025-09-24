@@ -4,7 +4,9 @@ use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::{exceptions::PyValueError, prelude::*};
 use std::collections::HashMap;
 
-use crate::{wrapper::NonUniformSequence, Decodable, Encodable, Init, SizedBitBuffer};
+use crate::{
+    encoding::ZeroableArray, wrapper::NonUniformSequence, Decodable, Encodable, SizedBitBuffer,
+};
 
 pub type OutputArr<'py, T> = Bound<'py, PyArray1<T>>;
 pub type InputArr<'py, T> = PyReadonlyArray1<'py, T>;
@@ -73,8 +75,8 @@ pub fn decode<'py, const NI: usize, const NO: usize, O>(
     input: InputArr<'py, u8>,
 ) -> PyResult<(OutputArr<'py, O>, u64)>
 where
-    [u8; NI]: Decodable<[O; NO]>,
-    [O; NO]: Init,
+    ZeroableArray<u8, NI>: Decodable<[O; NO]>,
+    [O; NO]: Default,
     O: SizedBitBuffer + numpy::Element,
 {
     let buffer = prep_input_array(input);
@@ -87,9 +89,9 @@ where
     let mut iter = buffer.into_iter();
     let mut failed_decodings: u64 = 0;
     for _ in 0..num_encoded_buffers {
-        let mut encoded: [u8; NI] = [0; NI];
+        let mut encoded = ZeroableArray([0u8; NI]);
 
-        for item in encoded.iter_mut() {
+        for item in encoded.0.iter_mut() {
             *item = iter.next().expect("Length is known to be a multiple of N")
         }
 
@@ -114,8 +116,8 @@ pub fn encode<'py, const NI: usize, const NO: usize, I>(
 ) -> OutputArr<'py, u8>
 where
     I: numpy::Element + Copy + Default + SizedBitBuffer,
-    [I; NI]: Encodable<[u8; NO], [I; NI]> + Init,
-    [u8; NO]: Decodable<[I; NI]> + Init,
+    [I; NI]: Encodable<ZeroableArray<u8, NO>, [I; NI]> + Default,
+    ZeroableArray<u8, NO>: Decodable<[I; NI]> + Default,
 {
     let mut buffer = prep_input_array(input);
 
@@ -134,8 +136,8 @@ where
                 .expect("The length is known to be num_items * NI")
         }
 
-        let encoded: [u8; NO] = unprotected.encode();
-        output.extend_from_slice(&encoded);
+        let encoded: ZeroableArray<u8, NO> = unprotected.encode();
+        output.extend_from_slice(&encoded.0);
     }
 
     PyArray1::from_vec(py, output)

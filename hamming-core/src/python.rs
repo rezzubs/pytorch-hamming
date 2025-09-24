@@ -7,6 +7,7 @@ macro_rules! bufer_impl {
     ($ident:ident, $num_original:expr, $num_encoded:expr) => {
         pub mod $ident {
             use crate::{
+                encoding::ZeroableArray,
                 python::common::{
                     decode, encode, fi_context_create, prep_input_array_list,
                     validate_encoded_array, FiContext, InputArr, OutputArr,
@@ -26,7 +27,7 @@ macro_rules! bufer_impl {
             const FITS_U16: usize = FITS_F32 * 2;
 
             type Original = [u8; NUM_ORIGINAL_BYTES];
-            type Encoded = [u8; NUM_ENCODED_BYTES];
+            type Encoded = ZeroableArray<u8, NUM_ENCODED_BYTES>;
 
             const NUM_PADDING_BITS: usize = <Encoded as Decodable<Original>>::NUM_PADDING_BITS;
             const NUM_ENCODED_BITS: usize = <Encoded as Decodable<Original>>::NUM_ENCODED_BITS;
