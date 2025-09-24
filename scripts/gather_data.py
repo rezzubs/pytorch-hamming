@@ -13,8 +13,8 @@ def main() -> None:
     parser.add_argument("--autosave", type=int, default=1, required=False)
     parser.add_argument("--output-path", type=str, default="./")
     parser.add_argument("--cuda", action="store_true", required=False)
-    parser.add_argument("--dataset", type=str)
-    parser.add_argument("--model", type=str)
+    parser.add_argument("--dataset", type=str, required=True)
+    parser.add_argument("--model", type=str, required=True)
     parser.add_argument(
         "--f16",
         help="Use 16 bit precision for the model instead of the default 32",
