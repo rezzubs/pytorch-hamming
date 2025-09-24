@@ -1,4 +1,4 @@
-use hamming_core::{BitBuffer, Decodable, Encodable};
+use hamming_core::{encoding::ZeroableArray, BitBuffer, Decodable, Encodable};
 use rand::seq::IteratorRandom;
 
 pub fn main() {
@@ -19,7 +19,7 @@ fn single_bitflip(num_iterations: usize) {
         tampered.flip_bit(error_index);
         assert_ne!(encoded, tampered);
 
-        let predicted_error = <[u8; 9] as Decodable<[u8; 8]>>::error_index(&tampered);
+        let predicted_error = <ZeroableArray<u8, 9> as Decodable<[u8; 8]>>::error_index(&tampered);
 
         assert_eq!(error_index, predicted_error);
 
@@ -51,7 +51,7 @@ fn double_bitflip(num_iterations: usize) {
         tampered.flip_bit(errors[1]);
         assert_ne!(encoded, tampered);
 
-        let predicted_error = <[u8; 9] as Decodable<[u8; 8]>>::error_index(&tampered);
+        let predicted_error = <ZeroableArray<u8, 9> as Decodable<[u8; 8]>>::error_index(&tampered);
         if errors.iter().all(|x| *x != 0) {
             // NOTE: if one of the flips is 0 then the prediction will be the other flip.
             assert_ne!(predicted_error, errors[0]);
