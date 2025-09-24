@@ -12,7 +12,6 @@ def main() -> None:
     parser.add_argument("--iterations", type=int, required=True)
     parser.add_argument("--autosave", type=int, default=1, required=False)
     parser.add_argument("--output-path", type=str, default="./")
-    parser.add_argument("--protected", action="store_true", required=False)
     parser.add_argument("--cuda", action="store_true", required=False)
     parser.add_argument("--dataset", type=str)
     parser.add_argument("--model", type=str)
@@ -23,18 +22,18 @@ def main() -> None:
         required=False,
     )
     parser.add_argument(
-        "--data-buffer-size",
+        "--protected-buffer-size",
         help="Chunk size for data to be encoded - power of two",
         type=int,
-        default=64,
+        required=False,
     )
 
     args = parser.parse_args()
 
-    buffer_size = None if not args.protected else args.data_buffer_size
     dtype = "f32" if not args.f16 else "f16"
     data = Data.load(
-        args.output_path or "./", MetaData(buffer_size, dtype, args.model, args.dataset)
+        args.output_path or "./",
+        MetaData(args.protected_buffer_size, dtype, args.model, args.dataset),
     )
 
     device_str = "cpu"
@@ -49,12 +48,11 @@ def main() -> None:
     data.record_n(
         args.iterations,
         args.bit_error_rate,
-        args.protected,
         args.f16,
         args.output_path,
+        args.protected_buffer_size,
         autosave=args.autosave,
         device=device,
-        data_buffer_size=args.data_buffer_size,
     )
 
 

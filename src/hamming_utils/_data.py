@@ -221,19 +221,18 @@ class Data:
     def record(
         self,
         bit_error_rate: float,
-        protected: bool,
         half: bool,
         save_path: str,
+        protected_buffer_size: int | None,
         *,
         autosave: bool = True,
         device: torch.device | None = None,
         summary: bool = True,
-        data_buffer_size: int = 64,
     ) -> None:
-        if protected:
-            eval_fn = HammingStats.eval
+        if protected_buffer_size is not None:
+            eval_fn = HammingStats.protected_eval(protected_buffer_size)
         else:
-            eval_fn = HammingStats.eval_noprotect
+            eval_fn = HammingStats.unprotected_eval
 
         if device is None:
             device = torch.device("cpu")
@@ -245,7 +244,6 @@ class Data:
             model,
             bit_error_rate,
             build_accuracy_fn(loader, device, self.meta.model),
-            data_buffer_size,
             half,
         )
         if summary:
@@ -259,14 +257,13 @@ class Data:
         self,
         n: int,
         bit_error_rate: float,
-        protected: bool,
         half: bool,
         save_path: str,
+        protected_buffer_size: int | None,
         *,
         autosave: bool | int = True,
         device: torch.device | None = None,
         summary: bool = False,
-        data_buffer_size: int = 64,
     ) -> None:
         if n < 1:
             raise ValueError("Expected at least 1 iteration")
@@ -277,6 +274,7 @@ class Data:
             else:
                 autosave = 0
 
+        protected = protected_buffer_size is not None
         for i in range(n):
             print(
                 f"recording {i + 1}/{n} {'un' if not protected else ''}protected inference"
@@ -284,13 +282,12 @@ class Data:
             save = autosave != 0 and (i + 1) % autosave == 0
             self.record(
                 bit_error_rate,
-                protected,
                 half,
                 save_path,
+                protected_buffer_size,
                 autosave=save,
                 device=device,
                 summary=summary,
-                data_buffer_size=data_buffer_size,
             )
 
         if autosave != 0:

@@ -54,38 +54,40 @@ class HammingStats:
         )
 
     @classmethod
-    def eval(
+    def protected_eval(
         cls,
-        module: nn.Module,
-        bit_error_rate: float,
-        accuracy_fn: Callable[[nn.Module, bool], float],
         data_buffer_size: int,
-        half: bool,
-    ) -> HammingStats:
-        stats = cls()
-        if half:
-            module = module.half()
-        original = copy.deepcopy(module)
+    ):
+        def inner(
+            module: nn.Module,
+            bit_error_rate: float,
+            accuracy_fn: Callable[[nn.Module, bool], float],
+            half: bool,
+        ) -> HammingStats:
+            stats = cls()
+            if half:
+                module = module.half()
+            original = copy.deepcopy(module)
 
-        encode_module(module, data_buffer_size)
-        protected_fi(module, bit_error_rate, stats=stats)
-        decode_module(module)
+            encode_module(module, data_buffer_size)
+            protected_fi(module, bit_error_rate, stats=stats)
+            decode_module(module)
 
-        stats.accuracy = accuracy_fn(module, half)
-        stats.non_matching_parameters = compare_module_bitwise(module, original)
+            stats.accuracy = accuracy_fn(module, half)
+            stats.non_matching_parameters = compare_module_bitwise(module, original)
 
-        return stats
+            return stats
+
+        return inner
 
     @classmethod
-    def eval_noprotect(
+    def unprotected_eval(
         cls,
         module: nn.Module,
         bit_error_rate: float,
         accuracy_fn: Callable[[nn.Module, bool], float],
-        data_buffer_size: int,
         half: bool,
     ) -> HammingStats:
-        _ = data_buffer_size
         stats = cls()
         if half:
             module = module.half()
