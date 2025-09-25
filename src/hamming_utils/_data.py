@@ -340,7 +340,7 @@ class Data:
                 prefix0 = "└── "
                 prefix1 = "    "
 
-            print(prefix0 + f"{ber:.3}")
+            print(prefix0 + f"{nearest_pow10(ber):.0e} ({ber:.1e})")
             print(prefix1 + f"├── runs: {len(entries)}")
             print(prefix1 + f"├── mean: {np.mean(entries):.3}")
             print(prefix1 + f"└── std: {np.std(entries):.3}")
