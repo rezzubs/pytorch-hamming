@@ -336,7 +336,7 @@ class Data:
             print(prefix1 + f"├── mean: {np.mean(entries):.3}")
             print(prefix1 + f"└── std: {np.std(entries):.3}")
 
-    def plot_accuracy(self, ax: Axes) -> None:
+    def plot_accuracy(self, ax: Axes, memory_baseline: int | None = None) -> None:
         bers = list(self.partition().items())
         bers.sort(key=lambda x: x[0])
 
@@ -348,9 +348,14 @@ class Data:
         bsize = self.meta.buffer_size
 
         title = dtype + (
-            " unprotected" if bsize is None else f" ECC {bsize} bit buffer"
+            " Unprotected" if bsize is None else f" ECC ({bsize} memory bit-width)"
         )
-        title += f" - {self.entries[0].total_bits:.2e} total bits"
+        if memory_baseline is not None:
+            overhead = (
+                (self.entries[0].total_bits - memory_baseline) / memory_baseline * 100
+            )
+            if overhead != 0:
+                title += f" {overhead}% memory ovehead"
 
         ax.set_title(title)
         ax.violinplot(data, positions=positions, showmeans=True, showextrema=True)

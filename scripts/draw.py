@@ -1,9 +1,36 @@
+from dataclasses import dataclass
 import matplotlib.pyplot as plt
 
 from hamming_utils import Data
 from sys import argv
 from pathlib import Path
 from collections.abc import Iterable
+
+
+@dataclass
+class Group:
+    items: list[Data]
+    baseline: int | None
+
+
+def partition(datas: list[Data]):
+    groups: dict[str, Group] = dict()
+    for data in datas:
+        dtype = data.meta.dtype
+        group = groups.get(dtype, Group([], None))
+        if data.meta.buffer_size is None:
+            group.baseline = data.entries[0].total_bits
+
+        group.items.append(data)
+        groups[dtype] = group
+
+    for group in groups.values():
+        group.items.sort(key=lambda x: x.meta.buffer_size or 0)
+
+    groups_list = list(groups.items())
+    groups_list.sort(key=lambda x: x[0])
+
+    return groups_list
 
 
 def main() -> None:
@@ -17,17 +44,22 @@ def main() -> None:
     else:
         paths.append(data_path)
 
-    paths.sort()
-
     datas = [Data.load(path, None) for path in paths]
 
-    fig, axes = plt.subplots(len(datas), figsize=(6, 3 * len(datas)))
+    groups = partition(datas)
 
-    if isinstance(axes, Iterable):
-        for data, ax in zip(datas, axes):
-            data.plot_accuracy(ax)
-    else:
-        datas[0].plot_accuracy(axes)
+    width = 0
+    height = 0
+    for _, group in groups:
+        height += 1
+        width = max(width, len(group.items))
+
+    fig, axes = plt.subplots(height, width, figsize=(6 * width, 3 * height))
+
+    for y, row in enumerate(axes):
+        _, group = groups[y]
+        for x, ax in enumerate(row):
+            group.items[x].plot_accuracy(ax)
 
     plt.tight_layout()
 
