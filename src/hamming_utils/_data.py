@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torchvision
+from matplotlib.axes import Axes
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -156,7 +157,7 @@ class Data:
                 if metadata is not None:
                     return cls([], metadata)
                 else:
-                    raise RuntimeError("file is empty")
+                    raise RuntimeError(f"file {path} is empty")
 
             data = json.loads(str_data)
 
@@ -266,7 +267,7 @@ class Data:
         *,
         autosave: bool | int = True,
         device: torch.device | None = None,
-        summary: bool = False,
+        summary: bool = True,
     ) -> None:
         if n < 1:
             raise ValueError("Expected at least 1 iteration")
@@ -334,3 +335,27 @@ class Data:
             print(prefix1 + f"├── runs: {len(entries)}")
             print(prefix1 + f"├── mean: {np.mean(entries):.3}")
             print(prefix1 + f"└── std: {np.std(entries):.3}")
+
+    def plot_accuracy(self, ax: Axes) -> None:
+        bers = list(self.partition().items())
+        bers.sort(key=lambda x: x[0])
+
+        labels, data = list(zip(*bers))
+        labels = [f"{label:.2e}" for label in labels]
+        positions = [i for i in range(len(labels))]
+
+        dtype = self.meta.dtype
+        bsize = self.meta.buffer_size
+
+        title = dtype + (
+            " unprotected" if bsize is None else f" ECC {bsize} bit buffer"
+        )
+        title += f" - {self.entries[0].total_bits:.2e} total bits"
+
+        ax.set_title(title)
+        ax.violinplot(data, positions=positions, showmeans=True, showextrema=True)
+        ax.set_xticks(ticks=positions)
+        ax.set_xticklabels(labels)
+        ax.set_ylabel("Accuracy [%]")
+        ax.set_xlabel("Bit Error Rate")
+        ax.set_ylim(0, 100)
