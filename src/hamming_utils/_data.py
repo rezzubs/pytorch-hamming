@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 from dataclasses import dataclass
+from math import log10
 from pathlib import Path
 
 import numpy as np
@@ -132,6 +133,14 @@ def data_file(path: str) -> Path:
         p.touch()
 
     return p
+
+
+def nearest_pow10(num: float) -> float:
+    if num <= 0:
+        raise ValueError("Expected num > 0")
+
+    exponent = round(log10(num))
+    return 10**exponent
 
 
 @dataclass
@@ -341,7 +350,7 @@ class Data:
         bers.sort(key=lambda x: x[0])
 
         labels, data = list(zip(*bers))
-        labels = [f"{label:.2e}" for label in labels]
+        labels = [f"{nearest_pow10(label):.0e}\n({label:.2e})" for label in labels]
         positions = [i for i in range(len(labels))]
 
         dtype = self.meta.dtype
