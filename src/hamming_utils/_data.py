@@ -35,6 +35,9 @@ def get_dataloader(dataset_name: str) -> DataLoader:
             transform = transforms.Compose(
                 [transforms.ToTensor(), transforms.Normalize(mean, std)]
             )
+            dataset = torchvision.datasets.CIFAR10(
+                root="./dataset_cache", train=False, download=True, transform=transform
+            )
         case "cifar100":
             mean = (0.5070751592371323, 0.48654887331495095, 0.4409178433670343)
             std = (0.2673342858792401, 0.2564384629170883, 0.27615047132568404)
@@ -47,12 +50,12 @@ def get_dataloader(dataset_name: str) -> DataLoader:
                     transforms.Normalize(mean, std),
                 ]
             )
+            dataset = torchvision.datasets.CIFAR100(
+                root="./dataset_cache", train=False, download=True, transform=transform
+            )
         case _:
             raise ValueError(f"Unsupported dataset {dataset_name}")
 
-    dataset = torchvision.datasets.CIFAR10(
-        root="./dataset_cache", train=False, download=True, transform=transform
-    )
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=1000,
