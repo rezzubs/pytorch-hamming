@@ -364,7 +364,7 @@ class Data:
                 (self.entries[0].total_bits - memory_baseline) / memory_baseline * 100
             )
             if overhead != 0:
-                title += f" {overhead}% memory ovehead"
+                title += f"\n{overhead:.1f}% memory ovehead"
 
         ax.set_title(title)
         ax.violinplot(data, positions=positions, showmeans=True, showextrema=True)

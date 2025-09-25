@@ -59,7 +59,7 @@ def main() -> None:
     for y, row in enumerate(axes):
         _, group = groups[y]
         for x, ax in enumerate(row):
-            group.items[x].plot_accuracy(ax)
+            group.items[x].plot_accuracy(ax, group.baseline)
 
     plt.tight_layout()
 
