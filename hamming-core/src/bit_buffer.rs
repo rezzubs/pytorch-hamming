@@ -1,10 +1,11 @@
 mod float;
 mod int;
+mod random_picker;
 mod sequence;
 #[cfg(test)]
 mod tests;
 
-use rand::seq::SliceRandom;
+use random_picker::RandomPicker;
 
 pub trait BitBuffer {
     /// Number of bits stored by this buffer.
@@ -75,14 +76,13 @@ pub trait BitBuffer {
     ///
     /// - If `n > self.num_bits()`
     fn flip_n_bits(&mut self, n: usize) {
-        assert!(n <= self.num_bits());
+        let num_bits = self.num_bits();
+        assert!(n <= num_bits);
 
-        let mut possible_faults = (0..self.num_bits()).collect::<Vec<usize>>();
-        let mut rng = rand::rng();
-        possible_faults.shuffle(&mut rng);
+        let mut possible_faults = RandomPicker::new(num_bits, rand::rng());
 
         for _ in 0..n {
-            let fault_target = possible_faults.pop().expect("checked the range");
+            let fault_target = possible_faults.next().unwrap();
             self.flip_bit(fault_target);
         }
     }
