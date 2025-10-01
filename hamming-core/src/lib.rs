@@ -71,7 +71,7 @@ mod hamming_core {
         use crate::python::u256::encode_u16;
     }
 
-    /// Fault injection for generic arrays.
+    /// Functions for generic arrays & lists of arrays.
     #[pymodule]
     mod generic {
         #[pymodule_export]
@@ -82,5 +82,10 @@ mod hamming_core {
         use crate::python::generic::u16_array_fi;
         #[pymodule_export]
         use crate::python::generic::u16_array_list_fi;
+
+        #[pymodule_export]
+        use crate::python::generic::compare_array_list_bitwise_f32;
+        #[pymodule_export]
+        use crate::python::generic::compare_array_list_bitwise_u16;
     }
 }
