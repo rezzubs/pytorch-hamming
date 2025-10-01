@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
+import hamming_core
+
 import torch
 from torch import nn
 
@@ -58,68 +60,41 @@ DATA_BUFFER_SIZES: dict[int, HammingImpl] = {
 }
 
 
-def compare_parameter_bitwise(a: torch.Tensor, b: torch.Tensor) -> list[int]:
-    assert a.shape == b.shape
-    assert a.dtype == b.dtype
-
-    if a.dtype == torch.float32:
-        view_repr = torch.uint32
-    elif a.dtype == torch.float16:
-        view_repr = torch.uint16
-    else:
-        raise ValueError(f"Unsupported dtype {a.dtype}")
-
-    out = []
-    for a_item, b_item in zip(a.flatten(), b.flatten(), strict=True):
-        a_bits = int(a_item.view(view_repr).item())
-        b_bits = int(b_item.view(view_repr).item())
-
-        xor = a_bits ^ b_bits
-        # NOTE: != because the most significant bit of i32 is the sign bit,
-        # therefore we need to account for negative values.
-        if xor != 0:
-            out.append(xor)
-    return out
-
-
 def compare_module_bitwise(a: nn.Module, b: nn.Module) -> list[int]:
-    """Recursively compare `SupportsHamming` children and return a bitwise xor of non-matching items.
+    a_params = collect_supports_hamming_tensors(a)
+    b_params = collect_supports_hamming_tensors(b)
 
-    The modules are expected to have an identical representation.
-    """
-    out = []
-    for a_child, b_child in zip(a.children(), b.children(), strict=True):
-        out += compare_module_bitwise(a_child, b_child)
+    if len(a_params) != len(b_params):
+        raise ValueError("`a` and `b` have a different number of parameter tensors")
 
-    if not isinstance(a, SupportsHamming):
-        assert not isinstance(b, SupportsHamming)
-        return out
-    if not isinstance(b, SupportsHamming):
-        assert not isinstance(a, SupportsHamming)
-        return out
+    if len(a_params) == 0:
+        return []
 
-    out += compare_parameter_bitwise(a.weight, b.weight)
-    if a.bias is not None:
-        assert b.bias is not None
-        out += compare_parameter_bitwise(a.bias, b.bias)
+    dtype = a_params[0].dtype
 
-    if not isinstance(a, nn.BatchNorm2d):
-        assert not isinstance(b, nn.BatchNorm2d)
-        return out
+    a_params_arrays = []
+    b_params_arrays = []
 
-    if a.running_mean is not None:
-        assert b.running_mean is not None
-        assert not isinstance(a.running_mean, nn.Module)
-        assert not isinstance(b.running_mean, nn.Module)
-        out += compare_parameter_bitwise(a.running_mean, b.running_mean)
+    for a_param, b_param in zip(a_params, b_params):
+        if a_param.dtype != b_param.dtype or a_param.dtype != dtype:
+            raise ValueError(
+                f"Datatype mismatch, expected: {dtype}, got {a_param.dtype} and {b_param.dtype}"
+            )
 
-    if a.running_var is not None:
-        assert b.running_var is not None
-        assert not isinstance(a.running_var, nn.Module)
-        assert not isinstance(b.running_var, nn.Module)
-        out += compare_parameter_bitwise(a.running_var, b.running_var)
+        a_params_arrays.append(a_param.numpy().flatten())
+        b_params_arrays.append(b_param.numpy().flatten())
 
-    return out
+        # FIXME: add f16 support
+        assert a_param.dtype == torch.float32
+
+    result = hamming_core.generic.compare_array_list_bitwise_f32(  # type: ignore
+        a_params_arrays, b_params_arrays
+    )
+    assert isinstance(result, list)
+    for x in result:
+        assert isinstance(x, int)
+
+    return result
 
 
 class HammingLayer(nn.Module):
