@@ -110,7 +110,8 @@ pub fn compare_array_list_bitwise_f32<'py>(
     let output = a
         .into_par_iter()
         .zip(b)
-        .map(|(a_item, b_item)| a_item.to_bits() | b_item.to_bits())
+        .map(|(a_item, b_item)| a_item.to_bits() ^ b_item.to_bits())
+        .filter(|x| *x > 0)
         .collect::<Vec<u32>>();
 
     Ok(output)
