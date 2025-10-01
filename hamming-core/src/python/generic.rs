@@ -116,3 +116,35 @@ pub fn compare_array_list_bitwise_f32<'py>(
 
     Ok(output)
 }
+
+/// Computes bit masks for non-matching bits for all items.
+#[pyfunction]
+pub fn compare_array_list_bitwise_u16<'py>(
+    _py: Python<'py>,
+    a: Vec<InputArr<u16>>,
+    b: Vec<InputArr<u16>>,
+) -> PyResult<Vec<u16>> {
+    let a = a
+        .into_iter()
+        .flat_map(|x| x.as_array().into_iter().copied().collect::<Vec<u16>>())
+        .collect::<Vec<_>>();
+    let b = b
+        .into_iter()
+        .flat_map(|x| x.as_array().into_iter().copied().collect::<Vec<u16>>())
+        .collect::<Vec<_>>();
+
+    if a.len() != b.len() {
+        return Err(PyValueError::new_err(
+            "The number of items in `a` and `b` don't match",
+        ));
+    }
+
+    let output = a
+        .into_par_iter()
+        .zip(b)
+        .map(|(a_item, b_item)| a_item ^ b_item)
+        .filter(|x| *x > 0)
+        .collect::<Vec<u16>>();
+
+    Ok(output)
+}

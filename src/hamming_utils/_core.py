@@ -75,21 +75,32 @@ def compare_module_bitwise(a: nn.Module, b: nn.Module) -> list[int]:
     a_params_arrays = []
     b_params_arrays = []
 
+    def prepare_tensor(tensor: torch.Tensor):
+        match tensor.dtype:
+            case torch.float32:
+                return tensor.numpy().flatten()
+            case torch.float16:
+                return tensor.view(torch.uint16).numpy().flatten()
+            case _:
+                raise ValueError(f"Unsupported dtype {tensor.dtype}")
+
     for a_param, b_param in zip(a_params, b_params):
         if a_param.dtype != b_param.dtype or a_param.dtype != dtype:
             raise ValueError(
                 f"Datatype mismatch, expected: {dtype}, got {a_param.dtype} and {b_param.dtype}"
             )
 
-        a_params_arrays.append(a_param.numpy().flatten())
-        b_params_arrays.append(b_param.numpy().flatten())
+        a_params_arrays.append(prepare_tensor(a_param))
+        b_params_arrays.append(prepare_tensor(b_param))
 
-        # FIXME: add f16 support
-        assert a_param.dtype == torch.float32
+    match dtype:
+        case torch.float32:
+            impl = hamming_core.generic.compare_array_list_bitwise_f32  # type: ignore
+        case torch.float16:
+            impl = hamming_core.generic.compare_array_list_bitwise_u16  # type: ignore
 
-    result = hamming_core.generic.compare_array_list_bitwise_f32(  # type: ignore
-        a_params_arrays, b_params_arrays
-    )
+    result = impl(a_params_arrays, b_params_arrays)
+
     assert isinstance(result, list)
     for x in result:
         assert isinstance(x, int)

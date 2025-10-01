@@ -85,5 +85,7 @@ mod hamming_core {
 
         #[pymodule_export]
         use crate::python::generic::compare_array_list_bitwise_f32;
+        #[pymodule_export]
+        use crate::python::generic::compare_array_list_bitwise_u16;
     }
 }
