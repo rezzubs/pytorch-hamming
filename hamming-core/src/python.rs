@@ -6,6 +6,7 @@ pub mod generic;
 macro_rules! bufer_impl {
     ($ident:ident, $num_original:expr, $num_encoded:expr) => {
         pub mod $ident {
+            use crate::prelude::*;
             use crate::{
                 encoding::ZeroableArray,
                 python::common::{
@@ -13,7 +14,6 @@ macro_rules! bufer_impl {
                     validate_encoded_array, FiContext, InputArr, OutputArr,
                 },
                 wrapper::PaddedBuffer,
-                BitBuffer, Decodable,
             };
 
             use numpy::PyArray1;

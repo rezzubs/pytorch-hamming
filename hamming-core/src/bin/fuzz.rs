@@ -1,4 +1,6 @@
-use hamming_core::{encoding::ZeroableArray, BitBuffer, Decodable, Encodable};
+use hamming_core::encoding::ZeroableArray;
+use hamming_core::prelude::*;
+
 use rand::seq::IteratorRandom;
 
 pub fn main() {

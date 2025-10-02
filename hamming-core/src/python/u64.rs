@@ -1,11 +1,9 @@
 //! Functions for 64 bit data.
 
-use crate::{
-    python::common::{
-        decode, encode, fi_context_create, prep_input_array_list, validate_encoded_array,
-        FiContext, InputArr, OutputArr,
-    },
-    BitBuffer,
+use crate::prelude::*;
+use crate::python::common::{
+    decode, encode, fi_context_create, prep_input_array_list, validate_encoded_array, FiContext,
+    InputArr, OutputArr,
 };
 
 use numpy::PyArray1;

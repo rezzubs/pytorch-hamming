@@ -1,10 +1,9 @@
 mod bit_buffer;
 pub mod encoding;
+pub mod prelude;
 mod python;
 pub mod wrapper;
 
-pub use bit_buffer::{BitBuffer, SizedBitBuffer};
-pub use encoding::{Decodable, Encodable};
 use pyo3::pymodule;
 
 #[pymodule]
