@@ -32,21 +32,22 @@ pub struct ByteChunks(NonUniformSequence<Vec<ByteChunk>>);
 pub struct DynChunks(NonUniformSequence<Vec<DynChunk>>);
 
 impl DynChunks {
-    pub fn from_buffer<T>(buffer: T, chunk_size: usize) -> Self
+    /// Create new dynamic chunks from the `buffer`.
+    pub fn from_buffer<T>(buffer: T, bits_per_chunk: usize) -> Self
     where
         T: BitBuffer,
     {
-        assert!(chunk_size > 0);
+        assert!(bits_per_chunk > 0);
 
         let input_size = buffer.num_bits();
-        let bytes_per_buffer = bytes_to_store_n_bits(chunk_size);
-        let num_buffers = num_chunks(input_size, chunk_size);
+        let bytes_per_chunk = bytes_to_store_n_bits(bits_per_chunk);
+        let num_buffers = num_chunks(input_size, bits_per_chunk);
 
         // FIXME: Replace NonUniformSequence with a uniform counterpart because all the buffers have
         // the same size and the overhead is pointless.
         let mut output_buffer = NonUniformSequence(vec![
-            vec![0u8; bytes_per_buffer]
-                .into_limited(chunk_size);
+            vec![0u8; bytes_per_chunk]
+                .into_limited(bits_per_chunk);
             num_buffers
         ]);
 
