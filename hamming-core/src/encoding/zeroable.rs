@@ -1,4 +1,4 @@
-use crate::{BitBuffer, SizedBitBuffer};
+use crate::prelude::*;
 
 /// A newtype wrapper for providing a [`std::default::Default`] implementation for arrays which
 /// don't have one.

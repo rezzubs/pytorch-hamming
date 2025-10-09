@@ -1,7 +1,7 @@
 //! Functions for generic arrays & lists of arrays.
 use crate::{
+    prelude::*,
     python::common::{fi_context_create, prep_input_array, prep_input_array_list},
-    BitBuffer,
 };
 use numpy::PyArray1;
 use pyo3::{exceptions::PyValueError, prelude::*};

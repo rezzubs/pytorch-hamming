@@ -1,4 +1,4 @@
-use crate::{BitBuffer, SizedBitBuffer};
+use crate::prelude::*;
 
 /// A [`BitBuffer`] with padding in regular intervals.
 ///

@@ -8,12 +8,12 @@ macro_rules! bufer_impl {
         pub mod $ident {
             use crate::{
                 encoding::ZeroableArray,
+                prelude::*,
                 python::common::{
                     decode, encode, fi_context_create, prep_input_array_list,
                     validate_encoded_array, FiContext, InputArr, OutputArr,
                 },
                 wrapper::PaddedBuffer,
-                BitBuffer, Decodable,
             };
 
             use numpy::PyArray1;

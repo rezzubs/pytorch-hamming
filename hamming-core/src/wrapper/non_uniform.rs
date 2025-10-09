@@ -1,4 +1,4 @@
-use crate::BitBuffer;
+use crate::prelude::*;
 
 /// Gives a [`BitBuffer`] implementation to sequences where the items cannot satisfy
 /// [`SizedBitBuffer`].
@@ -62,7 +62,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::BitBuffer;
 
     #[test]
     fn is() {
