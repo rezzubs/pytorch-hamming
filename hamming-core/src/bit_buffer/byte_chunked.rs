@@ -25,9 +25,7 @@ pub trait ByteChunkedBitBuffer: BitBuffer {
         assert!(start < self.num_bytes());
 
         for (source_i, dest_i) in (start..self.num_bytes()).zip(0..other.num_bytes()) {
-            dbg!(source_i);
             let byte = self.get_byte(source_i);
-            dbg!(byte);
 
             other.set_byte(dest_i, byte);
         }
