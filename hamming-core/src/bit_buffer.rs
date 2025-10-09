@@ -1,3 +1,4 @@
+mod byte_chunked;
 mod float;
 mod int;
 mod random_picker;
@@ -5,6 +6,7 @@ mod sequence;
 #[cfg(test)]
 mod tests;
 
+pub use byte_chunked::ByteChunkedBitBuffer;
 use random_picker::RandomPicker;
 
 pub trait BitBuffer {
