@@ -18,12 +18,9 @@
       {
         devShell = pkgs.mkShell {
           packages = with pkgs; [
-            cargo
-            clippy
             just
             maturin
-            rust-analyzer
-            rustc
+            rustup
             uv
           ];
 
