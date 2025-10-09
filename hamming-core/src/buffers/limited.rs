@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 /// Limit the number of bits in a [`BitBuffer`].
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub struct Limited<T> {
     buffer: T,
     num_bits: usize,
@@ -73,7 +74,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn in_bounds() {
+    fn in_bounds_is() {
         assert!(Limited::new(0b1001u8, 4).is_1(0));
         assert!(Limited::new(0b1001u8, 4).is_0(1));
         assert!(Limited::new(0b1001u8, 4).is_0(2));
@@ -84,9 +85,68 @@ mod tests {
     }
 
     #[test]
+    fn in_bounds_set() {
+        let mut buf = Limited::new(0xffu8, 4);
+
+        for i in 0..4 {
+            buf.set_0(i);
+        }
+
+        assert_eq!(buf.into_inner(), 0xf0);
+
+        for i in 0..4 {
+            buf.set_1(i)
+        }
+
+        assert_eq!(buf.into_inner(), 0xff);
+    }
+
+    #[test]
+    fn in_bounds_flip() {
+        let mut buf = Limited::new(0xffu8, 4);
+
+        buf.flip_bit(0);
+
+        assert_eq!(buf.into_inner(), 0b11111110u8);
+
+        for i in 1..4 {
+            buf.flip_bit(i);
+        }
+
+        assert_eq!(buf.into_inner(), 0xf0);
+
+        for i in 0..4 {
+            buf.flip_bit(i)
+        }
+
+        assert_eq!(buf.into_inner(), 0xff);
+    }
+
+    #[test]
     #[should_panic]
-    fn out_of_bounds() {
+    fn out_of_bounds_is() {
         Limited::new(0b0000, 4).is_1(4);
+    }
+
+    #[test]
+    #[should_panic]
+    fn out_of_bounds_set_11() {
+        let mut buf = Limited::new(0x00, 4);
+        buf.set_1(4);
+    }
+
+    #[test]
+    #[should_panic]
+    fn out_of_bounds_set_0() {
+        let mut buf = Limited::new(0xff, 4);
+        buf.set_0(4);
+    }
+
+    #[test]
+    #[should_panic]
+    fn out_of_bounds_flip() {
+        let mut buf = Limited::new(0xffu8, 4);
+        buf.flip_bit(4);
     }
 
     #[test]
