@@ -26,6 +26,23 @@ fn bytes_to_store_n_bits(num_bits: usize) -> usize {
 /// Should be prefered over [`DynChunks`] (if possible) due to performance reasons.
 pub struct ByteChunks(NonUniformSequence<Vec<ByteChunk>>);
 
+impl ByteChunks {
+    /// Create chunks from the `buffer`.
+    pub fn from_buffer<T>(buffer: T, bytes_per_chunk: usize) -> Self
+    where
+        T: ByteChunkedBitBuffer,
+    {
+        let input_size = buffer.num_bytes();
+        let num_chunks = num_chunks(input_size, bytes_per_chunk);
+
+        let mut output_buffer = NonUniformSequence(vec![vec![0u8; bytes_per_chunk]; num_chunks]);
+        let num_copied = buffer.copy_into_chunked(0, &mut output_buffer);
+        assert_eq!(num_copied, input_size);
+
+        Self(output_buffer)
+    }
+}
+
 /// A [`BitBuffer`] that's chunked into chunks of any size.
 ///
 /// [`ByteChunks`] should be prefered (if possible) due to performance reasons.
@@ -41,14 +58,14 @@ impl DynChunks {
 
         let input_size = buffer.num_bits();
         let bytes_per_chunk = bytes_to_store_n_bits(bits_per_chunk);
-        let num_buffers = num_chunks(input_size, bits_per_chunk);
+        let num_chunks = num_chunks(input_size, bits_per_chunk);
 
         // FIXME: Replace NonUniformSequence with a uniform counterpart because all the buffers have
         // the same size and the overhead is pointless.
         let mut output_buffer = NonUniformSequence(vec![
             vec![0u8; bytes_per_chunk]
                 .into_limited(bits_per_chunk);
-            num_buffers
+            num_chunks
         ]);
 
         let num_copied = buffer.copy_into(0, &mut output_buffer);
@@ -128,7 +145,7 @@ mod tests {
         let source = [0xffffu16; 3];
         let chunks = source.to_dyn_chunks(7);
         // The original is 6 bytes -> 48 bits long;
-        // The chunk size is 7.
+        // The chunk size is 7 bits.
         // We need 7 chunks -> 49 (7*7) bits to store the original data.
         assert_eq!(chunks.0 .0.len(), 7);
         assert_eq!(chunks.num_bits(), 49);
@@ -141,6 +158,7 @@ mod tests {
 
         // The last byte should store 48 - 7 * 6 = 6 bits
         assert_eq!(bytes.next().unwrap().into_inner(), vec![0b00111111]);
+        assert_eq!(bytes.next(), None);
 
         let mut restored = [0u16; 3];
         let copied = chunks.copy_into(0, &mut restored);
@@ -148,7 +166,7 @@ mod tests {
 
         let chunks = source.to_dyn_chunks(9);
         // The original is 6 bytes -> 48 bits long;
-        // The chunk size is 9.
+        // The chunk size is 9 bits.
         // We need 6 bytes -> 54 (9*6) bits to store the original data.
         assert_eq!(chunks.0 .0.len(), 6);
         assert_eq!(chunks.num_bits(), 54);
@@ -161,6 +179,47 @@ mod tests {
 
         // The last byte should store 48 - 9 * 5 = 3 bits
         assert_eq!(bytes.next().unwrap().into_inner(), vec![0b00000111, 0]);
+        assert_eq!(bytes.next(), None);
+
+        let mut restored = [0u16; 3];
+        let copied = chunks.copy_into(0, &mut restored);
+        assert_eq!(copied, restored.num_bits());
+    }
+
+    #[test]
+    fn byte_chunks_creation_and_restore() {
+        let source = [0xffffu16; 3];
+        let chunks = source.to_byte_chunks(1);
+        // The original is 6 bytes -> 48 bits long;
+        // The chunk size is 1 byte.
+        // 6 chunks are used to store the data.
+        assert_eq!(chunks.0 .0.len(), 6);
+        assert_eq!(chunks.num_bits(), 48);
+
+        let mut bytes = chunks.0 .0.clone().into_iter();
+
+        for _ in 0..6 {
+            assert_eq!(bytes.next().unwrap(), vec![0xff])
+        }
+        assert_eq!(bytes.next(), None);
+
+        let mut restored = [0u16; 3];
+        let copied = chunks.copy_into(0, &mut restored);
+        assert_eq!(copied, restored.num_bits());
+
+        let chunks = source.to_byte_chunks(2);
+        // The original is 6 bytes -> 48 bits long;
+        // The chunk size is 2 bytes.
+        // 3 chunks are used to store the data.
+        assert_eq!(chunks.0 .0.len(), 3);
+        assert_eq!(chunks.num_bits(), 48);
+
+        let mut bytes = chunks.0 .0.clone().into_iter();
+
+        for _ in 0..3 {
+            assert_eq!(bytes.next().unwrap(), vec![0xff, 0xff])
+        }
+        assert_eq!(bytes.next(), None);
 
         let mut restored = [0u16; 3];
         let copied = chunks.copy_into(0, &mut restored);

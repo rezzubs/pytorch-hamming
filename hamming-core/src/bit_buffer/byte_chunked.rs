@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{bit_buffer::chunks::ByteChunks, prelude::*};
 
 /// A [`BitBuffer`] that is byte addressable.
 pub trait ByteChunkedBitBuffer: BitBuffer {
@@ -32,6 +32,13 @@ pub trait ByteChunkedBitBuffer: BitBuffer {
 
         // Either `self` was copied fully or was limited by the size of `other`.
         (self.num_bytes() - start).min(other.num_bytes())
+    }
+
+    fn to_byte_chunks(self, bytes_per_chunk: usize) -> ByteChunks
+    where
+        Self: std::marker::Sized,
+    {
+        ByteChunks::from_buffer(self, bytes_per_chunk)
     }
 }
 
