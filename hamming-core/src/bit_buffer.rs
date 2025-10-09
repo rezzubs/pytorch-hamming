@@ -119,7 +119,7 @@ pub trait BitBuffer {
     {
         assert!(start < self.num_bits());
 
-        for i in start..self.num_bits() {
+        for i in (start..self.num_bits()).take(other.num_bits()) {
             if self.is_1(i) {
                 other.set_1(i);
                 continue;
@@ -132,7 +132,8 @@ pub trait BitBuffer {
             other.set_0(i);
         }
 
-        self.num_bits() - start
+        // Either `self` was copied fully or was limited by the size of `other`.
+        self.num_bits().min(other.num_bits()) - start
     }
 }
 
