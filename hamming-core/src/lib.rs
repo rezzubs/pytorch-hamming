@@ -1,4 +1,5 @@
 mod bit_buffer;
+pub mod buffers;
 pub mod encoding;
 pub mod prelude;
 mod python;
