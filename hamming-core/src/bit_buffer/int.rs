@@ -14,22 +14,22 @@ macro_rules! int_impl {
             }
 
             fn set_1(&mut self, bit_index: usize) {
-                assert!(bit_index < Self::NUM_BITS);
+                assert!(bit_index < Self::NUM_BITS, "{bit_index} is out of bounds");
                 *self |= 1 << bit_index
             }
 
             fn set_0(&mut self, bit_index: usize) {
-                assert!(bit_index < Self::NUM_BITS);
+                assert!(bit_index < Self::NUM_BITS, "{bit_index} is out of bounds");
                 *self &= !(1 << bit_index)
             }
 
             fn is_1(&self, bit_index: usize) -> bool {
-                assert!(bit_index < Self::NUM_BITS);
+                assert!(bit_index < Self::NUM_BITS, "{bit_index} is out of bounds");
                 (self & (1 << bit_index)) > 0
             }
 
             fn flip_bit(&mut self, bit_index: usize) {
-                assert!(bit_index < Self::NUM_BITS);
+                assert!(bit_index < Self::NUM_BITS, "{bit_index} is out of bounds");
                 *self ^= 1 << bit_index
             }
         }
