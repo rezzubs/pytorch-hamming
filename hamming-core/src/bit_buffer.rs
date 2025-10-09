@@ -8,7 +8,10 @@ pub use byte_chunked::ByteChunkedBitBuffer;
 use chunks::DynChunks;
 use random_picker::RandomPicker;
 
-use crate::wrapper::Limited;
+use crate::{
+    encoding::{encode_into, num_encoded_bits},
+    wrapper::{limited::bytes_to_store_n_bits, Limited},
+};
 
 pub trait BitBuffer {
     /// Number of bits stored by this buffer.
@@ -143,6 +146,22 @@ pub trait BitBuffer {
         Self: Sized,
     {
         DynChunks::from_buffer(self, chunk_size)
+    }
+
+    /// Encode the buffer as a hamming code.
+    ///
+    /// See [`encode_into`] for usage with custom output buffers.
+    fn encode(&self) -> Limited<Vec<u8>>
+    where
+        Self: std::marker::Sized,
+    {
+        let num_encoded_bits = num_encoded_bits(self.num_bits());
+        let num_bytes = bytes_to_store_n_bits(num_encoded_bits);
+        let mut dest = vec![0u8; num_bytes].into_limited(num_encoded_bits);
+
+        encode_into(self, &mut dest);
+
+        dest
     }
 }
 

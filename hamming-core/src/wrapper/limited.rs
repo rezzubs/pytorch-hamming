@@ -1,5 +1,15 @@
 use crate::prelude::*;
 
+/// How many bytes does it take to store `num_bits` bits.
+#[inline]
+pub fn bytes_to_store_n_bits(num_bits: usize) -> usize {
+    match (num_bits / 8, num_bits % 8) {
+        (0, 0) => 0,
+        (a, 0) => a,
+        (a, _) => a + 1,
+    }
+}
+
 /// Limit the number of bits in a [`BitBuffer`].
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub struct Limited<T> {

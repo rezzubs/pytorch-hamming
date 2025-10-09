@@ -1,6 +1,6 @@
 //! Various [`crate::bit_buffer::BitBuffer`] implementations.
 
-mod limited;
+pub mod limited;
 mod non_uniform;
 mod padded;
 

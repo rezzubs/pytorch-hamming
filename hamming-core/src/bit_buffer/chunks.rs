@@ -1,3 +1,4 @@
+use crate::wrapper::limited::bytes_to_store_n_bits;
 use crate::{
     prelude::*,
     wrapper::{Limited, NonUniformSequence},
@@ -9,16 +10,6 @@ type DynChunk = Limited<Vec<u8>>;
 #[inline]
 fn num_chunks(buffer_size: usize, chunk_size: usize) -> usize {
     buffer_size / chunk_size + if buffer_size % chunk_size == 0 { 0 } else { 1 }
-}
-
-/// How many bytes does it take to store `num_bits` bits.
-#[inline]
-fn bytes_to_store_n_bits(num_bits: usize) -> usize {
-    match (num_bits / 8, num_bits % 8) {
-        (0, 0) => 0,
-        (a, 0) => a,
-        (a, _) => a + 1,
-    }
 }
 
 /// A [`BitBuffer`] that's chunked into chunks that are multiples of 8 bits.
