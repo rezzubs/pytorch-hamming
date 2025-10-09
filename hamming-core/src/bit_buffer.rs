@@ -1,6 +1,8 @@
+pub mod bits;
 mod byte_chunked;
 mod random_picker;
 
+pub use bits::Bits;
 pub use byte_chunked::ByteChunkedBitBuffer;
 use random_picker::RandomPicker;
 
@@ -34,10 +36,7 @@ pub trait BitBuffer {
 
     /// Iterate over the bits of the array.
     fn bits<'a>(&'a self) -> Bits<'a, Self> {
-        Bits {
-            buffer: self,
-            next_bit: 0,
-        }
+        Bits::new(self)
     }
 
     /// Return true if the number 1 bits is even.
@@ -135,31 +134,6 @@ pub trait SizedBitBuffer: BitBuffer {
     ///
     /// Must be an exact match with [`BitBuffer::num_bits`].
     const NUM_BITS: usize;
-}
-/// An [`Iterator`] over the bits in a [`BitBuffer`].
-///
-/// `true` represents 1 and `false` 0.
-pub struct Bits<'a, T: ?Sized> {
-    buffer: &'a T,
-    next_bit: usize,
-}
-
-impl<'a, T> Iterator for Bits<'a, T>
-where
-    T: BitBuffer + ?Sized,
-{
-    type Item = bool;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        assert!(self.next_bit <= self.buffer.num_bits());
-        if self.next_bit == self.buffer.num_bits() {
-            return None;
-        }
-
-        let result = self.buffer.is_1(self.next_bit);
-        self.next_bit += 1;
-        Some(result)
-    }
 }
 
 macro_rules! int_impl {
