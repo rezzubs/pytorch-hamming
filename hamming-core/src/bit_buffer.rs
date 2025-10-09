@@ -6,6 +6,8 @@ pub use bits::Bits;
 pub use byte_chunked::ByteChunkedBitBuffer;
 use random_picker::RandomPicker;
 
+use crate::wrapper::Limited;
+
 pub trait BitBuffer {
     /// Number of bits stored by this buffer.
     fn num_bits(&self) -> usize;
@@ -125,6 +127,13 @@ pub trait BitBuffer {
 
         // Either `self` was copied fully or was limited by the size of `other`.
         (self.num_bits() - start).min(other.num_bits())
+    }
+
+    fn limited(self, num_bits: usize) -> Limited<Self>
+    where
+        Self: std::marker::Sized,
+    {
+        Limited::new(self, num_bits)
     }
 }
 
