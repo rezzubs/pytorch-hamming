@@ -38,7 +38,7 @@ pub trait BitBuffer {
     }
 
     /// Iterate over the bits of the array.
-    fn bits(&self) -> Bits<Self> {
+    fn bits<'a>(&'a self) -> Bits<'a, Self> {
         Bits {
             buffer: self,
             next_bit: 0,
