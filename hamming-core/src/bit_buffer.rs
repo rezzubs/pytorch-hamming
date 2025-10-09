@@ -105,6 +105,35 @@ pub trait BitBuffer {
 
         num_flips
     }
+
+    /// Copy all the bits from `self` to `other`
+    ///
+    /// Returns the number of bits copied.
+    ///
+    /// # Panics
+    ///
+    /// if `start >= self.num_bits()`.
+    fn copy_into<O>(&self, start: usize, other: &mut O) -> usize
+    where
+        O: BitBuffer,
+    {
+        assert!(start < self.num_bits());
+
+        for i in start..self.num_bits() {
+            if self.is_1(i) {
+                other.set_1(i);
+                continue;
+            }
+
+            if i >= other.num_bits() {
+                return i - start;
+            }
+
+            other.set_0(i);
+        }
+
+        self.num_bits() - start
+    }
 }
 
 /// A [`BitBuffer`] with a comptime known length.

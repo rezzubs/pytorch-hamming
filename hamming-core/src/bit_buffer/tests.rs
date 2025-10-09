@@ -166,3 +166,29 @@ mod sequence {
         assert!(a.is_0(11));
     }
 }
+
+mod other {
+    use super::*;
+
+    #[test]
+    fn copy_into_different_structure() {
+        let a_actual: Vec<u8> = vec![123, 4, 255, 0, 2, 97, 34, 255];
+        let num_bits = a_actual.len() * 8;
+        let b_actual: Vec<u16> = vec![
+            u16::from_le_bytes([123, 4]),
+            u16::from_le_bytes([255, 0]),
+            u16::from_le_bytes([2, 97]),
+            u16::from_le_bytes([34, 255]),
+        ];
+
+        let mut b = vec![0u16; 4];
+        let copied = a_actual.copy_into(0, &mut b);
+        assert_eq!(copied, num_bits);
+        assert_eq!(b, b_actual);
+
+        let mut a = vec![0u8; 8];
+        let copied = b_actual.copy_into(0, &mut a);
+        assert_eq!(copied, num_bits);
+        assert_eq!(a, a_actual);
+    }
+}
