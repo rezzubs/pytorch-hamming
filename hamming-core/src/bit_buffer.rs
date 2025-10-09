@@ -1,9 +1,11 @@
 pub mod bits;
 mod byte_chunked;
+pub mod chunks;
 mod random_picker;
 
 pub use bits::Bits;
 pub use byte_chunked::ByteChunkedBitBuffer;
+use chunks::DynChunks;
 use random_picker::RandomPicker;
 
 use crate::wrapper::Limited;
@@ -129,11 +131,18 @@ pub trait BitBuffer {
         (self.num_bits() - start).min(other.num_bits())
     }
 
-    fn limited(self, num_bits: usize) -> Limited<Self>
+    fn into_limited(self, num_bits: usize) -> Limited<Self>
     where
         Self: std::marker::Sized,
     {
         Limited::new(self, num_bits)
+    }
+
+    fn to_dyn_chunks(self, chunk_size: usize) -> DynChunks
+    where
+        Self: Sized,
+    {
+        DynChunks::from_buffer(self, chunk_size)
     }
 }
 
