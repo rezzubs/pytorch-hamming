@@ -191,4 +191,18 @@ mod other {
         assert_eq!(copied, num_bits);
         assert_eq!(a, a_actual);
     }
+
+    #[test]
+    fn copy_into_partial() {
+        let source = [255u8, 127u8, 63u8, 31u8];
+        let mut dest = 0u8;
+
+        let mut start = 0;
+        for expected in source {
+            let copied = source.copy_into(start, &mut dest);
+            assert_eq!(copied, 8);
+            start += copied;
+            assert_eq!(dest, expected);
+        }
+    }
 }
