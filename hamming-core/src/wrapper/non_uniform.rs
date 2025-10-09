@@ -95,4 +95,45 @@ mod tests {
 
         assert!(buffer.is_1(39))
     }
+
+    #[test]
+    fn copy_into() {
+        let a_true: NonUniformSequence<Vec<Vec<u8>>> = NonUniformSequence(vec![
+            vec![123],
+            vec![13, 255, 8],
+            vec![0, 1],
+            vec![255],
+            vec![],
+            vec![0],
+        ]);
+        let b_true = [
+            u16::from_le_bytes([123, 13]),
+            u16::from_le_bytes([255, 8]),
+            u16::from_le_bytes([0, 1]),
+            u16::from_le_bytes([255, 0]),
+        ];
+
+        let mut b: Vec<u16> = vec![0; 4];
+
+        let copied = a_true.copy_into(0, &mut b);
+        assert_eq!(copied, a_true.num_bits());
+        assert_eq!(copied, b_true.num_bits());
+
+        assert_eq!(b, b_true);
+
+        let mut a: NonUniformSequence<Vec<Vec<u8>>> = NonUniformSequence(vec![
+            vec![0],
+            vec![0, 0, 0],
+            vec![0, 0],
+            vec![0],
+            vec![],
+            vec![0],
+        ]);
+
+        let copied = b_true.copy_into(0, &mut a);
+        assert_eq!(copied, a_true.num_bits());
+        assert_eq!(copied, b_true.num_bits());
+
+        assert_eq!(a, a_true);
+    }
 }
