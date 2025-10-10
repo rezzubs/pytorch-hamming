@@ -154,3 +154,105 @@ where
 
     success
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn par_i() {
+        assert!(is_par_i(0));
+        assert!(is_par_i(1));
+        assert!(is_par_i(2));
+        assert!(!is_par_i(3));
+        assert!(is_par_i(4));
+        assert!(!is_par_i(5));
+        assert!(!is_par_i(6));
+        assert!(!is_par_i(7));
+        assert!(is_par_i(8));
+        assert!(!is_par_i(9));
+        assert!(!is_par_i(10));
+        assert!(!is_par_i(11));
+        assert!(!is_par_i(12));
+        assert!(!is_par_i(13));
+        assert!(!is_par_i(14));
+        assert!(!is_par_i(15));
+        assert!(is_par_i(16));
+    }
+
+    #[test]
+    fn num_bits() {
+        assert_eq!(num_error_correction_bits(64), 7);
+        assert_eq!(num_error_correction_bits(127), 7);
+        assert_eq!(num_error_correction_bits(128), 8);
+        assert_eq!(num_error_correction_bits(255), 8);
+        assert_eq!(num_error_correction_bits(256), 9);
+        assert_eq!(num_encoded_bits(64), 72);
+        assert_eq!(num_encoded_bits(128), 137);
+        assert_eq!(num_encoded_bits(256), 266);
+    }
+
+    #[test]
+    fn no_faults() {
+        let buf: [f32; 4] = [123.123, 34.0, 0.0234, std::f32::consts::PI];
+        let mut encoded = buf.encode();
+        // 128 data + 8 SEC + 1 DED.
+        assert_eq!(encoded.num_bits(), 137);
+        let mut decoded = [0f32; 4];
+        let success = decode_into(&mut encoded, &mut decoded);
+        assert!(success);
+        assert_eq!(buf, decoded);
+    }
+
+    #[test]
+    fn single_fault() {
+        let buf: [f32; 4] = [123.123, 34.0, 0.0234, std::f32::consts::PI];
+        let mut encoded = buf.encode();
+
+        for i in 1..buf.num_bits() {
+            let mut faulty = encoded.clone();
+            faulty.flip_bit(i);
+            assert_ne!(faulty, encoded);
+
+            let mut decoded = [0f32; 4];
+            let success = decode_into(&mut faulty, &mut decoded);
+            assert!(success);
+            assert_eq!(buf, decoded);
+        }
+
+        encoded.flip_bit(0);
+        let mut decoded = [0f32; 4];
+        let success = decode_into(&mut encoded, &mut decoded);
+        assert!(!success);
+        assert_eq!(buf, decoded);
+    }
+
+    #[test]
+    fn two_faults() {
+        let buf: [f32; 4] = [123.123, 34.0, 0.0234, std::f32::consts::PI];
+        let encoded = buf.encode();
+
+        for first in 0..buf.num_bits() {
+            for second in (first + 1)..buf.num_bits() {
+                let mut faulty = encoded.clone();
+                faulty.flip_bit(first);
+                faulty.flip_bit(second);
+
+                assert_ne!(faulty, encoded);
+
+                let mut decoded = [0f32; 4];
+                let success = decode_into(&mut faulty, &mut decoded);
+                assert!(!success);
+
+                // If only parity bits were hit then the original data is safe. The decoding
+                // algorithm must still call a failure because there's no way to tell which bits
+                // were hit.
+                if is_par_i(first) && is_par_i(second) {
+                    assert_eq!(buf, decoded);
+                } else {
+                    assert_ne!(buf, decoded);
+                }
+            }
+        }
+    }
+}
