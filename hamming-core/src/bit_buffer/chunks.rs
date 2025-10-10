@@ -1,3 +1,6 @@
+use rayon::prelude::*;
+
+use crate::encoding::decode_into;
 use crate::wrapper::limited::bytes_to_store_n_bits;
 use crate::{
     prelude::*,
@@ -63,6 +66,86 @@ impl DynChunks {
         assert_eq!(num_copied, input_size);
 
         Self(output_buffer)
+    }
+
+    /// Encode all chunks in parallel.
+    pub fn encode_chunks(&self) -> DynChunks {
+        let output_buffer = self
+            .0
+             .0
+            .par_iter()
+            .map(|chunk| chunk.encode())
+            .collect::<Vec<_>>();
+
+        DynChunks(NonUniformSequence(output_buffer))
+    }
+
+    /// Decode the chunks in parallel.
+    ///
+    /// The output is guaranteed to be [`DynChunks`].
+    ///
+    /// See also:
+    /// - [`DynChunks::decode_chunks_byte`]
+    /// - [`DynChunks::decode_chunks`]
+    pub fn decode_chunks_dyn(self, num_data_bits: usize) -> DynChunks {
+        let num_bytes = num_data_bits / 8;
+
+        let output_buffer =
+            vec![Limited::new(vec![0u8; num_bytes], num_data_bits); self.0 .0.len()];
+        let decoded_output = self
+            .0
+             .0
+            .into_par_iter()
+            .zip(output_buffer)
+            .map(|(mut source, mut dest)| {
+                decode_into(&mut source, &mut dest);
+                dest
+            })
+            .collect::<Vec<_>>();
+
+        DynChunks(NonUniformSequence(decoded_output))
+    }
+
+    /// Decode the chunks in parallel.
+    ///
+    /// The output is guaranteed to be [`ByteChunks`].
+    ///
+    /// See also:
+    /// - [`DynChunks::decode_chunks_dyn`]
+    /// - [`DynChunks::decode_chunks`]
+    fn decode_chunks_byte(self, num_data_bytes: usize) -> ByteChunks {
+        let output_buffer = vec![vec![0u8; num_data_bytes]; self.0 .0.len()];
+        let decoded_output = self
+            .0
+             .0
+            .into_par_iter()
+            .zip(output_buffer)
+            .map(|(mut source, mut dest)| {
+                decode_into(&mut source, &mut dest);
+                dest
+            })
+            .collect::<Vec<_>>();
+
+        ByteChunks(NonUniformSequence(decoded_output))
+    }
+
+    /// Decode all chunks in parallel.
+    ///
+    /// Automatically determines the appropriate output format. For manual selection see:
+    /// - [`DynChunks::decode_chunks_dyn`]
+    /// - [`DynChunks::decode_chunks_byte`]
+    ///
+    /// While it's simple to compute the number of required parity bits to protect a number of data
+    /// bits. There is no straightforward way to compute the number of data bits from the number
+    /// of encoded bits. Approximations or a brute force method will need to be used. That's why
+    /// `num_data_bits` is given again instead.
+    pub fn decode_chunks(self, num_data_bits: usize) -> Chunks {
+        if num_data_bits % 8 == 0 {
+            let num_data_bytes = num_data_bits / 8;
+            Chunks::Byte(self.decode_chunks_byte(num_data_bytes))
+        } else {
+            Chunks::Dyn(self.decode_chunks_dyn(num_data_bits))
+        }
     }
 }
 
