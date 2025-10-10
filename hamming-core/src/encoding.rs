@@ -10,13 +10,16 @@ fn is_par_i(i: usize) -> bool {
 
 /// Get corresponding number of bits required for error correction for a buffer with length
 /// `source_length`.
-pub fn num_error_correction_bits(source_length: usize) -> usize {
-    todo!()
+pub fn num_error_correction_bits(num_data_bits: usize) -> usize {
+    usize::try_from(num_data_bits.ilog2())
+        .expect("It fit into usize before and it won't get larger after ilog2")
+        + 1
 }
 
 /// Get the number of total bits that are required to encode a buffer with length `source_length`.
-pub fn num_encoded_bits(source_length: usize) -> usize {
-    todo!();
+pub fn num_encoded_bits(num_data_bits: usize) -> usize {
+    // +1 for the 0th double error detection bit.
+    num_data_bits + num_error_correction_bits(num_data_bits) + 1
 }
 
 /// Get the index of a flipped bit in an encoded buffer in case of a single bit flip.
