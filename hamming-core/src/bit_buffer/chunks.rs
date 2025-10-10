@@ -138,7 +138,7 @@ impl DynChunks {
     /// While it's simple to compute the number of required parity bits to protect a number of data
     /// bits. There is no straightforward way to compute the number of data bits from the number
     /// of encoded bits. Approximations or a brute force method will need to be used. That's why
-    /// `num_data_bits` is given again instead.
+    /// `data_bits` is given again instead.
     pub fn decode_chunks(self, num_data_bits: usize) -> Chunks {
         if num_data_bits % 8 == 0 {
             let num_data_bytes = num_data_bits / 8;

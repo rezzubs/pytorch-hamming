@@ -1,4 +1,7 @@
-use crate::{bit_buffer::chunks::ByteChunks, prelude::*};
+use crate::{
+    bit_buffer::chunks::{ByteChunks, Chunks},
+    prelude::*,
+};
 
 /// A [`BitBuffer`] that is byte addressable.
 pub trait ByteChunkedBitBuffer: BitBuffer {
@@ -34,11 +37,28 @@ pub trait ByteChunkedBitBuffer: BitBuffer {
         (self.num_bytes() - start).min(other.num_bytes())
     }
 
+    /// Convert to chunks of equal length where each chunk is a number of bytes long.
     fn to_byte_chunks(self, bytes_per_chunk: usize) -> ByteChunks
     where
         Self: std::marker::Sized,
     {
         ByteChunks::from_buffer(self, bytes_per_chunk)
+    }
+
+    /// Convert to chunks of equal length.
+    ///
+    /// Choose the optimal format automatically. For manual selection see:
+    /// - [`ByteChunkedBitBuffer::to_byte_chunks`]
+    /// - [`BitBuffer::to_dyn_chunks`]
+    fn to_chunks(self, bits_per_chunk: usize) -> Chunks
+    where
+        Self: std::marker::Sized,
+    {
+        if bits_per_chunk % 8 == 0 {
+            Chunks::Byte(self.to_byte_chunks(bits_per_chunk / 8))
+        } else {
+            Chunks::Dyn(self.to_dyn_chunks(bits_per_chunk))
+        }
     }
 }
 

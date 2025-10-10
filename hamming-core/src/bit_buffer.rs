@@ -134,6 +134,7 @@ pub trait BitBuffer {
         (self.num_bits() - start).min(other.num_bits())
     }
 
+    /// Limit the number of perceived bits in the buffer.
     fn into_limited(self, num_bits: usize) -> Limited<Self>
     where
         Self: std::marker::Sized,
@@ -141,11 +142,12 @@ pub trait BitBuffer {
         Limited::new(self, num_bits)
     }
 
-    fn to_dyn_chunks(self, chunk_size: usize) -> DynChunks
+    /// Convert the buffer to chunks of equal length.
+    fn to_dyn_chunks(self, bits_per_chunk: usize) -> DynChunks
     where
         Self: Sized,
     {
-        DynChunks::from_buffer(self, chunk_size)
+        DynChunks::from_buffer(self, bits_per_chunk)
     }
 
     /// Encode the buffer as a hamming code.
