@@ -113,7 +113,7 @@ impl DynChunks {
     /// - [`DynChunks::decode_chunks_byte`]
     /// - [`DynChunks::decode_chunks`]
     pub fn decode_chunks_dyn(self, num_chunk_data_bits: usize) -> (DynChunks, Vec<bool>) {
-        let num_bytes = num_chunk_data_bits / 8;
+        let num_bytes = bytes_to_store_n_bits(num_chunk_data_bits);
 
         let output_buffer =
             vec![Limited::new(vec![0u8; num_bytes], num_chunk_data_bits); self.num_chunks()];
@@ -410,5 +410,143 @@ mod tests {
         let mut restored = [0u16; 3];
         let copied = chunks.copy_into(0, &mut restored);
         assert_eq!(copied, restored.num_bits());
+    }
+
+    #[test]
+    fn byte_chunked_encoding() {
+        let source = [123.123f32, std::f32::consts::PI, 0.001, 10000.123];
+        let expected_num_bytes = 4 * 4;
+        assert_eq!(source.num_bytes(), expected_num_bytes);
+
+        let chunk_size = 16;
+        let expected_num_chunks = 8;
+        let expected_bytes_per_chunk = chunk_size / expected_num_chunks;
+        let chunks = source.to_chunks(chunk_size);
+
+        match chunks {
+            Chunks::Byte(ref byte_chunks) => {
+                assert_eq!(byte_chunks.num_bytes(), expected_num_bytes);
+                assert_eq!(byte_chunks.num_chunks(), expected_num_chunks);
+                assert_eq!(
+                    byte_chunks.0 .0.first().map(|x| x.len()),
+                    Some(expected_bytes_per_chunk)
+                );
+            }
+            Chunks::Dyn(dyn_chunks) => panic!("Expected byte chunks, got {:?}", dyn_chunks),
+        }
+
+        let encoded = chunks.encode_chunks();
+        assert_eq!(encoded.num_chunks(), expected_num_chunks);
+
+        {
+            let non_faulty = encoded.clone();
+            let (raw_decoded, ded_results) = non_faulty.decode_chunks(chunk_size);
+
+            for success in ded_results {
+                assert!(success);
+            }
+
+            let raw_decoded = match raw_decoded {
+                Chunks::Byte(byte_chunks) => byte_chunks,
+                Chunks::Dyn(dyn_chunks) => panic!("Expected byte chunks, got {:?}", dyn_chunks),
+            };
+
+            let mut target = [0f32; 4];
+            raw_decoded.copy_into_chunked(0, &mut target);
+
+            assert_eq!(target, source);
+        }
+
+        for fault_index in 0..chunk_size {
+            let mut faulty = encoded.clone();
+            for chunk in &mut faulty.0 .0 {
+                chunk.flip_bit(fault_index);
+            }
+            assert_ne!(encoded, faulty);
+
+            let (raw_decoded, ded_results) = faulty.decode_chunks(chunk_size);
+
+            let raw_decoded = match raw_decoded {
+                Chunks::Byte(byte_chunks) => byte_chunks,
+                Chunks::Dyn(dyn_chunks) => panic!("Expected byte chunks, got {:?}", dyn_chunks),
+            };
+
+            if fault_index == 0 {
+                assert!(ded_results.into_iter().all(|x| !x));
+            } else {
+                assert!(ded_results.into_iter().all(|x| x));
+            }
+
+            let mut target = [0f32; 4];
+            raw_decoded.copy_into_chunked(0, &mut target);
+
+            assert_eq!(target, source, "failed on fault_index={fault_index}");
+        }
+    }
+
+    #[test]
+    fn dyn_chunked_encoding() {
+        let source = [123.123f32, std::f32::consts::PI, 0.001, 10000.123];
+
+        let chunk_size = 20;
+        let chunks = source.to_chunks(chunk_size);
+
+        match chunks {
+            Chunks::Byte(byte_chunks) => {
+                panic!("expected dyn chunks, got {:?}", byte_chunks)
+            }
+            Chunks::Dyn(ref dyn_chunks) => dyn_chunks
+                .0
+                 .0
+                .iter()
+                .for_each(|chunk| assert_eq!(chunk.num_bits(), chunk_size)),
+        }
+
+        let encoded = chunks.encode_chunks();
+
+        {
+            let non_faulty = encoded.clone();
+            let (raw_decoded, ded_results) = non_faulty.decode_chunks(chunk_size);
+
+            for success in ded_results {
+                assert!(success);
+            }
+
+            let raw_decoded = match raw_decoded {
+                Chunks::Byte(byte_chunks) => panic!("Expected dyn chunks, got {:?}", byte_chunks),
+                Chunks::Dyn(dyn_chunks) => dyn_chunks,
+            };
+
+            let mut target = [0f32; 4];
+            raw_decoded.copy_into(0, &mut target);
+
+            assert_eq!(target, source);
+        }
+
+        for fault_index in 0..chunk_size {
+            let mut faulty = encoded.clone();
+            for chunk in &mut faulty.0 .0 {
+                chunk.flip_bit(fault_index);
+            }
+            assert_ne!(encoded, faulty);
+
+            let (raw_decoded, ded_results) = faulty.decode_chunks(chunk_size);
+
+            let raw_decoded = match raw_decoded {
+                Chunks::Byte(byte_chunks) => panic!("Expected dyn chunks, got {:?}", byte_chunks),
+                Chunks::Dyn(dyn_chunks) => dyn_chunks,
+            };
+
+            if fault_index == 0 {
+                assert!(ded_results.into_iter().all(|x| !x));
+            } else {
+                assert!(ded_results.into_iter().all(|x| x));
+            }
+
+            let mut target = [0f32; 4];
+            raw_decoded.copy_into(0, &mut target);
+
+            assert_eq!(target, source, "failed on fault_index={fault_index}");
+        }
     }
 }
