@@ -104,27 +104,27 @@ uint_impl!(u32, 4);
 uint_impl!(u64, 8);
 
 macro_rules! float_impl {
-    ($ty:ty, $into:ty, $bytes:expr) => {
+    ($ty:ty, $bytes:expr) => {
         impl ByteChunkedBitBuffer for $ty {
             fn num_bytes(&self) -> usize {
                 $bytes
             }
 
             fn get_byte(&self, n: usize) -> u8 {
-                (*self as $into).get_byte(n)
+                self.to_bits().get_byte(n)
             }
 
             fn set_byte(&mut self, n: usize, value: u8) {
-                let mut uint = *self as $into;
+                let mut uint = self.to_bits();
                 uint.set_byte(n, value);
-                *self = uint as $ty;
+                *self = <$ty>::from_bits(uint);
             }
         }
     };
 }
 
-float_impl!(f32, u32, 4);
-float_impl!(f64, u64, 8);
+float_impl!(f32, 4);
+float_impl!(f64, 8);
 
 impl<T> ByteChunkedBitBuffer for [T]
 where
@@ -260,6 +260,138 @@ mod tests {
             assert_eq!(copied, 2);
             start += copied;
             assert_eq!(dest, expected);
+        }
+    }
+
+    #[test]
+    fn uint_impl() {
+        let source = 123456u32;
+        let mut dest = 0u32;
+
+        for (i, byte) in source.to_le_bytes().into_iter().enumerate() {
+            assert_eq!(source.get_byte(i), byte);
+            dest.set_byte(i, byte);
+        }
+
+        assert_eq!(source, dest);
+
+        let source = 123456743032483000u64;
+        let mut dest = 0u64;
+
+        for (i, byte) in source.to_le_bytes().into_iter().enumerate() {
+            assert_eq!(source.get_byte(i), byte);
+            dest.set_byte(i, byte);
+        }
+
+        assert_eq!(source, dest);
+
+        let source = 10456u16;
+        let mut dest = 0u16;
+
+        for (i, byte) in source.to_le_bytes().into_iter().enumerate() {
+            assert_eq!(source.get_byte(i), byte);
+            dest.set_byte(i, byte);
+        }
+
+        assert_eq!(source, dest);
+    }
+
+    #[test]
+    fn float_impl() {
+        let source = 13456.029f32;
+        let mut dest = 0f32;
+
+        for (i, byte) in source.to_le_bytes().into_iter().enumerate() {
+            assert_eq!(source.get_byte(i), byte);
+            dest.set_byte(i, byte);
+        }
+
+        assert_eq!(source, dest);
+
+        let source = 12345324789.483002f64;
+        let mut dest = 0f64;
+
+        for (i, byte) in source.to_le_bytes().into_iter().enumerate() {
+            assert_eq!(source.get_byte(i), byte);
+            dest.set_byte(i, byte);
+        }
+
+        assert_eq!(source, dest);
+    }
+
+    mod out_of_bounds {
+        use super::*;
+
+        #[test]
+        #[should_panic]
+        fn u8_get() {
+            0u8.get_byte(1);
+        }
+
+        #[test]
+        #[should_panic]
+        fn u16_get() {
+            0u16.get_byte(2);
+        }
+
+        #[test]
+        #[should_panic]
+        fn u32_get() {
+            0u32.get_byte(4);
+        }
+
+        #[test]
+        #[should_panic]
+        fn u64_get() {
+            0u64.get_byte(8);
+        }
+
+        #[test]
+        #[should_panic]
+        fn u8_set() {
+            0u8.set_byte(1, 0);
+        }
+
+        #[test]
+        #[should_panic]
+        fn u16_set() {
+            0u16.set_byte(2, 0);
+        }
+
+        #[test]
+        #[should_panic]
+        fn u32_set() {
+            0u32.set_byte(4, 0);
+        }
+
+        #[test]
+        #[should_panic]
+        fn u64_set() {
+            0u64.set_byte(8, 0);
+        }
+
+        #[test]
+        #[should_panic]
+        fn f32_get() {
+            0f32.get_byte(4);
+        }
+
+        #[test]
+        #[should_panic]
+        fn f64_get() {
+            0f64.get_byte(8);
+        }
+
+        #[test]
+        #[should_panic]
+        fn f32_set() {
+            0f32.set_byte(4, 0);
+        }
+
+        #[test]
+        #[should_panic]
+        fn f64_set() {
+            0f64.set_byte(8, 0);
         }
     }
 }
