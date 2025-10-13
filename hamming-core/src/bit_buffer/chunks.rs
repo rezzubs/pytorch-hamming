@@ -183,6 +183,18 @@ impl Chunks {
             Chunks::Dyn(dyn_chunks) => dyn_chunks.encode_chunks(),
         }
     }
+
+    /// Create chunks from the `buffer`.
+    pub fn from_buffer<T>(buffer: T, bits_per_chunk: usize) -> Self
+    where
+        T: ByteChunkedBitBuffer,
+    {
+        if bits_per_chunk % 8 == 0 {
+            Chunks::Byte(buffer.to_byte_chunks(bits_per_chunk / 8))
+        } else {
+            Chunks::Dyn(buffer.to_dyn_chunks(bits_per_chunk))
+        }
+    }
 }
 
 impl BitBuffer for ByteChunks {

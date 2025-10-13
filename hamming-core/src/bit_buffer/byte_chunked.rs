@@ -54,11 +54,7 @@ pub trait ByteChunkedBitBuffer: BitBuffer {
     where
         Self: std::marker::Sized,
     {
-        if bits_per_chunk % 8 == 0 {
-            Chunks::Byte(self.to_byte_chunks(bits_per_chunk / 8))
-        } else {
-            Chunks::Dyn(self.to_dyn_chunks(bits_per_chunk))
-        }
+        Chunks::from_buffer(self, bits_per_chunk)
     }
 }
 
