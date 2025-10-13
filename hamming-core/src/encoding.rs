@@ -130,6 +130,7 @@ where
 /// # Panics
 ///
 /// If `dest` doesn't have enough space for the decoded `source`.
+#[must_use]
 pub fn decode_into<S, D>(source: &mut S, dest: &mut D) -> bool
 where
     S: BitBuffer,

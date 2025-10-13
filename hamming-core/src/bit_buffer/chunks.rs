@@ -102,51 +102,55 @@ impl DynChunks {
     ///
     /// The output is guaranteed to be [`DynChunks`].
     ///
+    /// The second `Vec` records double error detections.
+    ///
     /// See also:
     /// - [`DynChunks::decode_chunks_byte`]
     /// - [`DynChunks::decode_chunks`]
-    pub fn decode_chunks_dyn(self, num_data_bits: usize) -> DynChunks {
+    pub fn decode_chunks_dyn(self, num_data_bits: usize) -> (DynChunks, Vec<bool>) {
         let num_bytes = num_data_bits / 8;
 
         let output_buffer =
             vec![Limited::new(vec![0u8; num_bytes], num_data_bits); self.0 .0.len()];
-        let decoded_output = self
+        let (decoded_output, ded_results) = self
             .0
              .0
             .into_par_iter()
             .zip(output_buffer)
             .map(|(mut source, mut dest)| {
-                decode_into(&mut source, &mut dest);
-                dest
+                let result = decode_into(&mut source, &mut dest);
+                (dest, result)
             })
-            .collect::<Vec<_>>();
+            .collect::<(Vec<_>, Vec<_>)>();
 
         // FIXME: Replace NonUniformSequence with a uniform counterpart because all the buffers have
         // the same size and the overhead is pointless.
-        DynChunks(NonUniformSequence(decoded_output))
+        (DynChunks(NonUniformSequence(decoded_output)), ded_results)
     }
 
     /// Decode the chunks in parallel.
     ///
     /// The output is guaranteed to be [`ByteChunks`].
     ///
+    /// The second `Vec` records double error detections.
+    ///
     /// See also:
     /// - [`DynChunks::decode_chunks_dyn`]
     /// - [`DynChunks::decode_chunks`]
-    fn decode_chunks_byte(self, num_data_bytes: usize) -> ByteChunks {
+    fn decode_chunks_byte(self, num_data_bytes: usize) -> (ByteChunks, Vec<bool>) {
         let output_buffer = vec![vec![0u8; num_data_bytes]; self.0 .0.len()];
-        let decoded_output = self
+        let (decoded_output, results) = self
             .0
              .0
             .into_par_iter()
             .zip(output_buffer)
             .map(|(mut source, mut dest)| {
-                decode_into(&mut source, &mut dest);
-                dest
+                let result = decode_into(&mut source, &mut dest);
+                (dest, result)
             })
-            .collect::<Vec<_>>();
+            .collect::<(Vec<_>, Vec<_>)>();
 
-        ByteChunks(NonUniformSequence(decoded_output))
+        (ByteChunks(NonUniformSequence(decoded_output)), results)
     }
 
     /// Decode all chunks in parallel.
@@ -155,16 +159,20 @@ impl DynChunks {
     /// - [`DynChunks::decode_chunks_dyn`]
     /// - [`DynChunks::decode_chunks_byte`]
     ///
+    /// The second `Vec` records double error detections.
+    ///
     /// While it's simple to compute the number of required parity bits to protect a number of data
     /// bits. There is no straightforward way to compute the number of data bits from the number
     /// of encoded bits. Approximations or a brute force method will need to be used. That's why
     /// `data_bits` is given again instead.
-    pub fn decode_chunks(self, num_data_bits: usize) -> Chunks {
+    pub fn decode_chunks(self, num_data_bits: usize) -> (Chunks, Vec<bool>) {
         if num_data_bits % 8 == 0 {
             let num_data_bytes = num_data_bits / 8;
-            Chunks::Byte(self.decode_chunks_byte(num_data_bytes))
+            let (chunks, ded_results) = self.decode_chunks_byte(num_data_bytes);
+            (Chunks::Byte(chunks), ded_results)
         } else {
-            Chunks::Dyn(self.decode_chunks_dyn(num_data_bits))
+            let (chunks, ded_results) = self.decode_chunks_dyn(num_data_bits);
+            (Chunks::Dyn(chunks), ded_results)
         }
     }
 }
