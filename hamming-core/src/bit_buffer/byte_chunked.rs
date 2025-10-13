@@ -192,6 +192,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn get_byte() {
+        let source = [450u16, 12u16, 0];
+        assert_eq!(source.get_byte(0), source[0].to_le_bytes()[0]);
+        assert_eq!(source.get_byte(1), source[0].to_le_bytes()[1]);
+        assert_eq!(source.get_byte(2), source[1].to_le_bytes()[0]);
+        assert_eq!(source.get_byte(3), source[1].to_le_bytes()[1]);
+        assert_eq!(source.get_byte(4), source[2].to_le_bytes()[0]);
+        assert_eq!(source.get_byte(5), source[2].to_le_bytes()[1]);
+    }
+
+    #[test]
+    fn set_byte() {
+        let source = [450u16, 12u16, 0];
+        let mut dest = [0u16, 0u16, 258u16];
+        for i in 0..6 {
+            dest.set_byte(i, source.get_byte(i));
+        }
+        assert_eq!(dest.get_byte(0), source[0].to_le_bytes()[0]);
+        assert_eq!(dest.get_byte(1), source[0].to_le_bytes()[1]);
+        assert_eq!(dest.get_byte(2), source[1].to_le_bytes()[0]);
+        assert_eq!(dest.get_byte(3), source[1].to_le_bytes()[1]);
+        assert_eq!(dest.get_byte(4), source[2].to_le_bytes()[0]);
+        assert_eq!(dest.get_byte(5), source[2].to_le_bytes()[1]);
+    }
+
+    #[test]
     fn copy_into_different_structure() {
         let a_actual: Vec<u8> = vec![123, 4, 255, 0, 2, 97, 34, 255];
         let num_bytes = a_actual.len();
