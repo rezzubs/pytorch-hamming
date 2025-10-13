@@ -11,9 +11,19 @@ fn is_par_i(i: usize) -> bool {
 /// Get corresponding number of bits required for error correction for a buffer with length
 /// `source_length`.
 pub fn num_error_correction_bits(num_data_bits: usize) -> usize {
-    usize::try_from(num_data_bits.ilog2())
-        .expect("It fit into usize before and it won't get larger after ilog2")
-        + 1
+    if num_data_bits == 0 {
+        panic!("Need to have at least 1 data bit");
+    }
+
+    // NOTE: 2 is the minimum possible number of parity bits.
+    let mut parity_bits = 2u32;
+    loop {
+        let max_data_bits_per_parity_bits = (2u32.pow(parity_bits) - parity_bits - 1) as usize;
+        if num_data_bits <= max_data_bits_per_parity_bits {
+            return parity_bits as usize;
+        }
+        parity_bits += 1
+    }
 }
 
 /// Get the number of total bits that are required to encode a buffer with length `source_length`.
@@ -133,13 +143,16 @@ where
 #[must_use]
 pub fn decode_into<S, D>(source: &mut S, dest: &mut D) -> bool
 where
-    S: BitBuffer,
+    S: BitBuffer + std::fmt::Debug,
     D: BitBuffer,
 {
     let success = correct_error(source);
 
+    let num_encoded_bits = num_encoded_bits(dest.num_bits());
+    assert_eq!(source.num_bits(), num_encoded_bits);
+
     let mut output_index = 0;
-    for input_index in 0..source.num_bits() {
+    for input_index in 3..num_encoded_bits {
         if is_par_i(input_index) {
             continue;
         }
@@ -183,14 +196,29 @@ mod tests {
 
     #[test]
     fn num_bits() {
-        assert_eq!(num_error_correction_bits(64), 7);
-        assert_eq!(num_error_correction_bits(127), 7);
-        assert_eq!(num_error_correction_bits(128), 8);
-        assert_eq!(num_error_correction_bits(255), 8);
-        assert_eq!(num_error_correction_bits(256), 9);
-        assert_eq!(num_encoded_bits(64), 72);
-        assert_eq!(num_encoded_bits(128), 137);
-        assert_eq!(num_encoded_bits(256), 266);
+        assert_eq!(num_error_correction_bits(1), 2);
+        for i in 3..=4 {
+            assert_eq!(num_error_correction_bits(i), 3);
+        }
+        for i in 5..=11 {
+            assert_eq!(num_error_correction_bits(i), 4);
+        }
+        for i in 12..=26 {
+            assert_eq!(num_error_correction_bits(i), 5);
+        }
+        for i in 27..=57 {
+            assert_eq!(num_error_correction_bits(i), 6);
+        }
+        for i in 58..=120 {
+            assert_eq!(num_error_correction_bits(i), 7);
+        }
+        for i in 121..=247 {
+            assert_eq!(num_error_correction_bits(i), 8);
+        }
+        for i in 248..=502 {
+            assert_eq!(num_error_correction_bits(i), 9);
+        }
+        assert_eq!(num_error_correction_bits(512), 10);
     }
 
     #[test]
@@ -254,6 +282,24 @@ mod tests {
                     assert_ne!(buf, decoded);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn large_buffers() {
+        fn test_buffer(bytes: usize) {
+            let initial = vec![0u8; bytes];
+            let mut decoded = vec![255u8; bytes];
+
+            let mut encoded = initial.encode();
+            let success = decode_into(&mut encoded, &mut decoded);
+            assert!(success);
+
+            assert_eq!(initial, decoded);
+        }
+
+        for i in 1..=128 {
+            test_buffer(i);
         }
     }
 }
