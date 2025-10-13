@@ -18,6 +18,7 @@ fn num_chunks(buffer_size: usize, chunk_size: usize) -> usize {
 /// A [`BitBuffer`] that's chunked into chunks that are multiples of 8 bits.
 ///
 /// Should be prefered over [`DynChunks`] (if possible) due to performance reasons.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ByteChunks(NonUniformSequence<Vec<ByteChunk>>);
 
 impl ByteChunks {
@@ -40,6 +41,7 @@ impl ByteChunks {
 /// A [`BitBuffer`] that's chunked into chunks of any size.
 ///
 /// [`ByteChunks`] should be prefered (if possible) due to performance reasons.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DynChunks(NonUniformSequence<Vec<DynChunk>>);
 
 impl DynChunks {
@@ -149,6 +151,7 @@ impl DynChunks {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Chunks {
     Byte(ByteChunks),
     Dyn(DynChunks),
