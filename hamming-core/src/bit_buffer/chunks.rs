@@ -50,6 +50,11 @@ impl ByteChunks {
         // the same size and the overhead is pointless.
         DynChunks(NonUniformSequence(output_buffer))
     }
+
+    /// Get the number of chunks.
+    pub fn num_chunks(&self) -> usize {
+        self.0 .0.len()
+    }
 }
 
 /// A [`BitBuffer`] that's chunked into chunks of any size.
@@ -107,11 +112,11 @@ impl DynChunks {
     /// See also:
     /// - [`DynChunks::decode_chunks_byte`]
     /// - [`DynChunks::decode_chunks`]
-    pub fn decode_chunks_dyn(self, num_data_bits: usize) -> (DynChunks, Vec<bool>) {
-        let num_bytes = num_data_bits / 8;
+    pub fn decode_chunks_dyn(self, num_chunk_data_bits: usize) -> (DynChunks, Vec<bool>) {
+        let num_bytes = num_chunk_data_bits / 8;
 
         let output_buffer =
-            vec![Limited::new(vec![0u8; num_bytes], num_data_bits); self.0 .0.len()];
+            vec![Limited::new(vec![0u8; num_bytes], num_chunk_data_bits); self.num_chunks()];
         let (decoded_output, ded_results) = self
             .0
              .0
@@ -137,8 +142,8 @@ impl DynChunks {
     /// See also:
     /// - [`DynChunks::decode_chunks_dyn`]
     /// - [`DynChunks::decode_chunks`]
-    fn decode_chunks_byte(self, num_data_bytes: usize) -> (ByteChunks, Vec<bool>) {
-        let output_buffer = vec![vec![0u8; num_data_bytes]; self.0 .0.len()];
+    fn decode_chunks_byte(self, num_chunk_data_bits: usize) -> (ByteChunks, Vec<bool>) {
+        let output_buffer = vec![vec![0u8; num_chunk_data_bits]; self.num_chunks()];
         let (decoded_output, results) = self
             .0
              .0
@@ -165,15 +170,20 @@ impl DynChunks {
     /// bits. There is no straightforward way to compute the number of data bits from the number
     /// of encoded bits. Approximations or a brute force method will need to be used. That's why
     /// `data_bits` is given again instead.
-    pub fn decode_chunks(self, num_data_bits: usize) -> (Chunks, Vec<bool>) {
-        if num_data_bits % 8 == 0 {
-            let num_data_bytes = num_data_bits / 8;
+    pub fn decode_chunks(self, num_chunk_data_bits: usize) -> (Chunks, Vec<bool>) {
+        if num_chunk_data_bits % 8 == 0 {
+            let num_data_bytes = num_chunk_data_bits / 8;
             let (chunks, ded_results) = self.decode_chunks_byte(num_data_bytes);
             (Chunks::Byte(chunks), ded_results)
         } else {
-            let (chunks, ded_results) = self.decode_chunks_dyn(num_data_bits);
+            let (chunks, ded_results) = self.decode_chunks_dyn(num_chunk_data_bits);
             (Chunks::Dyn(chunks), ded_results)
         }
+    }
+
+    /// Get the number of chunks.
+    pub fn num_chunks(&self) -> usize {
+        self.0 .0.len()
     }
 }
 
@@ -323,7 +333,7 @@ mod tests {
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 7 bits.
         // We need 7 chunks -> 49 (7*7) bits to store the original data.
-        assert_eq!(chunks.0 .0.len(), 7);
+        assert_eq!(chunks.num_chunks(), 7);
         assert_eq!(chunks.num_bits(), 49);
 
         let mut bytes = chunks.0 .0.clone().into_iter();
@@ -344,7 +354,7 @@ mod tests {
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 9 bits.
         // We need 6 bytes -> 54 (9*6) bits to store the original data.
-        assert_eq!(chunks.0 .0.len(), 6);
+        assert_eq!(chunks.num_chunks(), 6);
         assert_eq!(chunks.num_bits(), 54);
 
         let mut bytes = chunks.0 .0.clone().into_iter();
@@ -369,7 +379,7 @@ mod tests {
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 1 byte.
         // 6 chunks are used to store the data.
-        assert_eq!(chunks.0 .0.len(), 6);
+        assert_eq!(chunks.num_chunks(), 6);
         assert_eq!(chunks.num_bits(), 48);
 
         let mut bytes = chunks.0 .0.clone().into_iter();
@@ -387,7 +397,7 @@ mod tests {
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 2 bytes.
         // 3 chunks are used to store the data.
-        assert_eq!(chunks.0 .0.len(), 3);
+        assert_eq!(chunks.num_chunks(), 3);
         assert_eq!(chunks.num_bits(), 48);
 
         let mut bytes = chunks.0 .0.clone().into_iter();
