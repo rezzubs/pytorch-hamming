@@ -43,6 +43,7 @@ impl ByteChunks {
     }
 
     /// Encode all chunks in parallel.
+    #[must_use]
     pub fn encode_chunks(&self) -> DynChunks {
         let output_buffer = self
             .0
@@ -57,6 +58,7 @@ impl ByteChunks {
     }
 
     /// Get the number of chunks.
+    #[must_use]
     pub fn num_chunks(&self) -> usize {
         self.0 .0.len()
     }
@@ -95,6 +97,7 @@ impl DynChunks {
     }
 
     /// Encode all chunks in parallel.
+    #[must_use]
     pub fn encode_chunks(&self) -> DynChunks {
         let output_buffer = self
             .0
@@ -117,6 +120,7 @@ impl DynChunks {
     /// See also:
     /// - [`DynChunks::decode_chunks_byte`]
     /// - [`DynChunks::decode_chunks`]
+    #[must_use]
     pub fn decode_chunks_dyn(self, num_chunk_data_bits: usize) -> (DynChunks, Vec<bool>) {
         let num_bytes = bytes_to_store_n_bits(num_chunk_data_bits);
 
@@ -175,6 +179,7 @@ impl DynChunks {
     /// bits. There is no straightforward way to compute the number of data bits from the number
     /// of encoded bits. Approximations or a brute force method will need to be used. That's why
     /// `data_bits` is given again instead.
+    #[must_use]
     pub fn decode_chunks(self, num_chunk_data_bits: usize) -> (Chunks, Vec<bool>) {
         if num_chunk_data_bits.is_multiple_of(8) {
             let num_data_bytes = num_chunk_data_bits / 8;
@@ -187,6 +192,7 @@ impl DynChunks {
     }
 
     /// Get the number of chunks.
+    #[must_use]
     pub fn num_chunks(&self) -> usize {
         self.0 .0.len()
     }
@@ -200,6 +206,7 @@ pub enum Chunks {
 
 impl Chunks {
     /// Encode all chunks in parallel.
+    #[must_use]
     pub fn encode_chunks(&self) -> DynChunks {
         match self {
             Chunks::Byte(byte_chunks) => byte_chunks.encode_chunks(),
@@ -457,7 +464,8 @@ mod tests {
             };
 
             let mut target = [0f32; 4];
-            raw_decoded.copy_into_chunked(0, &mut target);
+            let copied = raw_decoded.copy_into_chunked(0, &mut target);
+            assert_eq!(copied, source.num_bytes());
 
             assert_eq!(target, source);
         }
@@ -483,7 +491,8 @@ mod tests {
             }
 
             let mut target = [0f32; 4];
-            raw_decoded.copy_into_chunked(0, &mut target);
+            let copied = raw_decoded.copy_into_chunked(0, &mut target);
+            assert_eq!(copied, source.num_bytes());
 
             assert_eq!(target, source, "failed on fault_index={fault_index}");
         }

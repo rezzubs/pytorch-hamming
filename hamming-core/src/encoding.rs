@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 /// Check if an index is reserved for parity (a power of two or 0).
+#[must_use]
 pub fn is_par_i(i: usize) -> bool {
     if i == 0 {
         return true;
@@ -10,6 +11,7 @@ pub fn is_par_i(i: usize) -> bool {
 
 /// Get corresponding number of bits required for error correction for a buffer with length
 /// `source_length`.
+#[must_use]
 pub fn num_error_correction_bits(num_data_bits: usize) -> usize {
     if num_data_bits == 0 {
         panic!("Need to have at least 1 data bit");
@@ -27,6 +29,7 @@ pub fn num_error_correction_bits(num_data_bits: usize) -> usize {
 }
 
 /// Get the number of total bits that are required to encode a buffer with length `source_length`.
+#[must_use]
 pub fn num_encoded_bits(num_data_bits: usize) -> usize {
     // +1 for the 0th double error detection bit.
     num_data_bits + num_error_correction_bits(num_data_bits) + 1

@@ -116,6 +116,7 @@ pub trait BitBuffer {
     /// # Panics
     ///
     /// if `start >= self.num_bits()`.
+    #[must_use]
     fn copy_into<O>(&self, start: usize, other: &mut O) -> usize
     where
         O: BitBuffer,

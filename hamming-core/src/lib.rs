@@ -1,3 +1,4 @@
+#![warn(clippy::must_use_candidate)]
 pub mod bit_buffer;
 pub mod encoding;
 pub mod prelude;

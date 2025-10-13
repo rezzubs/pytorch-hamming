@@ -21,6 +21,7 @@ pub trait ByteChunkedBitBuffer: BitBuffer {
     /// # Panics
     ///
     /// if `start >= self.num_bytes()`.
+    #[must_use]
     fn copy_into_chunked<O>(&self, start: usize, other: &mut O) -> usize
     where
         O: ByteChunkedBitBuffer,

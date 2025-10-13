@@ -2,6 +2,7 @@ use crate::prelude::*;
 
 /// How many bytes does it take to store `num_bits` bits.
 #[inline]
+#[must_use]
 pub fn bytes_to_store_n_bits(num_bits: usize) -> usize {
     match (num_bits / 8, num_bits % 8) {
         (0, 0) => 0,
