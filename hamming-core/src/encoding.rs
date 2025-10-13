@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 /// Check if an index is reserved for parity (a power of two or 0).
-fn is_par_i(i: usize) -> bool {
+pub fn is_par_i(i: usize) -> bool {
     if i == 0 {
         return true;
     }

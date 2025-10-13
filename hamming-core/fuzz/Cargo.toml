@@ -1,0 +1,22 @@
+[package]
+name = "hamming_core-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+
+[dependencies.hamming_core]
+path = ".."
+
+[[bin]]
+name = "encode_decode"
+path = "fuzz_targets/encode_decode.rs"
+test = false
+doc = false
+bench = false
