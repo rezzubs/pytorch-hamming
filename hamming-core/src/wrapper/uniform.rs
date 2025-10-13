@@ -85,25 +85,25 @@ where
     }
 
     fn set_1(&mut self, bit_index: usize) {
-        assert!(bit_index < self.num_bits());
+        debug_assert!(bit_index < self.num_bits());
         let item_index = bit_index / self.item_num_bits;
         self.sequence[item_index].set_1(bit_index % self.item_num_bits)
     }
 
     fn set_0(&mut self, bit_index: usize) {
-        assert!(bit_index < self.num_bits());
+        debug_assert!(bit_index < self.num_bits());
         let item_index = bit_index / self.item_num_bits;
         self.sequence[item_index].set_0(bit_index % self.item_num_bits)
     }
 
     fn is_1(&self, bit_index: usize) -> bool {
-        assert!(bit_index < self.num_bits());
+        debug_assert!(bit_index < self.num_bits());
         let item_index = bit_index / self.item_num_bits;
         self.sequence[item_index].is_1(bit_index % self.item_num_bits)
     }
 
     fn flip_bit(&mut self, bit_index: usize) {
-        assert!(bit_index < self.num_bits());
+        debug_assert!(bit_index < self.num_bits());
         let item_index = bit_index / self.item_num_bits;
         self.sequence[item_index].flip_bit(bit_index % self.item_num_bits)
     }
@@ -126,14 +126,14 @@ where
     }
 
     fn get_byte(&self, n: usize) -> u8 {
-        assert!(n < self.num_bytes());
+        debug_assert!(n < self.num_bytes());
         let item_index = (n * 8) / self.item_num_bits;
         let index_in_item = ((n * 8) % self.item_num_bits) / 8;
         self.sequence[item_index].get_byte(index_in_item)
     }
 
     fn set_byte(&mut self, n: usize, value: u8) {
-        assert!(n < self.num_bytes());
+        debug_assert!(n < self.num_bytes());
         let item_index = (n * 8) / self.item_num_bits;
         let index_in_item = ((n * 8) % self.item_num_bits) / 8;
         self.sequence[item_index].set_byte(index_in_item, value)
