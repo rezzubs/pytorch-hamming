@@ -12,7 +12,12 @@ type DynChunk = Limited<Vec<u8>>;
 
 #[inline]
 fn num_chunks(buffer_size: usize, chunk_size: usize) -> usize {
-    buffer_size / chunk_size + if buffer_size % chunk_size == 0 { 0 } else { 1 }
+    buffer_size / chunk_size
+        + if buffer_size.is_multiple_of(chunk_size) {
+            0
+        } else {
+            1
+        }
 }
 
 /// A [`BitBuffer`] that's chunked into chunks that are multiples of 8 bits.
@@ -171,7 +176,7 @@ impl DynChunks {
     /// of encoded bits. Approximations or a brute force method will need to be used. That's why
     /// `data_bits` is given again instead.
     pub fn decode_chunks(self, num_chunk_data_bits: usize) -> (Chunks, Vec<bool>) {
-        if num_chunk_data_bits % 8 == 0 {
+        if num_chunk_data_bits.is_multiple_of(8) {
             let num_data_bytes = num_chunk_data_bits / 8;
             let (chunks, ded_results) = self.decode_chunks_byte(num_data_bytes);
             (Chunks::Byte(chunks), ded_results)
@@ -207,7 +212,7 @@ impl Chunks {
     where
         T: ByteChunkedBitBuffer,
     {
-        if bits_per_chunk % 8 == 0 {
+        if bits_per_chunk.is_multiple_of(8) {
             Chunks::Byte(buffer.to_byte_chunks(bits_per_chunk / 8))
         } else {
             Chunks::Dyn(buffer.to_dyn_chunks(bits_per_chunk))
