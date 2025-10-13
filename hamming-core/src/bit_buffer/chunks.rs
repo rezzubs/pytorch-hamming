@@ -249,6 +249,57 @@ impl BitBuffer for DynChunks {
     }
 }
 
+impl BitBuffer for Chunks {
+    fn num_bits(&self) -> usize {
+        match self {
+            Chunks::Byte(chunks) => chunks.num_bits(),
+            Chunks::Dyn(chunks) => chunks.num_bits(),
+        }
+    }
+
+    fn set_1(&mut self, bit_index: usize) {
+        match self {
+            Chunks::Byte(chunks) => chunks.set_1(bit_index),
+            Chunks::Dyn(chunks) => chunks.set_1(bit_index),
+        }
+    }
+
+    fn set_0(&mut self, bit_index: usize) {
+        match self {
+            Chunks::Byte(chunks) => chunks.set_0(bit_index),
+            Chunks::Dyn(chunks) => chunks.set_0(bit_index),
+        }
+    }
+
+    fn is_1(&self, bit_index: usize) -> bool {
+        match self {
+            Chunks::Byte(chunks) => chunks.is_1(bit_index),
+            Chunks::Dyn(chunks) => chunks.is_1(bit_index),
+        }
+    }
+
+    fn flip_bit(&mut self, bit_index: usize) {
+        match self {
+            Chunks::Byte(chunks) => chunks.flip_bit(bit_index),
+            Chunks::Dyn(chunks) => chunks.flip_bit(bit_index),
+        }
+    }
+}
+
+impl ByteChunkedBitBuffer for ByteChunks {
+    fn num_bytes(&self) -> usize {
+        self.0.num_bytes()
+    }
+
+    fn get_byte(&self, n: usize) -> u8 {
+        self.0.get_byte(n)
+    }
+
+    fn set_byte(&mut self, n: usize, value: u8) {
+        self.0.set_byte(n, value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
