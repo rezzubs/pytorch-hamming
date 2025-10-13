@@ -36,6 +36,20 @@ impl ByteChunks {
 
         Self(output_buffer)
     }
+
+    /// Encode all chunks in parallel.
+    pub fn encode_chunks(&self) -> DynChunks {
+        let output_buffer = self
+            .0
+             .0
+            .par_iter()
+            .map(|chunk| chunk.encode())
+            .collect::<Vec<_>>();
+
+        // FIXME: Replace NonUniformSequence with a uniform counterpart because all the buffers have
+        // the same size and the overhead is pointless.
+        DynChunks(NonUniformSequence(output_buffer))
+    }
 }
 
 /// A [`BitBuffer`] that's chunked into chunks of any size.
@@ -79,6 +93,8 @@ impl DynChunks {
             .map(|chunk| chunk.encode())
             .collect::<Vec<_>>();
 
+        // FIXME: Replace NonUniformSequence with a uniform counterpart because all the buffers have
+        // the same size and the overhead is pointless.
         DynChunks(NonUniformSequence(output_buffer))
     }
 
@@ -105,6 +121,8 @@ impl DynChunks {
             })
             .collect::<Vec<_>>();
 
+        // FIXME: Replace NonUniformSequence with a uniform counterpart because all the buffers have
+        // the same size and the overhead is pointless.
         DynChunks(NonUniformSequence(decoded_output))
     }
 
@@ -155,6 +173,16 @@ impl DynChunks {
 pub enum Chunks {
     Byte(ByteChunks),
     Dyn(DynChunks),
+}
+
+impl Chunks {
+    /// Encode all chunks in parallel.
+    pub fn encode_chunks(&self) -> DynChunks {
+        match self {
+            Chunks::Byte(byte_chunks) => byte_chunks.encode_chunks(),
+            Chunks::Dyn(dyn_chunks) => dyn_chunks.encode_chunks(),
+        }
+    }
 }
 
 impl BitBuffer for ByteChunks {
