@@ -4,7 +4,7 @@ use crate::encoding::decode_into;
 use crate::wrapper::limited::bytes_to_store_n_bits;
 use crate::{
     prelude::*,
-    wrapper::{Limited, NonUniformSequence},
+    wrapper::{Limited, UniformSequence},
 };
 
 type ByteChunk = Vec<u8>;
@@ -24,7 +24,7 @@ fn num_chunks(buffer_size: usize, chunk_size: usize) -> usize {
 ///
 /// Should be prefered over [`DynChunks`] (if possible) due to performance reasons.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ByteChunks(NonUniformSequence<Vec<ByteChunk>>);
+pub struct ByteChunks(UniformSequence<Vec<ByteChunk>>);
 
 impl ByteChunks {
     /// Create chunks from the `buffer`.
@@ -35,7 +35,8 @@ impl ByteChunks {
         let input_size = buffer.num_bytes();
         let num_chunks = num_chunks(input_size, bytes_per_chunk);
 
-        let mut output_buffer = NonUniformSequence(vec![vec![0u8; bytes_per_chunk]; num_chunks]);
+        let mut output_buffer =
+            UniformSequence::new(vec![vec![0u8; bytes_per_chunk]; num_chunks]).unwrap();
         let num_copied = buffer.copy_into_chunked(0, &mut output_buffer);
         assert_eq!(num_copied, input_size);
 
@@ -47,20 +48,18 @@ impl ByteChunks {
     pub fn encode_chunks(&self) -> DynChunks {
         let output_buffer = self
             .0
-             .0
+            .inner()
             .par_iter()
             .map(|chunk| chunk.encode())
             .collect::<Vec<_>>();
 
-        // FIXME: Replace NonUniformSequence with a uniform counterpart because all the buffers have
-        // the same size and the overhead is pointless.
-        DynChunks(NonUniformSequence(output_buffer))
+        DynChunks(UniformSequence::new(output_buffer).unwrap())
     }
 
     /// Get the number of chunks.
     #[must_use]
     pub fn num_chunks(&self) -> usize {
-        self.0 .0.len()
+        self.0.num_items()
     }
 }
 
@@ -68,7 +67,7 @@ impl ByteChunks {
 ///
 /// [`ByteChunks`] should be prefered (if possible) due to performance reasons.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DynChunks(NonUniformSequence<Vec<DynChunk>>);
+pub struct DynChunks(UniformSequence<Vec<DynChunk>>);
 
 impl DynChunks {
     /// Create new dynamic chunks from the `buffer`.
@@ -82,13 +81,12 @@ impl DynChunks {
         let bytes_per_chunk = bytes_to_store_n_bits(bits_per_chunk);
         let num_chunks = num_chunks(input_size, bits_per_chunk);
 
-        // FIXME: Replace NonUniformSequence with a uniform counterpart because all the buffers have
-        // the same size and the overhead is pointless.
-        let mut output_buffer = NonUniformSequence(vec![
+        let mut output_buffer = UniformSequence::new(vec![
             vec![0u8; bytes_per_chunk]
                 .into_limited(bits_per_chunk);
             num_chunks
-        ]);
+        ])
+        .unwrap();
 
         let num_copied = buffer.copy_into(0, &mut output_buffer);
         assert_eq!(num_copied, input_size);
@@ -101,14 +99,12 @@ impl DynChunks {
     pub fn encode_chunks(&self) -> DynChunks {
         let output_buffer = self
             .0
-             .0
+            .inner()
             .par_iter()
             .map(|chunk| chunk.encode())
             .collect::<Vec<_>>();
 
-        // FIXME: Replace NonUniformSequence with a uniform counterpart because all the buffers have
-        // the same size and the overhead is pointless.
-        DynChunks(NonUniformSequence(output_buffer))
+        DynChunks(UniformSequence::new(output_buffer).unwrap())
     }
 
     /// Decode the chunks in parallel.
@@ -128,7 +124,7 @@ impl DynChunks {
             vec![Limited::new(vec![0u8; num_bytes], num_chunk_data_bits); self.num_chunks()];
         let (decoded_output, ded_results) = self
             .0
-             .0
+            .into_inner()
             .into_par_iter()
             .zip(output_buffer)
             .map(|(mut source, mut dest)| {
@@ -137,9 +133,10 @@ impl DynChunks {
             })
             .collect::<(Vec<_>, Vec<_>)>();
 
-        // FIXME: Replace NonUniformSequence with a uniform counterpart because all the buffers have
-        // the same size and the overhead is pointless.
-        (DynChunks(NonUniformSequence(decoded_output)), ded_results)
+        (
+            DynChunks(UniformSequence::new(decoded_output).unwrap()),
+            ded_results,
+        )
     }
 
     /// Decode the chunks in parallel.
@@ -155,7 +152,7 @@ impl DynChunks {
         let output_buffer = vec![vec![0u8; num_chunk_data_bits]; self.num_chunks()];
         let (decoded_output, results) = self
             .0
-             .0
+            .into_inner()
             .into_par_iter()
             .zip(output_buffer)
             .map(|(mut source, mut dest)| {
@@ -164,7 +161,10 @@ impl DynChunks {
             })
             .collect::<(Vec<_>, Vec<_>)>();
 
-        (ByteChunks(NonUniformSequence(decoded_output)), results)
+        (
+            ByteChunks(UniformSequence::new(decoded_output).unwrap()),
+            results,
+        )
     }
 
     /// Decode all chunks in parallel.
@@ -194,7 +194,7 @@ impl DynChunks {
     /// Get the number of chunks.
     #[must_use]
     pub fn num_chunks(&self) -> usize {
-        self.0 .0.len()
+        self.0.num_items()
     }
 }
 
@@ -348,7 +348,7 @@ mod tests {
         assert_eq!(chunks.num_chunks(), 7);
         assert_eq!(chunks.num_bits(), 49);
 
-        let mut bytes = chunks.0 .0.clone().into_iter();
+        let mut bytes = chunks.0.clone().into_inner().into_iter();
 
         for _ in 0..6 {
             assert_eq!(bytes.next().unwrap().into_inner(), vec![0b01111111])
@@ -369,7 +369,7 @@ mod tests {
         assert_eq!(chunks.num_chunks(), 6);
         assert_eq!(chunks.num_bits(), 54);
 
-        let mut bytes = chunks.0 .0.clone().into_iter();
+        let mut bytes = chunks.0.clone().into_inner().into_iter();
 
         for _ in 0..5 {
             assert_eq!(bytes.next().unwrap().into_inner(), vec![0xff, 0b00000001])
@@ -394,7 +394,7 @@ mod tests {
         assert_eq!(chunks.num_chunks(), 6);
         assert_eq!(chunks.num_bits(), 48);
 
-        let mut bytes = chunks.0 .0.clone().into_iter();
+        let mut bytes = chunks.0.clone().into_inner().into_iter();
 
         for _ in 0..6 {
             assert_eq!(bytes.next().unwrap(), vec![0xff])
@@ -412,7 +412,7 @@ mod tests {
         assert_eq!(chunks.num_chunks(), 3);
         assert_eq!(chunks.num_bits(), 48);
 
-        let mut bytes = chunks.0 .0.clone().into_iter();
+        let mut bytes = chunks.0.clone().into_inner().into_iter();
 
         for _ in 0..3 {
             assert_eq!(bytes.next().unwrap(), vec![0xff, 0xff])
@@ -440,7 +440,7 @@ mod tests {
                 assert_eq!(byte_chunks.num_bytes(), expected_num_bytes);
                 assert_eq!(byte_chunks.num_chunks(), expected_num_chunks);
                 assert_eq!(
-                    byte_chunks.0 .0.first().map(|x| x.len()),
+                    byte_chunks.0.inner().first().map(|x| x.len()),
                     Some(expected_bytes_per_chunk)
                 );
             }
@@ -472,7 +472,7 @@ mod tests {
 
         for fault_index in 0..chunk_size {
             let mut faulty = encoded.clone();
-            for chunk in &mut faulty.0 .0 {
+            for chunk in faulty.0.inner_mut() {
                 chunk.flip_bit(fault_index);
             }
             assert_ne!(encoded, faulty);
@@ -512,7 +512,7 @@ mod tests {
                 }
                 Chunks::Dyn(ref dyn_chunks) => dyn_chunks
                     .0
-                     .0
+                    .inner()
                     .iter()
                     .for_each(|chunk| assert_eq!(chunk.num_bits(), chunk_size)),
             }
@@ -540,7 +540,7 @@ mod tests {
 
             for fault_index in 0..chunk_size {
                 let mut faulty = encoded.clone();
-                for chunk in &mut faulty.0 .0 {
+                for chunk in faulty.0.inner_mut() {
                     chunk.flip_bit(fault_index);
                 }
                 assert_ne!(encoded, faulty);
