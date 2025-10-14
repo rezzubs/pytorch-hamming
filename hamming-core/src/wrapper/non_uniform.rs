@@ -3,6 +3,9 @@ use crate::prelude::*;
 /// Gives a [`BitBuffer`] implementation to sequences where the items cannot satisfy
 /// [`SizedBitBuffer`].
 ///
+/// If the number of bits is only runtime known but still expected to be the same for all elements
+/// then [`crate::wrapper::UniformSequence`] should be used for better performance.
+///
 /// If a sequence satisfies [`BitBuffer`] by itself then that implementation should always be
 /// preferred. This wrapper should be used as a last resort due to performance reasons.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default, Hash)]
