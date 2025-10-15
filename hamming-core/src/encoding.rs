@@ -1,3 +1,5 @@
+pub mod bit_patterns;
+
 use crate::prelude::*;
 
 /// Check if an index is reserved for parity (a power of two or 0).

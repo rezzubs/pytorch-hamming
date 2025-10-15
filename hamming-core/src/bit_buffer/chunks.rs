@@ -9,8 +9,10 @@ use crate::{
 type ByteChunk = Vec<u8>;
 type DynChunk = Limited<Vec<u8>>;
 
+/// How many chunks are required to store a buffer with `chunk_size` bits per chunk.
 #[inline]
-fn num_chunks(buffer_size: usize, chunk_size: usize) -> usize {
+#[must_use]
+pub fn num_chunks(buffer_size: usize, chunk_size: usize) -> usize {
     buffer_size / chunk_size
         + if buffer_size.is_multiple_of(chunk_size) {
             0
@@ -261,6 +263,15 @@ impl Chunks {
             Chunks::Byte(ByteChunks::zero(num_bits / 8, bits_per_chunk / 8))
         } else {
             Chunks::Dyn(DynChunks::zero(num_bits, bits_per_chunk))
+        }
+    }
+
+    /// Get the number of chunks.
+    #[must_use]
+    pub fn num_chunks(&self) -> usize {
+        match self {
+            Chunks::Byte(byte_chunks) => byte_chunks.num_chunks(),
+            Chunks::Dyn(dyn_chunks) => dyn_chunks.num_chunks(),
         }
     }
 }
