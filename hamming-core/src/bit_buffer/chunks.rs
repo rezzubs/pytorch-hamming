@@ -1,10 +1,10 @@
 use rayon::prelude::*;
 
 use crate::encoding::decode_into;
-use crate::wrapper::limited::bytes_to_store_n_bits;
+use crate::buffers::limited::bytes_to_store_n_bits;
 use crate::{
     prelude::*,
-    wrapper::{Limited, UniformSequence},
+    buffers::{Limited, UniformSequence},
 };
 
 type ByteChunk = Vec<u8>;

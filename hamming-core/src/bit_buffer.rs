@@ -9,8 +9,8 @@ use chunks::DynChunks;
 use random_picker::RandomPicker;
 
 use crate::{
+    buffers::{limited::bytes_to_store_n_bits, Limited},
     encoding::{encode_into, num_encoded_bits},
-    wrapper::{limited::bytes_to_store_n_bits, Limited},
 };
 
 pub trait BitBuffer {
