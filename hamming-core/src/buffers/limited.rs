@@ -18,6 +18,17 @@ pub struct Limited<T> {
     num_bits: usize,
 }
 
+impl Limited<Vec<u8>> {
+    // Create an arbitrary length sequence stored in a vector of bytes.
+    //
+    // All bytes are initialized to zero.
+    #[must_use]
+    pub fn bytes(num_bits: usize) -> Self {
+        let num_bytes = bytes_to_store_n_bits(num_bits);
+        Limited::new(vec![0u8; num_bytes], num_bits)
+    }
+}
+
 impl<T> Limited<T>
 where
     T: BitBuffer,
@@ -183,5 +194,17 @@ mod tests {
         let result = source.copy_into(&mut dest);
         assert_eq!(result, CopyIntoResult::pending(dest.num_bits()));
         assert_eq!(dest.into_inner(), [255u8, 0b01111111u8]);
+    }
+
+    #[test]
+    fn bytes_per_bits() {
+        assert_eq!(bytes_to_store_n_bits(0), 0);
+        assert_eq!(bytes_to_store_n_bits(1), 1);
+        assert_eq!(bytes_to_store_n_bits(8), 1);
+        assert_eq!(bytes_to_store_n_bits(9), 2);
+        assert_eq!(bytes_to_store_n_bits(16), 2);
+        assert_eq!(bytes_to_store_n_bits(17), 3);
+        assert_eq!(bytes_to_store_n_bits(24), 3);
+        assert_eq!(bytes_to_store_n_bits(25), 4);
     }
 }

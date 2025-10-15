@@ -9,7 +9,7 @@ use chunks::DynChunks;
 use random_picker::RandomPicker;
 
 use crate::{
-    buffers::{limited::bytes_to_store_n_bits, Limited},
+    buffers::Limited,
     encoding::{encode_into, num_encoded_bits},
 };
 
@@ -220,8 +220,7 @@ pub trait BitBuffer {
         Self: std::marker::Sized,
     {
         let num_encoded_bits = num_encoded_bits(self.num_bits());
-        let num_bytes = bytes_to_store_n_bits(num_encoded_bits);
-        let mut dest = vec![0u8; num_bytes].into_limited(num_encoded_bits);
+        let mut dest = Limited::bytes(num_encoded_bits);
 
         encode_into(self, &mut dest);
 

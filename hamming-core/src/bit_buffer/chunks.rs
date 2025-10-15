@@ -1,6 +1,5 @@
 use rayon::prelude::*;
 
-use crate::buffers::limited::bytes_to_store_n_bits;
 use crate::encoding::decode_into;
 use crate::{
     buffers::{Limited, UniformSequence},
@@ -86,11 +85,10 @@ impl DynChunks {
         assert!(bits_per_chunk > 0);
 
         let input_size = buffer.num_bits();
-        let bytes_per_chunk = bytes_to_store_n_bits(bits_per_chunk);
         let num_chunks = num_chunks(input_size, bits_per_chunk);
 
         let mut output_buffer = UniformSequence::new_unchecked(
-            vec![vec![0u8; bytes_per_chunk].into_limited(bits_per_chunk); num_chunks],
+            vec![Limited::bytes(bits_per_chunk); num_chunks],
             bits_per_chunk,
             num_chunks,
         );
@@ -130,11 +128,8 @@ same unless they have been tampered with after creation. Got error {err}",
     /// - [`DynChunks::decode_chunks`]
     #[must_use]
     pub fn decode_chunks_dyn(self, num_chunk_data_bits: usize) -> (DynChunks, Vec<bool>) {
-        let num_bytes = bytes_to_store_n_bits(num_chunk_data_bits);
-
         let num_chunks = self.num_chunks();
-        let output_buffer =
-            vec![Limited::new(vec![0u8; num_bytes], num_chunk_data_bits); num_chunks];
+        let output_buffer = vec![Limited::bytes(num_chunk_data_bits); num_chunks];
         let (decoded_output, ded_results) = self
             .0
             .into_inner()
@@ -349,18 +344,6 @@ mod tests {
     use crate::bit_buffer::CopyIntoResult;
 
     use super::*;
-
-    #[test]
-    fn bytes_per_bits() {
-        assert_eq!(bytes_to_store_n_bits(0), 0);
-        assert_eq!(bytes_to_store_n_bits(1), 1);
-        assert_eq!(bytes_to_store_n_bits(8), 1);
-        assert_eq!(bytes_to_store_n_bits(9), 2);
-        assert_eq!(bytes_to_store_n_bits(16), 2);
-        assert_eq!(bytes_to_store_n_bits(17), 3);
-        assert_eq!(bytes_to_store_n_bits(24), 3);
-        assert_eq!(bytes_to_store_n_bits(25), 4);
-    }
 
     #[test]
     fn dyn_chunks_creation_and_restore() {
