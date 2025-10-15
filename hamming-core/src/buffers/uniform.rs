@@ -13,12 +13,8 @@ pub struct UniformSequence<T> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, thiserror::Error)]
-pub enum CreationError {
-    #[error("The given sequence is empty")]
-    Empty,
-    #[error("Index {0} doesn't match the rest of the sequence")]
-    NonMatchingIndex(usize),
-}
+#[error("Index {0} doesn't match the rest of the sequence")]
+pub struct NonMatchingIndex(usize);
 
 impl<T> UniformSequence<T> {
     pub fn new_unchecked(sequence: T, item_num_bits: usize, num_items: usize) -> Self {
@@ -29,28 +25,31 @@ impl<T> UniformSequence<T> {
         }
     }
 
-    pub fn new<U>(sequence: T) -> Result<Self, CreationError>
+    pub fn new<U>(sequence: T) -> Result<Self, NonMatchingIndex>
     where
         for<'a> &'a T: IntoIterator<Item = &'a U>,
         U: BitBuffer,
     {
-        let mut num_bits: Option<usize> = None;
+        let mut item_num_bits: Option<usize> = None;
         let mut num_items = 0;
         for (i, item) in (&sequence).into_iter().enumerate() {
-            match num_bits {
+            match item_num_bits {
                 Some(prev) => {
                     if item.num_bits() != prev {
-                        return Err(CreationError::NonMatchingIndex(i));
+                        return Err(NonMatchingIndex(i));
                     }
                 }
-                None => num_bits = Some(item.num_bits()),
+                None => item_num_bits = Some(item.num_bits()),
             }
             num_items += 1;
         }
 
-        num_bits
-            .ok_or(CreationError::Empty)
-            .map(|item_num_bits| Self::new_unchecked(sequence, item_num_bits, num_items))
+        let item_num_bits = item_num_bits.unwrap_or(0);
+        if item_num_bits == 0 {
+            debug_assert_eq!(num_items, 0, "Num bits is 0 but num items is {num_items}");
+        }
+
+        Ok(Self::new_unchecked(sequence, item_num_bits, num_items))
     }
 
     pub fn item_num_bits(&self) -> usize {
@@ -116,11 +115,11 @@ where
     U: ByteChunkedBitBuffer,
 {
     fn num_bytes(&self) -> usize {
-        let first = self
-            .sequence
-            .into_iter()
-            .next()
-            .expect("The sequence is empty");
+        let Some(first) = self.sequence.into_iter().next() else {
+            debug_assert_eq!(self.num_items, 0);
+            debug_assert_eq!(self.item_num_bits, 0);
+            return 0;
+        };
 
         first.num_bytes() * self.num_items
     }
@@ -148,10 +147,18 @@ mod tests {
     #[test]
     fn creation_error() {
         let result = UniformSequence::new([vec![1, 2], vec![3, 4], vec![5, 6, 7], vec![8, 9, 10]]);
-        assert_eq!(result, Err(CreationError::NonMatchingIndex(2)));
+        assert_eq!(result, Err(NonMatchingIndex(2)));
+    }
 
-        let result = UniformSequence::new(Vec::<u8>::new());
-        assert_eq!(result, Err(CreationError::Empty));
+    #[test]
+    fn empty() {
+        let buffer: Vec<[u8; 6]> = vec![];
+        let uniform = UniformSequence::new(buffer).unwrap();
+
+        assert_eq!(uniform.num_items(), 0);
+        assert_eq!(uniform.item_num_bits(), 0);
+        assert_eq!(uniform.num_bytes(), 0);
+        assert_eq!(uniform.num_bits(), 0);
     }
 
     #[test]
