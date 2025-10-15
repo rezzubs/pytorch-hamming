@@ -105,6 +105,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::bit_buffer::CopyIntoResult;
+
     use super::*;
 
     #[test]
@@ -159,9 +161,9 @@ mod tests {
 
         let mut b: Vec<u16> = vec![0; 4];
 
-        let copied = a_true.copy_into(0, &mut b);
-        assert_eq!(copied, a_true.num_bits());
-        assert_eq!(copied, b_true.num_bits());
+        let result = a_true.copy_into(&mut b);
+        assert_eq!(result, CopyIntoResult::done(a_true.num_bits()));
+        assert_eq!(result.bits_copied, b_true.num_bits());
 
         assert_eq!(b, b_true);
 
@@ -174,9 +176,9 @@ mod tests {
             vec![0],
         ]);
 
-        let copied = b_true.copy_into(0, &mut a);
-        assert_eq!(copied, a_true.num_bits());
-        assert_eq!(copied, b_true.num_bits());
+        let result = b_true.copy_into(&mut a);
+        assert_eq!(result, CopyIntoResult::done(a_true.num_bits()));
+        assert_eq!(result.bits_copied, b_true.num_bits());
 
         assert_eq!(a, a_true);
     }
@@ -215,9 +217,9 @@ mod tests {
             vec![0],
         ]);
 
-        let copied = b_true.copy_into(0, &mut a);
-        assert_eq!(copied, a_true.num_bits());
-        assert_eq!(copied, b_true.num_bits());
+        let copied = a_true.copy_into_chunked(0, &mut a);
+        assert_eq!(copied, a_true.num_bytes());
+        assert_eq!(copied, b_true.num_bytes());
 
         assert_eq!(a, a_true);
     }

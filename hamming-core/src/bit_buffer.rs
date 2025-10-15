@@ -13,6 +13,38 @@ use crate::{
     encoding::{encode_into, num_encoded_bits},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CopyIntoResultKind {
+    /// The destination was filled before the source could be exhausted.
+    Pending,
+    /// The source is exhausted.
+    Done,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CopyIntoResult {
+    pub bits_copied: usize,
+    pub kind: CopyIntoResultKind,
+}
+
+impl CopyIntoResult {
+    #[must_use]
+    pub fn done(bits_copied: usize) -> Self {
+        Self {
+            bits_copied,
+            kind: CopyIntoResultKind::Done,
+        }
+    }
+
+    #[must_use]
+    pub fn pending(bits_copied: usize) -> Self {
+        Self {
+            bits_copied,
+            kind: CopyIntoResultKind::Pending,
+        }
+    }
+}
+
 pub trait BitBuffer {
     /// Number of bits stored by this buffer.
     fn num_bits(&self) -> usize;
@@ -111,30 +143,57 @@ pub trait BitBuffer {
         num_flips
     }
 
-    /// Copy all the bits from `self` to `other`
+    /// [`BitBuffer::copy_into`] with start offsets for `self` and `dest`.
     ///
-    /// Returns the number of bits copied.
+    /// `self_offset` can be useful for copying into many sequential destinations.
     ///
-    /// # Panics
-    ///
-    /// if `start >= self.num_bits()`.
+    /// `dest_offset` can be useful for copying different sources into the same destination.
     #[must_use]
-    fn copy_into<O>(&self, start: usize, other: &mut O) -> usize
+    fn copy_into_offset<D>(
+        &self,
+        self_offset: usize,
+        dest_offset: usize,
+        dest: &mut D,
+    ) -> CopyIntoResult
     where
-        O: BitBuffer,
+        D: BitBuffer,
     {
-        assert!(start < self.num_bits());
+        let remaining_source = self.num_bits().saturating_sub(self_offset);
+        let remaining_dest = dest.num_bits().saturating_sub(dest_offset);
 
-        for (source_i, dest_i) in (start..self.num_bits()).zip(0..other.num_bits()) {
+        if dbg!(remaining_source) == 0 {
+            return CopyIntoResult::done(0);
+        }
+
+        if dbg!(remaining_dest) == 0 {
+            return CopyIntoResult::pending(0);
+        }
+
+        for (source_i, dest_i) in (self_offset..self.num_bits()).zip(dest_offset..dest.num_bits()) {
+            // dbg!(source_i, dest_i);
             if self.is_1(source_i) {
-                other.set_1(dest_i);
+                dest.set_1(dest_i);
             } else {
-                other.set_0(dest_i);
+                dest.set_0(dest_i);
             }
         }
 
-        // Either `self` was copied fully or was limited by the size of `other`.
-        (self.num_bits() - start).min(other.num_bits())
+        if remaining_source <= remaining_dest {
+            CopyIntoResult::done(remaining_source)
+        } else {
+            CopyIntoResult::pending(remaining_dest)
+        }
+    }
+
+    /// Copy all the bits from `self` to `other`
+    ///
+    /// See [`BitBuffer::copy_into_offset`] for copying from/to multiple sequential buffers.
+    #[must_use]
+    fn copy_into<D>(&self, dest: &mut D) -> CopyIntoResult
+    where
+        D: BitBuffer,
+    {
+        self.copy_into_offset(0, 0, dest)
     }
 
     /// Limit the number of perceived bits in the buffer.
@@ -528,7 +587,7 @@ mod tests {
     #[test]
     fn copy_into_different_structure() {
         let a_actual: [u8; 8] = [123, 4, 255, 0, 2, 97, 34, 255];
-        let num_bits = a_actual.len() * 8;
+        let num_bits = a_actual.num_bits();
         let b_actual: [u16; 4] = [
             u16::from_le_bytes([123, 4]),
             u16::from_le_bytes([255, 0]),
@@ -537,27 +596,47 @@ mod tests {
         ];
 
         let mut b: [u16; 4] = [0xabc2, 0x1234, 0x1ab2, 0x4a89];
-        let copied = a_actual.copy_into(0, &mut b);
-        assert_eq!(copied, num_bits);
+        let result = a_actual.copy_into(&mut b);
+        assert_eq!(result, CopyIntoResult::done(num_bits));
         assert_eq!(b, b_actual);
 
         let mut a: [u8; 8] = [0xfa, 0xab, 0x42, 0x01, 0xaa, 0x00, 0xff, 0x4c];
-        let copied = b_actual.copy_into(0, &mut a);
-        assert_eq!(copied, num_bits);
+        let result = b_actual.copy_into(&mut a);
+        assert_eq!(result, CopyIntoResult::done(num_bits));
         assert_eq!(a, a_actual);
     }
 
     #[test]
-    fn copy_into_partial() {
+    fn copy_into_multiple_dest() {
         let source = [255u8, 127u8, 63u8, 31u8];
         let mut dest = 0u8;
 
         let mut start = 0;
-        for expected in source {
-            let copied = source.copy_into(start, &mut dest);
-            assert_eq!(copied, 8);
-            start += copied;
+        for (i, &expected) in source.iter().enumerate() {
+            let CopyIntoResult { bits_copied, kind } = source.copy_into_offset(start, 0, &mut dest);
+            assert_eq!(bits_copied, 8);
+            start += bits_copied;
             assert_eq!(dest, expected);
+            if i == source.len() - 1 {
+                assert_eq!(kind, CopyIntoResultKind::Done);
+            } else {
+                assert_eq!(kind, CopyIntoResultKind::Pending);
+            }
         }
+    }
+
+    #[test]
+    fn copy_into_empty() {
+        let source = 1234u16;
+        let mut dest = Vec::<u8>::new();
+
+        let result = source.copy_into(&mut dest);
+        assert_eq!(result, CopyIntoResult::pending(0));
+
+        let source = Vec::<u8>::new();
+        let mut dest = 1234u16;
+
+        let result = source.copy_into(&mut dest);
+        assert_eq!(result, CopyIntoResult::done(0));
     }
 }

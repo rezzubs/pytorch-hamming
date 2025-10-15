@@ -82,6 +82,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::bit_buffer::CopyIntoResult;
+
     use super::*;
 
     #[test]
@@ -168,19 +170,18 @@ mod tests {
 
     #[test]
     fn bit_copy() {
-        let num_bits = 15;
-        let source = Limited::new([255u8; 2], num_bits);
+        let source = Limited::new([255u8; 2], 15);
         let mut dest = [0u8; 2];
 
-        let copied = source.copy_into(0, &mut dest);
-        assert_eq!(copied, num_bits);
+        let result = source.copy_into(&mut dest);
+        assert_eq!(result, CopyIntoResult::done(source.num_bits()));
         assert_eq!(dest, [255u8, 0b01111111u8]);
 
         let source = [255u8; 2];
-        let mut dest = Limited::new([0u8; 2], num_bits);
+        let mut dest = Limited::new([0u8; 2], 15);
 
-        let copied = source.copy_into(0, &mut dest);
-        assert_eq!(copied, num_bits);
+        let result = source.copy_into(&mut dest);
+        assert_eq!(result, CopyIntoResult::pending(dest.num_bits()));
         assert_eq!(dest.into_inner(), [255u8, 0b01111111u8]);
     }
 }

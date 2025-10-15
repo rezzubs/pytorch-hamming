@@ -95,8 +95,8 @@ impl DynChunks {
             num_chunks,
         );
 
-        let num_copied = buffer.copy_into(0, &mut output_buffer);
-        assert_eq!(num_copied, input_size);
+        let result = buffer.copy_into(&mut output_buffer);
+        assert_eq!(result.bits_copied, input_size);
 
         Self(output_buffer)
     }
@@ -346,6 +346,8 @@ impl ByteChunkedBitBuffer for ByteChunks {
 
 #[cfg(test)]
 mod tests {
+    use crate::bit_buffer::CopyIntoResult;
+
     use super::*;
 
     #[test]
@@ -381,8 +383,16 @@ mod tests {
         assert_eq!(bytes.next(), None);
 
         let mut restored = [0u16; 3];
-        let copied = chunks.copy_into(0, &mut restored);
-        assert_eq!(copied, restored.num_bits());
+        let result = chunks.copy_into(&mut restored);
+        // The result will be pending because the chunks had extra padding at the end.
+        assert_eq!(result, CopyIntoResult::pending(restored.num_bits()));
+        assert_eq!(restored, source);
+
+        assert_eq!(
+            chunks.bits().skip(result.bits_copied).count(),
+            chunks.num_bits() - source.num_bits()
+        );
+        assert!(chunks.bits().skip(result.bits_copied).all(|is_1| !is_1));
 
         let chunks = source.to_dyn_chunks(9);
         // The original is 6 bytes -> 48 bits long;
@@ -402,8 +412,8 @@ mod tests {
         assert_eq!(bytes.next(), None);
 
         let mut restored = [0u16; 3];
-        let copied = chunks.copy_into(0, &mut restored);
-        assert_eq!(copied, restored.num_bits());
+        let result = chunks.copy_into(&mut restored);
+        assert_eq!(result.bits_copied, restored.num_bits());
     }
 
     #[test]
@@ -424,8 +434,8 @@ mod tests {
         assert_eq!(bytes.next(), None);
 
         let mut restored = [0u16; 3];
-        let copied = chunks.copy_into(0, &mut restored);
-        assert_eq!(copied, restored.num_bits());
+        let result = chunks.copy_into(&mut restored);
+        assert_eq!(result, CopyIntoResult::done(restored.num_bits()));
 
         let chunks = source.to_byte_chunks(2);
         // The original is 6 bytes -> 48 bits long;
@@ -442,8 +452,8 @@ mod tests {
         assert_eq!(bytes.next(), None);
 
         let mut restored = [0u16; 3];
-        let copied = chunks.copy_into(0, &mut restored);
-        assert_eq!(copied, restored.num_bits());
+        let result = chunks.copy_into(&mut restored);
+        assert_eq!(result, CopyIntoResult::done(restored.num_bits()));
     }
 
     #[test]
@@ -523,8 +533,7 @@ mod tests {
     #[test]
     fn dyn_chunked_encoding() {
         fn test_dyn(chunk_size: usize) {
-            // let source = [123.123f32, std::f32::consts::PI, 0.001, 10000.123];
-            let source = 1f32;
+            let source = [123.123f32, std::f32::consts::PI, 0.001, 10000.123];
 
             let chunks = source.to_chunks(chunk_size);
 
@@ -553,9 +562,13 @@ mod tests {
                     panic!("Expected dyn chunks, got {:?}", byte_chunks)
                 };
 
-                let mut target = 0f32;
-                let copied = raw_decoded.copy_into(0, &mut target);
-                assert_eq!(copied, source.num_bits());
+                let mut target = [0f32; 4];
+                let result = raw_decoded.copy_into(&mut target);
+                if source.num_bits() == chunks.num_bits() {
+                    assert_eq!(result, CopyIntoResult::done(source.num_bits()));
+                } else {
+                    assert_eq!(result, CopyIntoResult::pending(source.num_bits()));
+                }
 
                 assert_eq!(target, source);
             }
@@ -582,9 +595,13 @@ mod tests {
                     assert!(ded_results.into_iter().all(|x| x));
                 }
 
-                let mut target = 0f32;
-                let copied = raw_decoded.copy_into(0, &mut target);
-                assert_eq!(copied, source.num_bits());
+                let mut target = [0f32; 4];
+                let result = raw_decoded.copy_into(&mut target);
+                if source.num_bits() == chunks.num_bits() {
+                    assert_eq!(result, CopyIntoResult::done(source.num_bits()));
+                } else {
+                    assert_eq!(result, CopyIntoResult::pending(source.num_bits()));
+                }
 
                 assert_eq!(target, source, "failed on fault_index={fault_index}");
             }
@@ -596,5 +613,14 @@ mod tests {
             }
             test_dyn(i);
         }
+    }
+
+    #[test]
+    fn empty() {
+        let buf: Vec<u8> = vec![];
+
+        let chunks = buf.clone().to_chunks(7);
+
+        assert_eq!(chunks.num_bits(), buf.num_bits());
     }
 }
