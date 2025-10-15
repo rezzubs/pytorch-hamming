@@ -1,10 +1,10 @@
 use rayon::prelude::*;
 
-use crate::encoding::decode_into;
 use crate::buffers::limited::bytes_to_store_n_bits;
+use crate::encoding::decode_into;
 use crate::{
-    prelude::*,
     buffers::{Limited, UniformSequence},
+    prelude::*,
 };
 
 type ByteChunk = Vec<u8>;
@@ -35,8 +35,11 @@ impl ByteChunks {
         let input_size = buffer.num_bytes();
         let num_chunks = num_chunks(input_size, bytes_per_chunk);
 
-        let mut output_buffer =
-            UniformSequence::new(vec![vec![0u8; bytes_per_chunk]; num_chunks]).unwrap();
+        let mut output_buffer = UniformSequence::new_unchecked(
+            vec![vec![0u8; bytes_per_chunk]; num_chunks],
+            bytes_per_chunk * 8,
+            num_chunks,
+        );
         let num_copied = buffer.copy_into_chunked(0, &mut output_buffer);
         assert_eq!(num_copied, input_size);
 
@@ -53,7 +56,12 @@ impl ByteChunks {
             .map(|chunk| chunk.encode())
             .collect::<Vec<_>>();
 
-        DynChunks(UniformSequence::new(output_buffer).unwrap())
+        DynChunks(UniformSequence::new(output_buffer).unwrap_or_else(|err| {
+            unreachable!(
+                "UniformSequence creation shouldn't fail as the chunk sizes are known to be the \
+same unless they have been tampered with after creation. Got error {err}",
+            );
+        }))
     }
 
     /// Get the number of chunks.
@@ -81,12 +89,11 @@ impl DynChunks {
         let bytes_per_chunk = bytes_to_store_n_bits(bits_per_chunk);
         let num_chunks = num_chunks(input_size, bits_per_chunk);
 
-        let mut output_buffer = UniformSequence::new(vec![
-            vec![0u8; bytes_per_chunk]
-                .into_limited(bits_per_chunk);
-            num_chunks
-        ])
-        .unwrap();
+        let mut output_buffer = UniformSequence::new_unchecked(
+            vec![vec![0u8; bytes_per_chunk].into_limited(bits_per_chunk); num_chunks],
+            bits_per_chunk,
+            num_chunks,
+        );
 
         let num_copied = buffer.copy_into(0, &mut output_buffer);
         assert_eq!(num_copied, input_size);
@@ -104,7 +111,12 @@ impl DynChunks {
             .map(|chunk| chunk.encode())
             .collect::<Vec<_>>();
 
-        DynChunks(UniformSequence::new(output_buffer).unwrap())
+        DynChunks(UniformSequence::new(output_buffer).unwrap_or_else(|err| {
+            unreachable!(
+                "UniformSequence creation shouldn't fail as the chunk sizes are known to be the \
+same unless they have been tampered with after creation. Got error {err}",
+            );
+        }))
     }
 
     /// Decode the chunks in parallel.
@@ -120,8 +132,9 @@ impl DynChunks {
     pub fn decode_chunks_dyn(self, num_chunk_data_bits: usize) -> (DynChunks, Vec<bool>) {
         let num_bytes = bytes_to_store_n_bits(num_chunk_data_bits);
 
+        let num_chunks = self.num_chunks();
         let output_buffer =
-            vec![Limited::new(vec![0u8; num_bytes], num_chunk_data_bits); self.num_chunks()];
+            vec![Limited::new(vec![0u8; num_bytes], num_chunk_data_bits); num_chunks];
         let (decoded_output, ded_results) = self
             .0
             .into_inner()
@@ -134,7 +147,11 @@ impl DynChunks {
             .collect::<(Vec<_>, Vec<_>)>();
 
         (
-            DynChunks(UniformSequence::new(decoded_output).unwrap()),
+            DynChunks(UniformSequence::new_unchecked(
+                decoded_output,
+                num_chunk_data_bits,
+                num_chunks,
+            )),
             ded_results,
         )
     }
@@ -148,8 +165,9 @@ impl DynChunks {
     /// See also:
     /// - [`DynChunks::decode_chunks_dyn`]
     /// - [`DynChunks::decode_chunks`]
-    fn decode_chunks_byte(self, num_chunk_data_bits: usize) -> (ByteChunks, Vec<bool>) {
-        let output_buffer = vec![vec![0u8; num_chunk_data_bits]; self.num_chunks()];
+    fn decode_chunks_byte(self, num_chunk_data_bytes: usize) -> (ByteChunks, Vec<bool>) {
+        let num_chunks = self.num_chunks();
+        let output_buffer = vec![vec![0u8; num_chunk_data_bytes]; num_chunks];
         let (decoded_output, results) = self
             .0
             .into_inner()
@@ -162,7 +180,11 @@ impl DynChunks {
             .collect::<(Vec<_>, Vec<_>)>();
 
         (
-            ByteChunks(UniformSequence::new(decoded_output).unwrap()),
+            ByteChunks(UniformSequence::new_unchecked(
+                decoded_output,
+                num_chunk_data_bytes * 8,
+                num_chunks,
+            )),
             results,
         )
     }

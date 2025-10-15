@@ -85,7 +85,9 @@ pub trait BitBuffer {
         let mut possible_faults = RandomPicker::new(num_bits, rand::rng());
 
         for _ in 0..n {
-            let fault_target = possible_faults.next().unwrap();
+            let fault_target = possible_faults.next().expect(
+                "we confirmed that n <= num_bits so RandomPicker will always have >= n elements",
+            );
             self.flip_bit(fault_target);
         }
     }
