@@ -79,6 +79,17 @@ same unless they have been tampered with after creation. Got error {err}",
     pub fn num_chunks(&self) -> usize {
         self.0.num_items()
     }
+
+    /// Get the number of bytes per chunk.
+    #[must_use]
+    pub fn bytes_per_chunk(&self) -> usize {
+        self.0
+            .inner()
+            .iter()
+            .next()
+            .map(|chunk| chunk.len())
+            .unwrap_or(0)
+    }
 }
 
 /// A [`BitBuffer`] that's chunked into chunks of any size.
@@ -88,7 +99,7 @@ same unless they have been tampered with after creation. Got error {err}",
 pub struct DynChunks(UniformSequence<Vec<DynChunk>>);
 
 impl DynChunks {
-    fn zero(num_bits: usize, bits_per_chunk: usize) -> Self {
+    pub fn zero(num_bits: usize, bits_per_chunk: usize) -> Self {
         assert!(bits_per_chunk > 0);
 
         let num_chunks = num_chunks(num_bits, bits_per_chunk);
@@ -226,6 +237,17 @@ same unless they have been tampered with after creation. Got error {err}",
     pub fn num_chunks(&self) -> usize {
         self.0.num_items()
     }
+
+    /// Get the number of bits per chunk.
+    #[must_use]
+    pub fn bits_per_chunk(&self) -> usize {
+        self.0
+            .inner()
+            .iter()
+            .next()
+            .map(|chunk| chunk.num_bits())
+            .unwrap_or(0)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -272,6 +294,14 @@ impl Chunks {
         match self {
             Chunks::Byte(byte_chunks) => byte_chunks.num_chunks(),
             Chunks::Dyn(dyn_chunks) => dyn_chunks.num_chunks(),
+        }
+    }
+
+    #[must_use]
+    pub fn bits_per_chunk(&self) -> usize {
+        match self {
+            Chunks::Byte(byte_chunks) => byte_chunks.bytes_per_chunk() * 8,
+            Chunks::Dyn(dyn_chunks) => dyn_chunks.bits_per_chunk(),
         }
     }
 }
@@ -648,6 +678,14 @@ mod tests {
                 zero_buffer.to_chunks(i),
                 Chunks::zero(zero_buffer.num_bits(), i)
             );
+        }
+    }
+
+    #[test]
+    fn bits_per_chunk() {
+        for i in 1..=64 {
+            let chunks = [0u8; 14].to_chunks(i);
+            assert_eq!(chunks.bits_per_chunk(), i);
         }
     }
 }

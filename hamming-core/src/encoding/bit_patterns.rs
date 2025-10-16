@@ -3,7 +3,10 @@
 use std::collections::HashSet;
 
 use crate::{
-    bit_buffer::chunks::{self, Chunks, DynChunks},
+    bit_buffer::{
+        chunks::{self, Chunks, DynChunks},
+        CopyIntoResult, CopyIntoResultKind,
+    },
     buffers::Limited,
     prelude::*,
 };
@@ -146,6 +149,7 @@ impl BitPattern {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BitPatternEncoding {
     unprotected: Limited<Vec<u8>>,
     protected: DynChunks,
@@ -170,6 +174,26 @@ pub enum DecodeError {
         /// The expected number of unprotected bits per buffer.
         expected: usize,
     },
+}
+
+struct BitPatternEncodingBytes {
+    /// The raw data.
+    ///
+    /// Protected bits come after the protected ones
+    pub bytes: Limited<Vec<u8>>,
+    /// Number of unprotected bits
+    pub num_unprotected: usize,
+    /// Number of bits in a protected chunk
+    pub encoded_chunk_size: usize,
+    /// Number of chunks that store the protected bits.
+    pub num_encoded_chunks: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("Got a {actual_num_bits} bit buffer, but the other parameters describe a {described_num_bits} buffer")]
+struct InvalidBytesDescription {
+    pub actual_num_bits: usize,
+    pub described_num_bits: usize,
 }
 
 impl BitPatternEncoding {
@@ -234,6 +258,63 @@ impl BitPatternEncoding {
         }
 
         Ok(ded_results)
+    }
+
+    fn to_bytes(&self) -> BitPatternEncodingBytes {
+        let mut bytes = Limited::bytes(self.unprotected.num_bits() + self.protected.num_bits());
+
+        let result = self.unprotected.copy_into(&mut bytes);
+        debug_assert_eq!(result, CopyIntoResult::done(self.unprotected.num_bits()));
+
+        let result2 = self
+            .protected
+            .copy_into_offset(0, result.bits_copied, &mut bytes);
+        debug_assert_eq!(result2, CopyIntoResult::done(self.protected.num_bits()));
+        debug_assert_eq!(result.bits_copied + result2.bits_copied, bytes.num_bits());
+
+        BitPatternEncodingBytes {
+            bytes,
+            num_unprotected: self.unprotected.num_bits(),
+            encoded_chunk_size: self.protected.bits_per_chunk(),
+            num_encoded_chunks: self.protected.num_chunks(),
+        }
+    }
+
+    fn from_bytes(bytes: &BitPatternEncodingBytes) -> Result<Self, InvalidBytesDescription> {
+        let mut unprotected = Limited::bytes(bytes.num_unprotected);
+
+        let mut protected = DynChunks::zero(
+            bytes.num_encoded_chunks * bytes.encoded_chunk_size,
+            bytes.encoded_chunk_size,
+        );
+
+        if bytes.bytes.num_bits() != protected.num_bits() + unprotected.num_bits() {
+            return Err(InvalidBytesDescription {
+                actual_num_bits: bytes.bytes.num_bits(),
+                described_num_bits: protected.num_bits() + unprotected.num_bits(),
+            });
+        }
+
+        let result = bytes.bytes.copy_into(&mut unprotected);
+        assert_eq!(
+            result,
+            CopyIntoResult::pending(unprotected.num_bits()),
+            concat!(
+                "the buffer is confirmed to have enough space ",
+                "and the result must be pending if `protected` a nonzero number of bits"
+            )
+        );
+
+        let result2 = bytes
+            .bytes
+            .copy_into_offset(result.bits_copied, 0, &mut protected);
+
+        assert_eq!(result2, CopyIntoResult::done(protected.num_bits()));
+
+        Ok(Self {
+            unprotected,
+            protected,
+        })
     }
 }
 
@@ -362,5 +443,28 @@ mod tests {
         for i in 1..20 {
             test(i);
         }
+    }
+
+    #[test]
+    fn intermediate_repr_encode_decode() {
+        let data: [u32; 4] = [1234, 0, 1, 454378230];
+
+        // Protect every fourth bit
+        let pattern = BitPattern::new([3], 4).unwrap();
+
+        let chunk_size = 8;
+        let encoded = pattern.encode(&data, chunk_size).unwrap();
+
+        let ir = encoded.to_bytes();
+
+        let encoded2 = BitPatternEncoding::from_bytes(&ir).unwrap();
+        assert_eq!(encoded2, encoded);
+
+        let mut decoded = [0u32; 4];
+        encoded2
+            .decode_into(&mut decoded, chunk_size, pattern)
+            .unwrap();
+
+        assert_eq!(decoded, data);
     }
 }
