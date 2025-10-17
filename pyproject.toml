@@ -10,6 +10,7 @@ dependencies = [
     "hamming-core",
     "matplotlib>=3.10.5",
     "numpy>=2.3.1",
+    "pydantic>=2.12.3",
     "torch>=2.7.1",
 ]
 
