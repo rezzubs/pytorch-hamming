@@ -22,7 +22,7 @@ class MetaDataError(Exception):
 MetaData = dict[str, str]
 
 
-class System(abc.ABC):
+class BaseSystem(abc.ABC):
     @abc.abstractmethod
     def system_root_module(self) -> nn.Module:
         """Get the root module of the model.
@@ -57,7 +57,7 @@ class Data(BaseModel):
         accuracy: float
         faulty_parameters: list[int]
 
-    def record_entry(self, system: System):
+    def record_entry(self, system: BaseSystem):
         if system.system_metadata() != self.metadata:
             raise MetaDataError(
                 "Data has different metadata than the given system:\n"
