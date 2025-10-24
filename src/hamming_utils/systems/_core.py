@@ -1,3 +1,4 @@
+import logging
 import typing
 from dataclasses import dataclass
 
@@ -14,26 +15,29 @@ from ._dataset import CachedDataset
 from ._dtype import Dtype
 from ._model import CachedModel
 
+logger = logging.getLogger(__name__)
+
+
+def append_parameter(module: nn.Module, tensors: list[torch.Tensor], name: str):
+    param = getattr(module, name, None)
+
+    if param is None:
+        return
+
+    if not isinstance(param, torch.Tensor):
+        logger.warning(f"Skipping parameter `{name}` because ({type(param)}!=Tensor)")  # pyright: ignore[reportAny]
+        return
+
+    tensors.append(param)
+
 
 def map_layer(module: nn.Module) -> list[torch.Tensor]:
     tensors: list[torch.Tensor] = []
 
-    assert isinstance(module.weight, torch.Tensor)
-    tensors.append(module.weight)
-
-    assert isinstance(module.bias, torch.Tensor)
-    tensors.append(module.bias)
-
-    if not isinstance(module, nn.BatchNorm2d):
-        return tensors
-
-    if module.running_mean is not None:
-        assert isinstance(module.bias, torch.Tensor)
-        tensors.append(module.running_mean)
-
-    if module.running_var is not None:
-        assert isinstance(module.bias, torch.Tensor)
-        tensors.append(module.running_var)
+    append_parameter(module, tensors, "weight")
+    append_parameter(module, tensors, "bias")
+    append_parameter(module, tensors, "running_mean")
+    append_parameter(module, tensors, "running_var")
 
     return tensors
 
