@@ -33,7 +33,7 @@ def tensor_list_num_bits(ts: list[torch.Tensor]) -> int:
     total = 0
 
     for t in ts:
-        total += dtype_num_bits(t.dtype)
+        total += dtype_num_bits(t.dtype) * t.numel()
 
     return total
 
