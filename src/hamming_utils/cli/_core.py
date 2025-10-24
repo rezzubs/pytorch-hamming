@@ -1,5 +1,8 @@
 import argparse
 from dataclasses import dataclass
+from typing import Literal
+
+from hamming_utils.encoding import BitPattern
 
 
 @dataclass
@@ -7,6 +10,16 @@ class Cli:
     model: str
     dataset: str
     faults: float | str
+
+
+def parse_bit_pattern(text: str) -> Literal["all"] | BitPattern:
+    if text == "all":
+        return text
+
+    try:
+        return BitPattern.parse(text)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"Expected a bit pattern or `all`:\n-> {e}")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -80,10 +93,10 @@ def create_parser() -> argparse.ArgumentParser:
 
     pattern_group = protect_group.add_mutually_exclusive_group()
 
-    # TODO: custom parser
     pattern_group.add_argument(
         "--bits",
         "--bit-pattern",
+        type=parse_bit_pattern,
         help='Comma separated list of bit indices to protect or "all". '
         "The bit indices cannot exceed the number of bits in the data type.",
         required=False,
