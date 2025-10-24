@@ -10,7 +10,7 @@ import torch
 from pydantic import BaseModel
 from torch import nn
 
-from hamming_utils.tensor_ops import (
+from .tensor_ops import (
     tensor_list_compare_bitwise,
     tensor_list_fault_injection,
 )

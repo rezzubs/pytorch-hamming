@@ -1,4 +1,3 @@
-import enum
 from dataclasses import dataclass
 
 import torch
@@ -8,22 +7,10 @@ from hamming_utils import (
     BaseSystem,
     MetaData,
 )
-from hamming_utils.systems import (
-    CachedDataset,
-    CachedModel,
-)
 
-
-class Dtype(enum.Enum):
-    Float32 = enum.auto()
-    Float16 = enum.auto()
-
-    def to_torch(self) -> torch.dtype:
-        match self:
-            case Dtype.Float32:
-                return torch.float32
-            case Dtype.Float16:
-                return torch.float16
+from ._dataset import CachedDataset
+from ._model import CachedModel
+from ._dtype import Dtype
 
 
 def map_layer(module: nn.Module) -> list[torch.Tensor]:
