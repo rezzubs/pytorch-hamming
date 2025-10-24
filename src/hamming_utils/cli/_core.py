@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import logging
+import os
 from dataclasses import dataclass
 from typing import (
     Literal,
@@ -8,16 +10,19 @@ from typing import (
     cast,
 )
 
-from hamming_utils.utils import unreachable
 import torch
 
-
+from hamming_utils import Data
 from hamming_utils.encoding import BitPattern
 from hamming_utils.systems import (
     CachedDataset,
     CachedModel,
     Dtype,
+    System,
 )
+from hamming_utils.utils import unreachable
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -259,3 +264,52 @@ def parse_cli() -> Cli:
     device = get_arg_typed(args, "device", torch.device)
 
     return Cli(model, dataset, errors, dtype, protection, device)
+
+
+def get_log_level():
+    try:
+        level = os.environ["LOG_LEVEL"]
+    except KeyError:
+        return logging.INFO
+
+    levels = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+    }
+
+    try:
+        return levels[level.lower()]
+    except KeyError:
+        print(
+            f"invalid log level `{level}`, expected one of: {', '.join(levels.keys())}"
+        )
+        exit(1)
+
+
+def main():
+    logging.basicConfig(level=get_log_level())
+
+    cli = parse_cli()
+
+    system = System(cli.dataset, cli.model, cli.dtype, cli.device)
+
+    total_num_bits = system.system_total_num_bits()
+
+    match cli.errors:
+        case int():
+            num_faults = total_num_bits
+        case float(val):
+            num_faults = int(round(total_num_bits * val))
+
+    data = Data.load_or_create(
+        "temp.json",
+        num_faults=num_faults,
+        num_bits=total_num_bits,
+        metadata=system.system_metadata(),
+    )
+
+    logger.debug(f"Proceeding with data: {data}")
+
+    data.record_entry(system)
