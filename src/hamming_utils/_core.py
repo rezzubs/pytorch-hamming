@@ -88,12 +88,16 @@ class Data(BaseModel):
         else:
             logger.debug("Skipping fault injection")
 
+        logger.debug("Recording accuracy")
+        accuracy = system.system_accuracy(root)
+
+        logger.debug("Comparing outputs")
+        faulty_parameters = tensor_list_compare_bitwise(original_tensors, data_tensors)
+
         self.entries.append(
             Data.Entry(
-                accuracy=system.system_accuracy(root),
-                faulty_parameters=tensor_list_compare_bitwise(
-                    original_tensors, data_tensors
-                ),
+                accuracy=accuracy,
+                faulty_parameters=faulty_parameters,
             )
         )
 
