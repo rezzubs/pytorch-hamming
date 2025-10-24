@@ -10,5 +10,6 @@ __all__ = [
     "CachedDataset",
     "CachedModel",
     "Dtype",
+    "Dataset",
     "System",
 ]
