@@ -42,6 +42,33 @@ def parse_bit_pattern(text: str) -> Literal["all"] | BitPattern:
         raise argparse.ArgumentTypeError(f"Expected a bit pattern or `all`:\n-> {e}")
 
 
+def parse_num_faults(text: str) -> int:
+    try:
+        num_faults = int(text)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(
+            f"must be a non-negative integer\n-> {e}"
+        ) from e
+
+    if num_faults < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
+    return num_faults
+
+
+def parse_bit_error_rate(text: str) -> float:
+    try:
+        bit_error_rate = float(text)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(
+            f"must be a float betewen 0 and 1 (inclusive)\n-> {e}"
+        ) from e
+
+    if not (0 <= bit_error_rate <= 1):
+        raise argparse.ArgumentTypeError("mus be between 0 and 1 inclusive")
+
+    return bit_error_rate
+
+
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
 
@@ -93,14 +120,13 @@ def create_parser() -> argparse.ArgumentParser:
     # TODO: custom parser
     _ = fi_group_mut.add_argument(
         "--bit-error-rate",
-        type=float,
+        type=parse_bit_error_rate,
         help="Bit error rate to use for fault injection.",
         required=False,
     )
     _ = fi_group_mut.add_argument(
         "--num-faults",
-        type=int,
-        default=0,
+        type=parse_num_faults,
         help="Number of faults to inject. All bit flips are going to be unique.",
         required=False,
     )
