@@ -1,15 +1,35 @@
+from __future__ import annotations
+
 import argparse
 from dataclasses import dataclass
-from typing import Literal
+from typing import (
+    Literal,
+    TypeVar,
+    cast,
+)
+
+from hamming_utils.utils import unreachable
+import torch
+
 
 from hamming_utils.encoding import BitPattern
+from hamming_utils.systems import (
+    CachedDataset,
+    CachedModel,
+    Dtype,
+)
 
 
 @dataclass
 class Cli:
-    model: str
-    dataset: str
-    faults: float | str
+    """The result of argument parsing."""
+
+    model: CachedModel
+    dataset: CachedDataset
+    errors: int | float
+    dtype: Dtype
+    protection: bool | BitPattern
+    device: torch.device
 
 
 def parse_bit_pattern(text: str) -> Literal["all"] | BitPattern:
@@ -109,7 +129,6 @@ def create_parser() -> argparse.ArgumentParser:
         required=False,
     )
 
-    # TODO: custom parser
     _ = protect_group.add_argument(
         "--memory-line",
         type=int,
@@ -134,8 +153,8 @@ def create_parser() -> argparse.ArgumentParser:
 
     _ = other_group.add_argument(
         "--device",
-        type=str,
-        default="cpu",
+        type=torch.device,
+        default=torch.device("cpu"),
         help="A pytorch device string, for example `cuda:0`. Default is `cpu`",
         required=False,
     )
@@ -143,5 +162,74 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_args() -> argparse.Namespace:
-    return create_parser().parse_args()
+T = TypeVar("T")
+
+
+def get_arg_typed(args: argparse.Namespace, name: str, expected: type[T]) -> T:
+    arg = getattr(args, name)  # pyright: ignore[reportAny]
+    assert isinstance(arg, expected)
+    return arg
+
+
+def get_arg_typed_opt(
+    args: argparse.Namespace, name: str, expected: type[T]
+) -> T | None:
+    arg = getattr(args, name)  # pyright: ignore[reportAny]
+    assert isinstance(arg, expected | None)
+    return arg
+
+
+def parse_cli() -> Cli:
+    args = create_parser().parse_args()
+
+    match get_arg_typed(args, "model", str):
+        case "resnet20":
+            model = CachedModel.ResNet20
+        case "vgg11":
+            model = CachedModel.VGG11
+        case other:
+            unreachable(other)
+
+    match get_arg_typed(args, "dataset", str):
+        case "cifar10":
+            dataset = CachedDataset.CIFAR10
+        case "cifar100":
+            dataset = CachedDataset.CIFAR100
+        case other:
+            unreachable(other)
+
+    match (
+        get_arg_typed_opt(args, "num_faults", int),
+        get_arg_typed_opt(args, "bit_error_rate", float),
+    ):
+        case (None, None):
+            errors = 0
+        case (num_faults, None):
+            errors = num_faults
+        case (None, bit_error_rate):
+            errors = bit_error_rate
+        case other:
+            unreachable(other)
+
+    match get_arg_typed(args, "dtype", str):
+        case "float32" | "f32":
+            dtype = Dtype.Float32
+        case "float16" | "f16":
+            dtype = Dtype.Float16
+        case other:
+            unreachable(other)
+
+    bits = cast(BitPattern | Literal["all"] | None, args.bits)
+    assert isinstance(bits, BitPattern) or isinstance(bits, str) or bits is None
+
+    match (bits, get_arg_typed(args, "protected", bool)):
+        case ("all", _) | (_, True):
+            protection = True
+        case (None, False):
+            protection = False
+        case (BitPattern(), False):
+            protection = bits
+
+    device = get_arg_typed(args, "device", torch.device)
+
+    return Cli(model, dataset, errors, dtype, protection, device)

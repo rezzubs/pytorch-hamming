@@ -47,7 +47,7 @@ class System(BaseSystem):
 
     @override
     def system_root_module(self) -> nn.Module:
-        return self.model.root_module()
+        return self.model.root_module(self.dataset)
 
     @override
     def system_accuracy(
@@ -89,6 +89,6 @@ class System(BaseSystem):
     def system_metadata(self) -> MetaData:
         return {
             "dtype": self.dtype.name,
-            "model": self.model.kind.name,
+            "model": self.model.name,
             "dataset": self.dataset.name,
         }

@@ -13,6 +13,7 @@ from torch import nn
 from .tensor_ops import (
     tensor_list_compare_bitwise,
     tensor_list_fault_injection,
+    tensor_list_num_bits,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,9 @@ class BaseSystem(abc.ABC):
         This will be used to uniquely identify the system.
         """
         return MetaData()
+
+    def system_total_num_bits(self) -> int:
+        return tensor_list_num_bits(self.system_data_tensors(self.system_root_module()))
 
 
 class Data(BaseModel):
