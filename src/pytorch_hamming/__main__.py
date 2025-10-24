@@ -1,4 +1,4 @@
-from hamming_utils.cli import main
+from pytorch_hamming.cli import main
 
 
 if __name__ == "__main__":

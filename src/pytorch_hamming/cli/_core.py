@@ -12,15 +12,15 @@ from typing import (
 
 import torch
 
-from hamming_utils import Data
-from hamming_utils.encoding import BitPattern
-from hamming_utils.systems import (
+from pytorch_hamming import Data
+from pytorch_hamming.encoding import BitPattern
+from pytorch_hamming.systems import (
     CachedDataset,
     CachedModel,
     Dtype,
     System,
 )
-from hamming_utils.utils import unreachable
+from pytorch_hamming.utils import unreachable
 
 logger = logging.getLogger(__name__)
 

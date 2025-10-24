@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from typing_extensions import override
 
-from hamming_utils import (
+from pytorch_hamming import (
     BaseSystem,
     MetaData,
 )

@@ -1,5 +1,5 @@
 import torch
-from hamming_utils.utils import dtype_num_bits
+from pytorch_hamming.utils import dtype_num_bits
 
 
 class DtypeMismatchError(Exception):
