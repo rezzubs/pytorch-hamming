@@ -67,9 +67,10 @@ class Data(BaseModel):
 
         if system.system_metadata() != self.metadata:
             raise MetaDataError(
-                "Data has different metadata than the given system:\n"
-                f"data: {self.metadata}\n"
-                f"system: {system.system_metadata()}"
+                f"""Data has different metadata than the given system:
+                data: {self.metadata}
+                system: {system.system_metadata()}
+                """
             )
 
         root = copy.deepcopy(system.system_root_module())
@@ -103,7 +104,7 @@ class Data(BaseModel):
             logger.info(f'Saving data to a new file at "{path}"')
 
         with open(path, "w") as f:
-            f.write(self.model_dump_json())
+            _ = f.write(self.model_dump_json())
 
     @classmethod
     def load_or_create(

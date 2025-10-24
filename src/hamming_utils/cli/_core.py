@@ -27,7 +27,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     model_group = parser.add_argument_group("Model setup")
 
-    model_group.add_argument(
+    _ = model_group.add_argument(
         "-m",
         "--model",
         type=str,
@@ -36,7 +36,7 @@ def create_parser() -> argparse.ArgumentParser:
         required=True,
     )
 
-    model_group.add_argument(
+    _ = model_group.add_argument(
         "-d",
         "--dataset",
         type=str,
@@ -45,7 +45,7 @@ def create_parser() -> argparse.ArgumentParser:
         required=True,
     )
 
-    model_group.add_argument(
+    _ = model_group.add_argument(
         "--dtype",
         "--data-type",
         type=str,
@@ -55,7 +55,7 @@ def create_parser() -> argparse.ArgumentParser:
         required=False,
     )
 
-    model_group.add_argument(
+    _ = model_group.add_argument(
         "--batch-size",
         type=int,
         default=1000,
@@ -71,13 +71,13 @@ def create_parser() -> argparse.ArgumentParser:
     fi_group_mut = fi_group.add_mutually_exclusive_group()
 
     # TODO: custom parser
-    fi_group_mut.add_argument(
+    _ = fi_group_mut.add_argument(
         "--bit-error-rate",
         type=float,
         help="Bit error rate to use for fault injection.",
         required=False,
     )
-    fi_group_mut.add_argument(
+    _ = fi_group_mut.add_argument(
         "--num-faults",
         type=int,
         default=0,
@@ -87,22 +87,22 @@ def create_parser() -> argparse.ArgumentParser:
 
     protect_group = parser.add_argument_group(
         "Encoding settings",
-        "These settings are used to protect the model during fault injection. "
-        "Use --bits/--protected to enable encoding.",
+        "These settings are used to protect the model during fault injection. \
+        Use --bits/--protected to enable encoding.",
     )
 
     pattern_group = protect_group.add_mutually_exclusive_group()
 
-    pattern_group.add_argument(
+    _ = pattern_group.add_argument(
         "--bits",
         "--bit-pattern",
         type=parse_bit_pattern,
-        help='Comma separated list of bit indices to protect or "all". '
-        "The bit indices cannot exceed the number of bits in the data type.",
+        help='Comma separated list of bit indices to protect or "all". \
+        The bit indices cannot exceed the number of bits in the data type.',
         required=False,
     )
 
-    pattern_group.add_argument(
+    _ = pattern_group.add_argument(
         "--protected",
         action="store_true",
         help="Alias for --bits=all",
@@ -110,29 +110,29 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # TODO: custom parser
-    protect_group.add_argument(
+    _ = protect_group.add_argument(
         "--memory-line",
         type=int,
         default=64,
-        help="How many bits are in a memory line. Must be a multiple of dtype size. "
-        "Default is 64 bits.",
+        help="How many bits are in a memory line. Must be a multiple of dtype size. \
+        Default is 64 bits.",
         required=False,
     )
 
     # TODO: custom parser
-    protect_group.add_argument(
+    _ = protect_group.add_argument(
         "--block-size",
         type=int,
         default=1,
-        help="How many memory lines to encode as one chunk."
-        " Doubling the block size has the same effect as doubling the memory line size. "
-        "Default is 1",
+        help="How many memory lines to encode as one chunk. \
+        Doubling the block size has the same effect as doubling the memory line size. \
+        Default is 1",
         required=False,
     )
 
     other_group = parser.add_argument_group("Other settings")
 
-    other_group.add_argument(
+    _ = other_group.add_argument(
         "--device",
         type=str,
         default="cpu",

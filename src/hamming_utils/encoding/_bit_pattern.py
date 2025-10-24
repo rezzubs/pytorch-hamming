@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Iterator
 from dataclasses import dataclass
 
-if TYPE_CHECKING:
-    from collections.abc import Iterator
+from typing_extensions import override
 
 
 @dataclass
@@ -28,6 +27,7 @@ class RangeInclusive:
         self.start = start
         self.end = end
 
+    @override
     def __repr__(self) -> str:
         if self.start == self.end:
             return str(self.start)
@@ -63,6 +63,7 @@ def parse_range_or_int(text: str) -> RangeInclusive | int:
 class Ranges:
     ranges: list[RangeInclusive]
 
+    @override
     def __repr__(self) -> str:
         return "_".join([r.__repr__() for r in self.ranges])
 
@@ -85,6 +86,7 @@ class BitPattern:
     def num_bits(self) -> int:
         return len(self.bits)
 
+    @override
     def __repr__(self) -> str:
         if self.num_bits() == 0:
             return "empty_bit_pattern"
@@ -111,7 +113,7 @@ class BitPattern:
 
     @classmethod
     def parse(cls, text: str) -> BitPattern:
-        bits = set()
+        bits: set[int] = set()
 
         try:
             for part in text.split("_"):

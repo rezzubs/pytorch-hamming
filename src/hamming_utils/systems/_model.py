@@ -25,9 +25,9 @@ class CachedModel:
         model = ROOT_MODULE_CACHE.get(self.kind)
 
         if model is None:
-            model = torch.hub.load(
+            model = torch.hub.load(  # pyright: ignore[reportUnknownMemberType]
                 "chenyaofo/pytorch-cifar-models", self.kind.value, pretrained=True
-            )  # type: ignore
+            )
             assert isinstance(model, nn.Module)
             ROOT_MODULE_CACHE[self.kind] = model
 

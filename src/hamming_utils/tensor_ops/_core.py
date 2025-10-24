@@ -48,7 +48,8 @@ def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
             If num_faults is greated than the number of bits `ts`
 
     """
-    dtype = tensor_list_dtype(ts)
+    _ = tensor_list_dtype(ts)
+    _ = num_faults
 
     raise NotImplementedError
 
@@ -56,7 +57,11 @@ def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
 def tensor_list_compare_bitwise(
     left: list[torch.Tensor], right: list[torch.Tensor]
 ) -> list[int]:
-    dtype = tensor_list_dtype(left)
-    dtype = tensor_list_dtype(right)
+    left_dtype = tensor_list_dtype(left)
+    right_dtype = tensor_list_dtype(right)
+    if left_dtype != right_dtype:
+        raise ValueError(
+            f"The data types of the two lists don't match {left_dtype}!={right_dtype}"
+        )
 
     raise NotImplementedError

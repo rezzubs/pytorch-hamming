@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+from collections.abc import Generator, Iterator
 import enum
 import logging
+import typing
 
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
+import torch
 from torchvision import datasets, transforms
+
 
 logger = logging.getLogger(__name__)
 
+Dataset = datasets.CIFAR10 | datasets.CIFAR100
+
 ON_DISK_CACHE = "./dataset_cache"
+
+
 CACHE: dict[CachedDataset, Dataset] = dict()
 
 
@@ -63,9 +71,26 @@ class CachedDataset(enum.Enum):
 
         return dataset
 
-    def loader(self, batch_size=1000) -> DataLoader:
-        return DataLoader(
-            self.dataset(),
-            batch_size=batch_size,
-            shuffle=False,
+    def loader(
+        self, batch_size: int = 1000
+    ) -> Generator[tuple[torch.Tensor, torch.Tensor]]:
+        dataloader = typing.cast(
+            DataLoader[list[torch.Tensor]],
+            DataLoader(
+                self.dataset(),
+                batch_size=batch_size,
+                shuffle=False,
+            ),
         )
+
+        # NOTE: The following is necessary because pytorch doesn't provide a
+        # type safe API for `DataLoader`.
+        iterator = typing.cast(Iterator[list[torch.Tensor]], iter(dataloader))
+        for batch in iterator:
+            assert isinstance(batch, list)
+            assert len(batch) == 2
+            assert all(isinstance(x, torch.Tensor) for x in batch)
+
+            yield (batch[0], batch[1])
+
+        return None
