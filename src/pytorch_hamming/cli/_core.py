@@ -265,7 +265,14 @@ def parse_cli() -> Cli:
 
     device = get_arg_typed(args, "device", torch.device)
 
-    return Cli(model, dataset, errors, dtype, protection, device)
+    return Cli(
+        model=model,
+        dataset=dataset,
+        errors=errors,
+        dtype=dtype,
+        protection=protection,
+        device=device,
+    )
 
 
 def get_log_level():
@@ -295,13 +302,15 @@ def main():
 
     cli = parse_cli()
 
-    system = System(cli.dataset, cli.model, cli.dtype, cli.device)
+    system = System(
+        dataset=cli.dataset, model=cli.model, dtype=cli.dtype, device=cli.device
+    )
 
     total_num_bits = system.system_total_num_bits()
 
     match cli.errors:
         case int():
-            num_faults = total_num_bits
+            num_faults = cli.errors
         case float(val):
             num_faults = int(round(total_num_bits * val))
 
