@@ -204,7 +204,10 @@ class Data(BaseModel):
     def load_or_create(
         cls, data_path: str, *, faults_count: int, bits_count: int, metadata: MetaData
     ) -> Data:
-        """Load existing data from disk or create a new instance if it doesn't exist."""
+        """Load existing data from disk or create a new instance if it doesn't exist.
+
+        Note: This doesn't actually create the file. For that use `save`.
+        """
 
         path = Path(data_path).expanduser()
 
