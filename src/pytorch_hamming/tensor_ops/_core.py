@@ -1,9 +1,18 @@
+import logging
+
+import hamming_core
 import torch
+
 from pytorch_hamming.utils import dtype_num_bits
+
+from .._dtype import Dtype
 
 
 class DtypeMismatchError(Exception):
     """A data type mismatch was detected between tensors"""
+
+
+logger = logging.getLogger(__name__)
 
 
 def tensor_list_dtype(ts: list[torch.Tensor]) -> torch.dtype | None:
@@ -59,9 +68,22 @@ def tensor_list_compare_bitwise(
 ) -> list[int]:
     left_dtype = tensor_list_dtype(left)
     right_dtype = tensor_list_dtype(right)
+
     if left_dtype != right_dtype:
-        raise ValueError(
+        raise DtypeMismatchError(
             f"The data types of the two lists don't match {left_dtype}!={right_dtype}"
         )
 
-    raise NotImplementedError
+    if left_dtype is None:
+        logger.warning("compared empty tensor lists the result will be empty")
+        return []
+
+    match Dtype.from_torch(left_dtype):
+        case Dtype.Float32:
+            left_numpy = [t.flatten().numpy() for t in left]
+            right_numpy = [t.flatten().numpy() for t in right]
+            return hamming_core.compare_array_list_bitwise_f32(left_numpy, right_numpy)
+        case Dtype.Float16:
+            left_numpy = [t.view(torch.uint16).flatten().numpy() for t in left]
+            right_numpy = [t.view(torch.uint16).flatten().numpy() for t in right]
+            return hamming_core.compare_array_list_bitwise_u16(left_numpy, right_numpy)

@@ -1,7 +1,7 @@
 //! Python bindings
 
 use crate::prelude::*;
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::{PyArray1, PyReadonlyArrayDyn};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use crate::buffers::NonUniformSequence;
 
 type OutputArr<'py, T> = Bound<'py, PyArray1<T>>;
-type InputArr<'py, T> = PyReadonlyArray1<'py, T>;
+type InputArr<'py, T> = PyReadonlyArrayDyn<'py, T>;
 
 /// Helper for transforming numpy arrays received from python.
 fn prep_input_array<'py, T>(input: InputArr<'py, T>) -> Vec<T>
