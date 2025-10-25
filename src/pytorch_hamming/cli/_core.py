@@ -305,11 +305,11 @@ def main():
 
     data = Data.load_or_create(
         "temp.json",
-        num_faults=num_faults,
-        num_bits=total_num_bits,
+        faults_count=num_faults,
+        bits_count=total_num_bits,
         metadata=system.system_metadata(),
     )
 
     logger.debug(f"Proceeding with data: {data}")
 
-    data.record_entry(system)
+    _ = data.record_entry(system)
