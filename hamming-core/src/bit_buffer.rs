@@ -112,6 +112,7 @@ pub trait BitBuffer {
     /// - If `n > self.num_bits()`
     fn flip_n_bits(&mut self, n: usize) {
         let num_bits = self.num_bits();
+        // FIXME: return error instead of assert
         assert!(n <= num_bits);
 
         let mut possible_faults = RandomPicker::new(num_bits, rand::rng());
