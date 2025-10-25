@@ -221,7 +221,7 @@ class Data(BaseModel):
                 entries=[],
             )
 
-        if not path.is_dir():
+        if path.is_dir():
             logger.warning(f'The path "{path}" is not a file, saving to it will fail"')
 
         logger.info('Loading existing data from "{path}"')
