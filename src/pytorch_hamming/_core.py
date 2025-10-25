@@ -91,13 +91,18 @@ class Data(BaseModel):
                     f"{num_params} parameters had {num_faults} faulty bits"
                     for num_faults, num_params in self.error_counts_sorted()
                 )
-                return f"""
-                Flipped {self.faults_count}/{self.bits_count} bits - BER: ~{self.bit_error_rate():.2e}
-                Accuracy: ~{self.accuracy:.2f}%
-                {self.output_faulty_parameters_count()} parameters were affected
-                {self.output_faulty_bits_count()} bits were measured faulty (~{self.masked_percentage():.1f} masked)
-                {error_counts_str}
-                """
+
+                output_str = (
+                    f"""{self.output_faulty_parameters_count()} parameters were affected
+{self.output_faulty_bits_count()} bits were measured faulty (~{self.masked_percentage()}% masked)
+"""
+                    if self.faults_count > 0
+                    else ""
+                )
+
+                return f"""Flipped {self.faults_count}/{self.bits_count} bits - BER: ~{self.bit_error_rate():.2e}
+Accuracy: ~{self.accuracy:.2f}%
+{output_str}{error_counts_str}"""
 
             def error_counts_sorted(self) -> list[tuple[int, int]]:
                 """Return the `n_bit_error_counts` sorted by the number of bits"""
@@ -123,9 +128,14 @@ class Data(BaseModel):
                     count += num_faults * num_parameters
                 return count
 
-            def masked_percentage(self) -> float:
-                """How many bits were masked by encoding."""
-                return 1 - ((self.output_faulty_bits_count() / self.faults_count) * 100)
+            def masked_percentage(self) -> float | None:
+                """How many bits were masked by encoding.
+
+                Returns None if there were no faults to begin with
+                """
+                if self.faults_count == 0:
+                    return None
+                return (1 - (self.output_faulty_bits_count() / self.faults_count)) * 100
 
         def summary(self, parent: Data) -> Data.Entry.Summary:
             out = Data.Entry.Summary(
