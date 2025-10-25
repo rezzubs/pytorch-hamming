@@ -99,6 +99,7 @@ same unless they have been tampered with after creation. Got error {err}",
 pub struct DynChunks(UniformSequence<Vec<DynChunk>>);
 
 impl DynChunks {
+    #[must_use]
     pub fn zero(num_bits: usize, bits_per_chunk: usize) -> Self {
         assert!(bits_per_chunk > 0);
 

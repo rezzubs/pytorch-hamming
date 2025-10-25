@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::{
     bit_buffer::{
         chunks::{self, Chunks, DynChunks},
-        CopyIntoResult, CopyIntoResultKind,
+        CopyIntoResult,
     },
     buffers::Limited,
     prelude::*,
