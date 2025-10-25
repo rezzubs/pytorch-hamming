@@ -9,10 +9,10 @@ from typing_extensions import override
 from pytorch_hamming import (
     BaseSystem,
     MetaData,
+    Dtype,
 )
 
 from ._dataset import CachedDataset
-from ._dtype import Dtype
 from ._model import CachedModel
 
 logger = logging.getLogger(__name__)

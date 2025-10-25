@@ -12,12 +12,14 @@ from typing import (
 
 import torch
 
-from pytorch_hamming import Data
+from pytorch_hamming import (
+    Data,
+    Dtype,
+)
 from pytorch_hamming.encoding import BitPattern
 from pytorch_hamming.systems import (
     CachedDataset,
     CachedModel,
-    Dtype,
     System,
 )
 from pytorch_hamming.utils import unreachable
