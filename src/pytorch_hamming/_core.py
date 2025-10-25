@@ -71,7 +71,6 @@ class Data(BaseModel):
     metadata: MetaData
     entries: list[Data.Entry]
 
-    @dataclass
     class Entry(BaseModel):
         """An entry corresponding a single run of fault injection."""
 
