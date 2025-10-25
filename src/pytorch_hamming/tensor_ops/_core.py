@@ -35,6 +35,7 @@ def tensor_list_dtype(ts: list[torch.Tensor]) -> torch.dtype | None:
                 raise DtypeMismatchError(
                     f"dtype=`{t.dtype}` for tensor {i} while all previous values had dtype=`{dtype}`"
                 )
+    return dtype
 
 
 def tensor_list_num_bits(ts: list[torch.Tensor]) -> int:
