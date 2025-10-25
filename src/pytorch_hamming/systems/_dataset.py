@@ -7,7 +7,10 @@ import typing
 
 from torch.utils.data import DataLoader
 import torch
-from torchvision import datasets, transforms
+
+# NOTE: pytorch maintainers said they aren't interested in adding type stubs
+# https://github.com/pytorch/vision/issues/2025#issuecomment-2296026610
+from torchvision import datasets, transforms  # pyright: ignore[reportMissingTypeStubs]
 
 
 logger = logging.getLogger(__name__)
