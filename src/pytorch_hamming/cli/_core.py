@@ -14,7 +14,7 @@ import torch
 
 from pytorch_hamming import (
     Data,
-    Dtype,
+    DnnDtype,
 )
 from pytorch_hamming.encoding import BitPattern
 from pytorch_hamming.systems import (
@@ -34,7 +34,7 @@ class Cli:
     model: CachedModel
     dataset: CachedDataset
     errors: int | float
-    dtype: Dtype
+    dtype: DnnDtype
     protection: bool | BitPattern
     device: torch.device
 
@@ -246,9 +246,9 @@ def parse_cli() -> Cli:
 
     match get_arg_typed(args, "dtype", str):
         case "float32" | "f32":
-            dtype = Dtype.Float32
+            dtype = DnnDtype.Float32
         case "float16" | "f16":
-            dtype = Dtype.Float16
+            dtype = DnnDtype.Float16
         case other:
             unreachable(other)
 

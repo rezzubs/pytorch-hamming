@@ -5,11 +5,11 @@ import torch
 
 from pytorch_hamming.utils import dtype_num_bits
 
-from .._dtype import Dtype
+from .._dtype import DnnDtype, FiDtype
 
 
-class DtypeMismatchError(Exception):
-    """A data type mismatch was detected between tensors"""
+class DtypeError(Exception):
+    """An error related to tensor data types."""
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ def tensor_list_dtype(ts: list[torch.Tensor]) -> torch.dtype | None:
             dtype = t.dtype
         else:
             if dtype != t.dtype:
-                raise DtypeMismatchError(
+                raise DtypeError(
                     f"dtype=`{t.dtype}` for tensor {i} while all previous values had dtype=`{dtype}`"
                 )
     return dtype
@@ -55,13 +55,53 @@ def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
         DtypeMismatchError:
             If values in `ts` don't all have the same data type.
         ValueError:
-            If num_faults is greated than the number of bits `ts`
-
+            - If num_faults is greated than the number of bits `ts`.
+            - If the data type is unsupported, see `FiDtype`.
     """
-    _ = tensor_list_dtype(ts)
-    _ = num_faults
+    dtype = tensor_list_dtype(ts)
 
-    raise NotImplementedError
+    if dtype is None:
+        logger.warning("Skipping fault injection because the input buffer is empty")
+        return
+
+    # NOTE: the length checks are handled in rust.
+    match FiDtype.from_torch(dtype):
+        case FiDtype.Float32:
+            # NOTE: the tensors need to be on the CPU to use `.numpy` without `force=True`.
+            flattened = [t.flatten() for t in ts]
+            devices = [t.device for t in ts]
+
+            with torch.no_grad():
+                input = [t.cpu().numpy() for t in flattened]
+
+                result = hamming_core.f32_array_list_fi(input, num_faults)
+                torch_result = [
+                    # HACK: There's nothing we can do about this warning without an upstream fix.
+                    torch.from_numpy(t).to(device)  # pyright: ignore[reportUnknownMemberType]
+                    for t, device in zip(result, devices, strict=True)
+                ]
+
+                for original, updated in zip(flattened, torch_result, strict=True):
+                    _ = original.copy_(updated)
+        case FiDtype.Float16:
+            # NOTE: the tensors need to be on the CPU to use `.numpy` without `force=True`.
+            flattened = [t.flatten() for t in ts]
+            devices = [t.device for t in ts]
+
+            with torch.no_grad():
+                input = [t.cpu().view(torch.uint16).numpy() for t in flattened]
+
+                result = hamming_core.u16_array_list_fi(input, num_faults)
+                torch_result = [
+                    # HACK: There's nothing we can do about this warning without an upstream fix.
+                    torch.from_numpy(t).view(torch.float16).to(device)  # pyright: ignore[reportUnknownMemberType]
+                    for t, device in zip(result, devices, strict=True)
+                ]
+
+                for original, updated in zip(flattened, torch_result, strict=True):
+                    _ = original.copy_(updated)
+        case FiDtype.Uint8:
+            raise NotImplementedError
 
 
 def tensor_list_compare_bitwise(
@@ -71,7 +111,7 @@ def tensor_list_compare_bitwise(
     right_dtype = tensor_list_dtype(right)
 
     if left_dtype != right_dtype:
-        raise DtypeMismatchError(
+        raise DtypeError(
             f"The data types of the two lists don't match {left_dtype}!={right_dtype}"
         )
 
@@ -79,12 +119,15 @@ def tensor_list_compare_bitwise(
         logger.warning("compared empty tensor lists the result will be empty")
         return []
 
-    match Dtype.from_torch(left_dtype):
-        case Dtype.Float32:
-            left_numpy = [t.flatten().numpy() for t in left]
-            right_numpy = [t.flatten().numpy() for t in right]
+    match DnnDtype.from_torch(left_dtype):
+        case DnnDtype.Float32:
+            left_numpy = [t.flatten().numpy(force=True) for t in left]
+            right_numpy = [t.flatten().numpy(force=True) for t in right]
             return hamming_core.compare_array_list_bitwise_f32(left_numpy, right_numpy)
-        case Dtype.Float16:
+        case DnnDtype.Float16:
+            #  A view is like a bitwise transmute. This is
+            # necessary because rust's `f16` isn't yet stable. See:
+            # https://github.com/rust-lang/rust/issues/116909
             left_numpy = [t.view(torch.uint16).flatten().numpy() for t in left]
             right_numpy = [t.view(torch.uint16).flatten().numpy() for t in right]
             return hamming_core.compare_array_list_bitwise_u16(left_numpy, right_numpy)

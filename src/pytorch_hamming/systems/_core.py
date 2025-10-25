@@ -9,7 +9,7 @@ from typing_extensions import override
 from pytorch_hamming import (
     BaseSystem,
     MetaData,
-    Dtype,
+    DnnDtype,
 )
 
 from ._dataset import CachedDataset
@@ -46,7 +46,7 @@ def map_layer(module: nn.Module) -> list[torch.Tensor]:
 class System(BaseSystem):
     dataset: CachedDataset
     model: CachedModel
-    dtype: Dtype
+    dtype: DnnDtype
     device: torch.device
 
     @override

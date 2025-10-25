@@ -3,11 +3,15 @@ from ._core import (
     Data,
     MetaData,
 )
-from ._dtype import Dtype
+from ._dtype import (
+    DnnDtype,
+    FiDtype,
+)
 
 __all__ = [
     "BaseSystem",
     "Data",
-    "Dtype",
+    "DnnDtype",
+    "FiDtype",
     "MetaData",
 ]
