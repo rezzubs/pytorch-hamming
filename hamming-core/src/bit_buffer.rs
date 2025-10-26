@@ -162,16 +162,15 @@ pub trait BitBuffer {
         let remaining_source = self.num_bits().saturating_sub(self_offset);
         let remaining_dest = dest.num_bits().saturating_sub(dest_offset);
 
-        if dbg!(remaining_source) == 0 {
+        if remaining_source == 0 {
             return CopyIntoResult::done(0);
         }
 
-        if dbg!(remaining_dest) == 0 {
+        if remaining_dest == 0 {
             return CopyIntoResult::pending(0);
         }
 
         for (source_i, dest_i) in (self_offset..self.num_bits()).zip(dest_offset..dest.num_bits()) {
-            // dbg!(source_i, dest_i);
             if self.is_1(source_i) {
                 dest.set_1(dest_i);
             } else {
