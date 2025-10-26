@@ -47,7 +47,7 @@ impl ByteChunks {
     /// If the number of bytes in the buffer isn't a multiple of the number of bytes per chunk then
     /// it will result in a number of bytes of (essentially useless) padding at the end of the final
     /// chunk.
-    pub fn from_buffer<T>(buffer: T, bytes_per_chunk: usize) -> Self
+    pub fn from_buffer<T>(buffer: &T, bytes_per_chunk: usize) -> Self
     where
         T: ByteChunkedBitBuffer,
     {
@@ -120,7 +120,7 @@ impl DynChunks {
     /// If the number of bits in the buffer isn't a multiple of the number of bits per chunk then
     /// it will result in a number of bits of (essentially useless) padding at the end of the final
     /// chunk.
-    pub fn from_buffer<T>(buffer: T, bits_per_chunk: usize) -> Self
+    pub fn from_buffer<T>(buffer: &T, bits_per_chunk: usize) -> Self
     where
         T: BitBuffer,
     {
@@ -280,7 +280,7 @@ impl Chunks {
     /// If the number of bits in the buffer isn't a multiple of the number of bits per chunk then
     /// it will result in a number of bits of (essentially useless) padding at the end of the final
     /// chunk.
-    pub fn from_buffer<T>(buffer: T, bits_per_chunk: usize) -> Self
+    pub fn from_buffer<T>(buffer: &T, bits_per_chunk: usize) -> Self
     where
         T: ByteChunkedBitBuffer,
     {
