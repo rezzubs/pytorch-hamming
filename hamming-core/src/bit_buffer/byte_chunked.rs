@@ -39,6 +39,10 @@ pub trait ByteChunkedBitBuffer: BitBuffer {
     }
 
     /// Convert to chunks of equal length where each chunk is a number of bytes long.
+    ///
+    /// If the number of bytes in the buffer isn't a multiple of the number of bytes per chunk then
+    /// it will result in a number of bytes of (essentially useless) padding at the end of the final
+    /// chunk.
     fn to_byte_chunks(self, bytes_per_chunk: usize) -> ByteChunks
     where
         Self: std::marker::Sized,
@@ -51,6 +55,10 @@ pub trait ByteChunkedBitBuffer: BitBuffer {
     /// Choose the optimal format automatically. For manual selection see:
     /// - [`ByteChunkedBitBuffer::to_byte_chunks`]
     /// - [`BitBuffer::to_dyn_chunks`]
+    ///
+    /// If the number of bits in the buffer isn't a multiple of the number of bits per chunk then
+    /// it will result in a number of bits of (essentially useless) padding at the end of the final
+    /// chunk.
     fn to_chunks(self, bits_per_chunk: usize) -> Chunks
     where
         Self: std::marker::Sized,

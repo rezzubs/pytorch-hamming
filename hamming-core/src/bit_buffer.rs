@@ -205,6 +205,10 @@ pub trait BitBuffer {
     }
 
     /// Convert the buffer to chunks of equal length.
+    ///
+    /// If the number of bits in the buffer isn't a multiple of the number of bits per chunk then
+    /// it will result in a number of bits of (essentially useless) padding at the end of the final
+    /// chunk.
     fn to_dyn_chunks(self, bits_per_chunk: usize) -> DynChunks
     where
         Self: Sized,
