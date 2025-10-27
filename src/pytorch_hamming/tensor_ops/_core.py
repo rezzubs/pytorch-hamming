@@ -103,7 +103,22 @@ def tensor_list_fault_injection(
                 for original, updated in zip(flattened, torch_result, strict=True):
                     _ = original.copy_(updated)
         case FiDtype.Uint8:
-            raise NotImplementedError
+            # NOTE: the tensors need to be on the CPU to use `.numpy` without `force=True`.
+            flattened = [t.flatten() for t in ts]
+            devices = [t.device for t in ts]
+
+            with torch.no_grad():
+                input = [t.cpu().numpy() for t in flattened]
+
+                result = hamming_core.f32_array_list_fi(input, num_faults, bit_limit)
+                torch_result = [
+                    # HACK: There's nothing we can do about this warning without an upstream fix.
+                    torch.from_numpy(t).to(device)  # pyright: ignore[reportUnknownMemberType]
+                    for t, device in zip(result, devices, strict=True)
+                ]
+
+                for original, updated in zip(flattened, torch_result, strict=True):
+                    _ = original.copy_(updated)
 
 
 def tensor_list_compare_bitwise(

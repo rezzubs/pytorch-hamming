@@ -14,6 +14,8 @@ mod hamming_core {
     use crate::python::f32_array_list_fi;
     #[pymodule_export]
     use crate::python::u16_array_list_fi;
+    #[pymodule_export]
+    use crate::python::u8_array_list_fi;
 
     #[pymodule_export]
     use crate::python::compare_array_list_bitwise_f32;

@@ -22,6 +22,11 @@ def u16_array_list_fi(
     faults_count: int,
     input_bit_limit: int | None,
 ) -> ListOfArray[np.uint16]: ...
+def u8_array_list_fi(
+    input: ListOfArray[np.uint8],
+    faults_count: int,
+    input_bit_limit: int | None,
+) -> ListOfArray[np.uint16]: ...
 def compare_array_list_bitwise_f32(
     a: ListOfArray[np.float32],
     b: ListOfArray[np.float32],

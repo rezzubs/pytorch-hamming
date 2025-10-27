@@ -93,6 +93,16 @@ pub fn u16_array_list_fi<'py>(
     array_list_fi_generic(py, input, faults_count, input_bit_limit)
 }
 
+#[pyfunction]
+pub fn u8_array_list_fi<'py>(
+    py: Python<'py>,
+    input: Vec<InputArr<'py, u8>>,
+    faults_count: usize,
+    input_bit_limit: Option<usize>,
+) -> PyResult<Vec<OutputArr<'py, u8>>> {
+    array_list_fi_generic(py, input, faults_count, input_bit_limit)
+}
+
 #[inline]
 fn compare_f32_vecs_bitwise(a: Vec<f32>, b: Vec<f32>) -> Vec<u32> {
     a.into_par_iter()
