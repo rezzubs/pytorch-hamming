@@ -31,11 +31,11 @@ def compare_array_list_bitwise_u16(
 def encode_full_f32(
     input: ListOfArray[np.float32],
     bits_per_chunk: int,
-) -> tuple[npt.NDArray[np.uint8], int, int]: ...
+) -> tuple[npt.NDArray[np.uint8], int]: ...
 def encode_full_u16(
     input: ListOfArray[np.uint16],
     bits_per_chunk: int,
-) -> tuple[npt.NDArray[np.uint8], int, int]: ...
+) -> tuple[npt.NDArray[np.uint8], int]: ...
 def decode_full_f32(
     encoded: ListOfArray[np.uint8],
     encoded_bits_count: int,

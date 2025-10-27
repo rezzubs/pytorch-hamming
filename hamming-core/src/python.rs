@@ -157,12 +157,11 @@ fn encode_full_generic<'py, B>(
     py: Python<'py>,
     buffer: B,
     bits_per_chunk: usize,
-) -> (OutputArr<'py, u8>, usize, usize)
+) -> (OutputArr<'py, u8>, usize)
 where
     B: ByteChunkedBitBuffer,
 {
     let encoded_chunks = buffer.to_chunks(bits_per_chunk).encode_chunks();
-    let bits_per_encoded_chunk = encoded_chunks.bits_per_chunk();
 
     let encoded_bits_count = encoded_chunks.num_bits();
     let mut output_buffer = Limited::bytes(encoded_bits_count);
@@ -177,7 +176,6 @@ where
     (
         PyArray1::from_vec(py, output_buffer.into_inner()),
         encoded_bits_count,
-        bits_per_encoded_chunk,
     )
 }
 
@@ -186,7 +184,6 @@ where
 /// Returns a tuple containing:
 /// - A uint8 array with the encoded bits
 /// - The number of useful bits in the encoded buffer
-/// - The number of bits per encoded chunk
 ///
 /// These need to be given to the decoding function to restore the original representation.
 #[pyfunction]
@@ -194,7 +191,7 @@ pub fn encode_full_f32<'py>(
     py: Python<'py>,
     input: Vec<InputArr<f32>>,
     bits_per_chunk: usize,
-) -> (OutputArr<'py, u8>, usize, usize) {
+) -> (OutputArr<'py, u8>, usize) {
     let buffer = prep_input_array_list(input);
 
     encode_full_generic(py, buffer, bits_per_chunk)
@@ -205,7 +202,6 @@ pub fn encode_full_f32<'py>(
 /// Returns a tuple containing:
 /// - A uint8 array with the encoded bits
 /// - The number of useful bits in the encoded buffer
-/// - The number of bits per encoded chunk
 ///
 /// These need to be given to the decoding function to restore the original representation.
 #[pyfunction]
@@ -213,7 +209,7 @@ pub fn encode_full_u16<'py>(
     py: Python<'py>,
     input: Vec<InputArr<u16>>,
     bits_per_chunk: usize,
-) -> (OutputArr<'py, u8>, usize, usize) {
+) -> (OutputArr<'py, u8>, usize) {
     let buffer = prep_input_array_list(input);
 
     encode_full_generic(py, buffer, bits_per_chunk)
