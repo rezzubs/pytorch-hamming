@@ -26,6 +26,7 @@ impl Limited<Vec<u8>> {
     pub fn bytes(num_bits: usize) -> Self {
         let num_bytes = bytes_to_store_n_bits(num_bits);
         Limited::new(vec![0u8; num_bytes], num_bits)
+            .expect("cannot fail as long as the function above is correct")
     }
 }
 
@@ -38,14 +39,8 @@ where
     /// # Panics
     ///
     /// if `num_bits` > `buffer.num_bits()`.
-    pub fn new(buffer: T, num_bits: usize) -> Self {
-        assert!(
-            num_bits <= buffer.num_bits(),
-            "the number of bits in the original buffer is {}, but tried to limit to {}",
-            buffer.num_bits(),
-            num_bits
-        );
-        Self { buffer, num_bits }
+    pub fn new(buffer: T, num_bits: usize) -> Option<Self> {
+        (num_bits <= buffer.num_bits()).then_some(Self { buffer, num_bits })
     }
 
     /// Extract the original bitbuffer.
@@ -99,18 +94,18 @@ mod tests {
 
     #[test]
     fn in_bounds_is() {
-        assert!(Limited::new(0b1001u8, 4).is_1(0));
-        assert!(Limited::new(0b1001u8, 4).is_0(1));
-        assert!(Limited::new(0b1001u8, 4).is_0(2));
-        assert!(Limited::new(0b1001u8, 4).is_1(3));
+        assert!(Limited::new(0b1001u8, 4).unwrap().is_1(0));
+        assert!(Limited::new(0b1001u8, 4).unwrap().is_0(1));
+        assert!(Limited::new(0b1001u8, 4).unwrap().is_0(2));
+        assert!(Limited::new(0b1001u8, 4).unwrap().is_1(3));
 
-        assert!(Limited::new(0b10000000u8, 8).is_0(6));
-        assert!(Limited::new(0b10000000u8, 8).is_1(7));
+        assert!(Limited::new(0b10000000u8, 8).unwrap().is_0(6));
+        assert!(Limited::new(0b10000000u8, 8).unwrap().is_1(7));
     }
 
     #[test]
     fn in_bounds_set() {
-        let mut buf = Limited::new(0xffu8, 4);
+        let mut buf = Limited::new(0xffu8, 4).unwrap();
 
         for i in 0..4 {
             buf.set_0(i);
@@ -127,7 +122,7 @@ mod tests {
 
     #[test]
     fn in_bounds_flip() {
-        let mut buf = Limited::new(0xffu8, 4);
+        let mut buf = Limited::new(0xffu8, 4).unwrap();
 
         buf.flip_bit(0);
 
@@ -149,39 +144,39 @@ mod tests {
     #[test]
     #[should_panic]
     fn out_of_bounds_is() {
-        Limited::new(0b0000, 4).is_1(4);
+        Limited::new(0b0000, 4).unwrap().is_1(4);
     }
 
     #[test]
     #[should_panic]
     fn out_of_bounds_set_11() {
-        let mut buf = Limited::new(0x00, 4);
+        let mut buf = Limited::new(0x00, 4).unwrap();
         buf.set_1(4);
     }
 
     #[test]
     #[should_panic]
     fn out_of_bounds_set_0() {
-        let mut buf = Limited::new(0xff, 4);
+        let mut buf = Limited::new(0xff, 4).unwrap();
         buf.set_0(4);
     }
 
     #[test]
     #[should_panic]
     fn out_of_bounds_flip() {
-        let mut buf = Limited::new(0xffu8, 4);
+        let mut buf = Limited::new(0xffu8, 4).unwrap();
         buf.flip_bit(4);
     }
 
     #[test]
-    #[should_panic]
     fn invalid_num_bits() {
-        Limited::new(0u8, 9);
+        assert!(Limited::new(0u8, 8).is_some());
+        assert!(Limited::new(0u8, 9).is_none());
     }
 
     #[test]
     fn bit_copy() {
-        let source = Limited::new([255u8; 2], 15);
+        let source = Limited::new([255u8; 2], 15).unwrap();
         let mut dest = [0u8; 2];
 
         let result = source.copy_into(&mut dest);
@@ -189,7 +184,7 @@ mod tests {
         assert_eq!(dest, [255u8, 0b01111111u8]);
 
         let source = [255u8; 2];
-        let mut dest = Limited::new([0u8; 2], 15);
+        let mut dest = Limited::new([0u8; 2], 15).unwrap();
 
         let result = source.copy_into(&mut dest);
         assert_eq!(result, CopyIntoResult::pending(dest.num_bits()));

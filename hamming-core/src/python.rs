@@ -222,12 +222,14 @@ where
     I: BitBuffer,
     O: SizedBitBuffer + numpy::Element,
 {
-    // TODO: Limited::new already does this check and should return an error instead.
-    if input_buffer.num_bits() < encoded_bits_count {
-        return Err(PyValueError::new_err("Got an `encoded_bits_count` larger than the actual number of bits than the encoded buffer."));
-    }
-
-    let input_buffer = Limited::new(input_buffer, encoded_bits_count);
+    let input_num_bits = input_buffer.num_bits();
+    let Some(input_buffer) = Limited::new(input_buffer, encoded_bits_count) else {
+        return Err(PyValueError::new_err(format!(
+            "Got an `encoded_bits_count` ({}) which larger than the actual number of bits than the encoded buffer ({}).",
+            encoded_bits_count,
+            input_num_bits,
+        )));
+    };
 
     let bits_per_encoded_chunk = num_encoded_bits(bits_per_chunk);
     let input_chunks = DynChunks::from_buffer(&input_buffer, bits_per_encoded_chunk);

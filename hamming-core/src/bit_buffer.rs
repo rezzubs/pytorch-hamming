@@ -196,14 +196,6 @@ pub trait BitBuffer {
         self.copy_into_offset(0, 0, dest)
     }
 
-    /// Limit the number of perceived bits in the buffer.
-    fn into_limited(self, num_bits: usize) -> Limited<Self>
-    where
-        Self: std::marker::Sized,
-    {
-        Limited::new(self, num_bits)
-    }
-
     /// Convert the buffer to chunks of equal length.
     ///
     /// If the number of bits in the buffer isn't a multiple of the number of bits per chunk then
