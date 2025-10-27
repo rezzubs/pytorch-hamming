@@ -51,7 +51,7 @@ class System(BaseSystem):
 
     @override
     def system_root_module(self) -> nn.Module:
-        return self.model.root_module(self.dataset)
+        return self.model.root_module(self.dataset).to(self.dtype.to_torch())
 
     @override
     def system_accuracy(
