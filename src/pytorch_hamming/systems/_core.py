@@ -42,33 +42,33 @@ def map_layer(module: nn.Module) -> list[torch.Tensor]:
 
 
 @dataclass
-class System(BaseSystem):
+class System(BaseSystem[nn.Module]):
     dataset: CachedDataset
     model: CachedModel
     dtype: DnnDtype
     device: torch.device
 
     @override
-    def system_root_module(self) -> nn.Module:
+    def system_data(self) -> nn.Module:
         return self.model.root_module(self.dataset).to(self.dtype.to_torch())
 
     @override
     def system_accuracy(
         self,
-        root_module: nn.Module,
+        data: nn.Module,
     ) -> float:
-        root_module = root_module.to(self.device)
+        data = data.to(self.device)
 
-        _ = root_module.eval()
+        _ = data.eval()
         num_samples = torch.tensor(0).to(self.device)
         num_correct = torch.tensor(0).to(self.device)
 
-        for data in self.dataset.loader():
-            inputs, targets = data[0], data[1]
+        for data_unit in self.dataset.loader():
+            inputs, targets = data_unit[0], data_unit[1]
             inputs = inputs.to(self.device).to(self.dtype.to_torch())
             targets = targets.to(self.device).to(self.dtype.to_torch())
 
-            outputs = typing.cast(torch.Tensor, root_module(inputs))
+            outputs = typing.cast(torch.Tensor, data(inputs))
             assert isinstance(outputs, torch.Tensor)
 
             outputs = outputs.argmax(dim=1)
@@ -79,10 +79,10 @@ class System(BaseSystem):
         return (num_correct / num_samples * 100).item()
 
     @override
-    def system_data_tensors(self, root_module: nn.Module) -> list[torch.Tensor]:
-        tensors = map_layer(root_module)
+    def system_data_tensors(self, data: nn.Module) -> list[torch.Tensor]:
+        tensors = map_layer(data)
 
-        for child in root_module.children():
+        for child in data.children():
             child_tensors = self.system_data_tensors(child)
             tensors.extend(child_tensors)
 

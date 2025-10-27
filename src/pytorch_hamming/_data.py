@@ -4,6 +4,7 @@ import copy
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeVar
 
 from pydantic import BaseModel
 from typing_extensions import override
@@ -28,6 +29,9 @@ def count_ones(number: int) -> int:
     # it's best to make sure.
     assert number >= 0
     return number.bit_count()
+
+
+T = TypeVar("T")
 
 
 class Data(BaseModel):
@@ -121,7 +125,7 @@ Accuracy: ~{self.accuracy:.2f}%
 
             return out
 
-    def record_entry(self, system: BaseSystem, summary: bool = False) -> Data.Entry:
+    def record_entry(self, system: BaseSystem[T], summary: bool = False) -> Data.Entry:
         """Record a new data entry for the given `system`"""
 
         logger.debug("Recording new data entry")
@@ -134,7 +138,7 @@ Accuracy: ~{self.accuracy:.2f}%
                 """
             )
 
-        root = copy.deepcopy(system.system_root_module())
+        root = copy.deepcopy(system.system_data())
 
         data_tensors = system.system_data_tensors(root)
         original_tensors = copy.deepcopy(data_tensors)

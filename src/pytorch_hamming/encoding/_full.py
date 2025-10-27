@@ -12,15 +12,15 @@ from ..tensor_ops import tensor_list_dtype
 
 
 @dataclass
-class Encoding:
-    _bytes: torch.Tensor
-    _bits_per_chunk: int
-    _bits_count: int
+class EncodingFull:
+    encoded_bytes: torch.Tensor
+    bits_per_chunk: int
+    bits_count: int
 
     @classmethod
     def encode_tensor_list(
         cls, ts: list[torch.Tensor], bits_per_chunk: int
-    ) -> Encoding:
+    ) -> EncodingFull:
         dtype = tensor_list_dtype(ts)
         if dtype is None:
             raise ValueError("Cannot encode an empty buffer")
@@ -50,13 +50,19 @@ class Encoding:
     def decode_tensor_list(
         self, output_buffer: list[torch.Tensor]
     ) -> list[torch.Tensor]:
+        """Decode into the output buffer.
+
+        `output_buffer` should have the same structure as the original data.
+
+        Returns a reference to the same output buffer.
+        """
         dtype = tensor_list_dtype(output_buffer)
         if dtype is None:
             raise ValueError("Cannot decode into an empty buffer")
 
         element_counts = [t.numel() for t in output_buffer]
         with torch.no_grad():
-            numpy_bytes = self._bytes.numpy(force=True)
+            numpy_bytes = self.encoded_bytes.numpy(force=True)
             assert numpy_bytes.dtype == np.dtype(np.uint8)
             numpy_bytes = typing.cast(np.typing.NDArray[np.uint8], numpy_bytes)
 
@@ -64,8 +70,8 @@ class Encoding:
             case DnnDtype.Float32:
                 decoded, ded_results = hamming_core.decode_full_f32(
                     numpy_bytes,
-                    self._bits_count,
-                    self._bits_per_chunk,
+                    self.bits_count,
+                    self.bits_per_chunk,
                     element_counts,
                 )
                 # HACK: There's nothing we can do about this warning without an upstream fix.
@@ -77,8 +83,8 @@ class Encoding:
             case DnnDtype.Float16:
                 decoded, ded_results = hamming_core.decode_full_u16(
                     numpy_bytes,
-                    self._bits_count,
-                    self._bits_per_chunk,
+                    self.bits_count,
+                    self.bits_per_chunk,
                     element_counts,
                 )
                 torch_decoded = [
