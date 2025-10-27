@@ -66,59 +66,53 @@ def tensor_list_fault_injection(
         logger.warning("Skipping fault injection because the input buffer is empty")
         return
 
+    flattened = [t.flatten() for t in ts]
+
     # NOTE: the length checks are handled in rust.
     match FiDtype.from_torch(dtype):
         case FiDtype.Float32:
-            # NOTE: the tensors need to be on the CPU to use `.numpy` without `force=True`.
-            flattened = [t.flatten() for t in ts]
-            devices = [t.device for t in ts]
-
             with torch.no_grad():
-                input = [t.cpu().numpy() for t in flattened]
-
-                result = hamming_core.f32_array_list_fi(input, num_faults, bit_limit)
+                rust_input = [t.numpy(force=True) for t in flattened]
+                result = hamming_core.f32_array_list_fi(
+                    rust_input, num_faults, bit_limit
+                )
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
-                    torch.from_numpy(t).to(device)  # pyright: ignore[reportUnknownMemberType]
-                    for t, device in zip(result, devices, strict=True)
+                    torch.from_numpy(t)  # pyright: ignore[reportUnknownMemberType]
+                    for t in result
                 ]
 
-                for original, updated in zip(flattened, torch_result, strict=True):
-                    _ = original.copy_(updated)
         case FiDtype.Float16:
-            # NOTE: the tensors need to be on the CPU to use `.numpy` without `force=True`.
-            flattened = [t.flatten() for t in ts]
-            devices = [t.device for t in ts]
-
             with torch.no_grad():
-                input = [t.cpu().view(torch.uint16).numpy() for t in flattened]
+                rust_input = [t.cpu().view(torch.uint16).numpy() for t in flattened]
 
-                result = hamming_core.u16_array_list_fi(input, num_faults, bit_limit)
+                result = hamming_core.u16_array_list_fi(
+                    rust_input, num_faults, bit_limit
+                )
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
-                    torch.from_numpy(t).view(torch.float16).to(device)  # pyright: ignore[reportUnknownMemberType]
-                    for t, device in zip(result, devices, strict=True)
+                    torch.from_numpy(t).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
+                    for t in result
                 ]
 
                 for original, updated in zip(flattened, torch_result, strict=True):
                     _ = original.copy_(updated)
         case FiDtype.Uint8:
-            # NOTE: the tensors need to be on the CPU to use `.numpy` without `force=True`.
-            flattened = [t.flatten() for t in ts]
-            devices = [t.device for t in ts]
-
             with torch.no_grad():
-                input = [t.cpu().numpy() for t in flattened]
+                rust_input = [t.numpy(force=True) for t in flattened]
 
-                result = hamming_core.f32_array_list_fi(input, num_faults, bit_limit)
+                result = hamming_core.f32_array_list_fi(
+                    rust_input, num_faults, bit_limit
+                )
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
-                    torch.from_numpy(t).to(device)  # pyright: ignore[reportUnknownMemberType]
-                    for t, device in zip(result, devices, strict=True)
+                    torch.from_numpy(t)  # pyright: ignore[reportUnknownMemberType]
+                    for t in result
                 ]
 
-                for original, updated in zip(flattened, torch_result, strict=True):
-                    _ = original.copy_(updated)
+    for original, updated in zip(flattened, torch_result, strict=True):
+        with torch.no_grad():
+            _ = original.copy_(updated)
 
 
 def tensor_list_compare_bitwise(
