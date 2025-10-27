@@ -8,7 +8,6 @@ from typing_extensions import override
 
 from pytorch_hamming import (
     BaseSystem,
-    MetaData,
     DnnDtype,
 )
 
@@ -90,7 +89,7 @@ class System(BaseSystem):
         return tensors
 
     @override
-    def system_metadata(self) -> MetaData:
+    def system_metadata(self) -> dict[str, str]:
         return {
             "dtype": self.dtype.name,
             "model": self.model.name,

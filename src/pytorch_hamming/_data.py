@@ -1,20 +1,17 @@
 from __future__ import annotations
 
-import abc
 import copy
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-import torch
 from pydantic import BaseModel
-from torch import nn
 from typing_extensions import override
 
+from ._system import BaseSystem
 from .tensor_ops import (
     tensor_list_compare_bitwise,
     tensor_list_fault_injection,
-    tensor_list_num_bits,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,42 +30,12 @@ def count_ones(number: int) -> int:
     return number.bit_count()
 
 
-MetaData = dict[str, str]
-
-
-class BaseSystem(abc.ABC):
-    @abc.abstractmethod
-    def system_root_module(self) -> nn.Module:
-        """Get the root module of the model.
-
-        Other functions that operate on a `root_module` expect clones of this value.
-        """
-
-    @abc.abstractmethod
-    def system_accuracy(self, root_module: nn.Module) -> float:
-        """Get the accuracy of the given root_module."""
-
-    @abc.abstractmethod
-    def system_data_tensors(self, root_module: nn.Module) -> list[torch.Tensor]:
-        """Return a list of references to data parameters of the root module."""
-
-    def system_metadata(self) -> MetaData:
-        """Return metadata about the system.
-
-        This will be used to uniquely identify the system.
-        """
-        return MetaData()
-
-    def system_total_num_bits(self) -> int:
-        return tensor_list_num_bits(self.system_data_tensors(self.system_root_module()))
-
-
 class Data(BaseModel):
     """Fault injection data for a system."""
 
     faults_count: int
     bits_count: int
-    metadata: MetaData
+    metadata: dict[str, str]
     entries: list[Data.Entry]
 
     class Entry(BaseModel):
@@ -211,7 +178,12 @@ Accuracy: ~{self.accuracy:.2f}%
 
     @classmethod
     def load_or_create(
-        cls, data_path: str, *, faults_count: int, bits_count: int, metadata: MetaData
+        cls,
+        data_path: str,
+        *,
+        faults_count: int,
+        bits_count: int,
+        metadata: dict[str, str],
     ) -> Data:
         """Load existing data from disk or create a new instance if it doesn't exist.
 
