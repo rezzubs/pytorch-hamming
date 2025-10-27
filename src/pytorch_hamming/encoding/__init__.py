@@ -1,5 +1,5 @@
 from ._bit_pattern import BitPattern
-from ._core import Encoding
+from ._full import Encoding
 
 __all__ = [
     "BitPattern",
