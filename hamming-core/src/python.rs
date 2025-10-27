@@ -40,11 +40,20 @@ fn array_list_fi_generic<'py, T>(
     py: Python<'py>,
     input: Vec<InputArr<T>>,
     faults_count: usize,
+    input_bit_limit: Option<usize>,
 ) -> PyResult<Vec<OutputArr<'py, T>>>
 where
     T: numpy::Element + Copy + SizedBitBuffer,
 {
-    let mut buffer = prep_input_array_list(input);
+    let buffer = prep_input_array_list(input);
+    let input_bits_count = buffer.num_bits();
+    let bit_limit = input_bit_limit.unwrap_or(input_bits_count);
+    let Some(mut buffer) = Limited::new(buffer, bit_limit) else {
+        return Err(PyValueError::new_err(format!(
+            "`input_bit_limit` ({}) cannot be larger than the number of bits in the buffer ({})",
+            bit_limit, input_bits_count
+        )));
+    };
 
     let num_bits = buffer.num_bits();
     if faults_count > num_bits {
@@ -57,6 +66,7 @@ where
     buffer.flip_n_bits(faults_count);
 
     Ok(buffer
+        .into_inner()
         .0
         .into_iter()
         .map(|arr| PyArray1::from_vec(py, arr))
@@ -68,8 +78,9 @@ pub fn f32_array_list_fi<'py>(
     py: Python<'py>,
     input: Vec<InputArr<'py, f32>>,
     faults_count: usize,
+    input_bit_limit: Option<usize>,
 ) -> PyResult<Vec<OutputArr<'py, f32>>> {
-    array_list_fi_generic(py, input, faults_count)
+    array_list_fi_generic(py, input, faults_count, input_bit_limit)
 }
 
 #[pyfunction]
@@ -77,8 +88,9 @@ pub fn u16_array_list_fi<'py>(
     py: Python<'py>,
     input: Vec<InputArr<'py, u16>>,
     faults_count: usize,
+    input_bit_limit: Option<usize>,
 ) -> PyResult<Vec<OutputArr<'py, u16>>> {
-    array_list_fi_generic(py, input, faults_count)
+    array_list_fi_generic(py, input, faults_count, input_bit_limit)
 }
 
 #[inline]

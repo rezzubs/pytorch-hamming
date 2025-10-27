@@ -48,7 +48,9 @@ def tensor_list_num_bits(ts: list[torch.Tensor]) -> int:
     return total
 
 
-def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
+def tensor_list_fault_injection(
+    ts: list[torch.Tensor], num_faults: int, bit_limit: int | None = None
+):
     """Flip `num_faults` unique bits in `ts`.
 
     Raises:
@@ -74,7 +76,7 @@ def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
             with torch.no_grad():
                 input = [t.cpu().numpy() for t in flattened]
 
-                result = hamming_core.f32_array_list_fi(input, num_faults)
+                result = hamming_core.f32_array_list_fi(input, num_faults, bit_limit)
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
                     torch.from_numpy(t).to(device)  # pyright: ignore[reportUnknownMemberType]
@@ -91,7 +93,7 @@ def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
             with torch.no_grad():
                 input = [t.cpu().view(torch.uint16).numpy() for t in flattened]
 
-                result = hamming_core.u16_array_list_fi(input, num_faults)
+                result = hamming_core.u16_array_list_fi(input, num_faults, bit_limit)
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
                     torch.from_numpy(t).view(torch.float16).to(device)  # pyright: ignore[reportUnknownMemberType]
