@@ -44,13 +44,13 @@ def encode_full_u16(
     bits_per_chunk: int,
 ) -> tuple[npt.NDArray[np.uint8], int]: ...
 def decode_full_f32(
-    encoded: ListOfArray[np.uint8],
+    encoded: npt.NDArray[np.uint8],
     encoded_bits_count: int,
     bits_per_chunk: int,
     decoded_array_element_counts: list[int],
 ) -> tuple[ListOfArray[np.float32], list[bool]]: ...
 def decode_full_u16(
-    encoded: ListOfArray[np.uint8],
+    encoded: npt.NDArray[np.uint8],
     encoded_bits_count: int,
     bits_per_chunk: int,
     decoded_array_element_counts: list[int],
