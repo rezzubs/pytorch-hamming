@@ -101,7 +101,7 @@ def tensor_list_fault_injection(
             with torch.no_grad():
                 rust_input = [t.numpy(force=True) for t in flattened]
 
-                result = hamming_core.f32_array_list_fi(
+                result = hamming_core.u8_array_list_fi(
                     rust_input, num_faults, bit_limit
                 )
                 torch_result = [

@@ -28,8 +28,21 @@ class BaseSystem(abc.ABC, Generic[T]):
         """Get the accuracy of the system for the given `data`"""
 
     @abc.abstractmethod
-    def system_data_tensors(self, data: T) -> list[torch.Tensor]:
-        """Get references to tensors that make up this `data`"""
+    def system_data_tensors_cmp(self, data: T) -> list[torch.Tensor]:
+        """Get references to tensors that make up this `data`
+
+        These are the tensors that are going to be used for comparing two systems of the same type.
+        """
+
+    def system_data_tensors_fi(self, data: T) -> list[torch.Tensor]:
+        """Get references to tensors that make up this `data`.
+
+        These are the tensors that are going to be used for fault injection. The
+        default implementation uses the same value as `system_data_tensors_cmp`
+        but it can be overriden to use a different representation for fault
+        injection.
+        """
+        return self.system_data_tensors_cmp(data)
 
     def system_metadata(self) -> dict[str, str]:
         """Return metadata about the system.
@@ -39,4 +52,4 @@ class BaseSystem(abc.ABC, Generic[T]):
         return dict()
 
     def system_total_num_bits(self) -> int:
-        return tensor_list_num_bits(self.system_data_tensors(self.system_data()))
+        return tensor_list_num_bits(self.system_data_tensors_cmp(self.system_data()))

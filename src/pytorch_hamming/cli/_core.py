@@ -16,7 +16,11 @@ from pytorch_hamming import (
     Data,
     DnnDtype,
 )
-from pytorch_hamming.encoding import BitPattern
+from pytorch_hamming.encoding import (
+    BitPattern,
+    EncodedSystem,
+    EncodingFormatFull,
+)
 from pytorch_hamming.systems import (
     CachedDataset,
     CachedModel,
@@ -37,6 +41,7 @@ class Cli:
     dtype: DnnDtype
     protection: bool | BitPattern
     device: torch.device
+    bits_per_chunk: int
 
 
 def parse_bit_pattern(text: str) -> Literal["all"] | BitPattern:
@@ -163,22 +168,13 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     _ = protect_group.add_argument(
-        "--memory-line",
+        "--bits-per-chunk",
+        "--chunk-size",
         type=int,
         default=64,
-        help="How many bits are in a memory line. Must be a multiple of dtype size. \
-        Default is 64 bits.",
-        required=False,
-    )
-
-    # TODO: custom parser
-    _ = protect_group.add_argument(
-        "--block-size",
-        type=int,
-        default=1,
-        help="How many memory lines to encode as one chunk. \
-        Doubling the block size has the same effect as doubling the memory line size. \
-        Default is 1",
+        help="How many bits to encode as a chunk. \
+For example if we want to have 1 ecc per 2 float32 values (with all bits protected), \
+a chunk size of 64 should be used",
         required=False,
     )
 
@@ -265,6 +261,8 @@ def parse_cli() -> Cli:
 
     device = get_arg_typed(args, "device", torch.device)
 
+    bits_per_chunk = get_arg_typed(args, "bits_per_chunk", int)
+
     return Cli(
         model=model,
         dataset=dataset,
@@ -272,6 +270,7 @@ def parse_cli() -> Cli:
         dtype=dtype,
         protection=protection,
         device=device,
+        bits_per_chunk=bits_per_chunk,
     )
 
 
@@ -306,6 +305,14 @@ def main():
         dataset=cli.dataset, model=cli.model, dtype=cli.dtype, device=cli.device
     )
 
+    match cli.protection:
+        case BitPattern():
+            raise NotImplementedError
+        case True:
+            system = EncodedSystem(system, EncodingFormatFull(cli.bits_per_chunk))
+        case False:
+            pass
+
     total_num_bits = system.system_total_num_bits()
 
     match cli.errors:
@@ -323,4 +330,11 @@ def main():
 
     logger.debug(f"Proceeding with data: {data}")
 
-    _ = data.record_entry(system)
+    # NOTE: The match is otherwise redundant but we're using it to satisfy the
+    # type checker. An alternative would be using `Any` to erase the `T` in
+    # `BaseSystem[T]` but this causes various "partially unknown warnings".
+    match system:
+        case System():
+            _ = data.record_entry(system)
+        case EncodedSystem():
+            _ = data.record_entry(system)

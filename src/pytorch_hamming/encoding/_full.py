@@ -94,7 +94,8 @@ class EncodingFull:
 
         for original, decoded in zip(output_buffer, torch_decoded, strict=True):
             # Discard because it's updated inplace.
-            _ = original.flatten().copy_(decoded)
+            with torch.no_grad():
+                _ = original.flatten().copy_(decoded)
 
         # TODO: we discard the double error detection results for now but may
         # want to do something with them in the future.

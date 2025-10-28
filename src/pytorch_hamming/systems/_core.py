@@ -79,11 +79,11 @@ class System(BaseSystem[nn.Module]):
         return (num_correct / num_samples * 100).item()
 
     @override
-    def system_data_tensors(self, data: nn.Module) -> list[torch.Tensor]:
+    def system_data_tensors_cmp(self, data: nn.Module) -> list[torch.Tensor]:
         tensors = map_layer(data)
 
         for child in data.children():
-            child_tensors = self.system_data_tensors(child)
+            child_tensors = self.system_data_tensors_cmp(child)
             tensors.extend(child_tensors)
 
         return tensors

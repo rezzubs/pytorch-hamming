@@ -31,7 +31,7 @@ def count_ones(number: int) -> int:
     return number.bit_count()
 
 
-T = TypeVar("T")
+T = TypeVar("T", contravariant=True)
 
 
 class Data(BaseModel):
@@ -125,7 +125,7 @@ Accuracy: ~{self.accuracy:.2f}%
 
             return out
 
-    def record_entry(self, system: BaseSystem[T], summary: bool = False) -> Data.Entry:
+    def record_entry(self, system: BaseSystem[T], summary: bool = True) -> Data.Entry:
         """Record a new data entry for the given `system`"""
 
         logger.debug("Recording new data entry")
@@ -138,22 +138,25 @@ Accuracy: ~{self.accuracy:.2f}%
                 """
             )
 
-        root = copy.deepcopy(system.system_data())
+        data = copy.deepcopy(system.system_data())
 
-        data_tensors = system.system_data_tensors(root)
-        original_tensors = copy.deepcopy(data_tensors)
+        original_tensors = copy.deepcopy(system.system_data_tensors_cmp(data))
 
         if self.faults_count > 0:
             logger.debug("Running fault injection")
-            tensor_list_fault_injection(data_tensors, self.faults_count)
+            tensor_list_fault_injection(
+                system.system_data_tensors_fi(data), self.faults_count
+            )
         else:
             logger.debug("Skipping fault injection")
 
         logger.debug("Recording accuracy")
-        accuracy = system.system_accuracy(root)
+        accuracy = system.system_accuracy(data)
 
         logger.debug("Comparing outputs")
-        faulty_parameters = tensor_list_compare_bitwise(original_tensors, data_tensors)
+        faulty_parameters = tensor_list_compare_bitwise(
+            original_tensors, system.system_data_tensors_cmp(data)
+        )
 
         entry = Data.Entry(
             accuracy=accuracy,
