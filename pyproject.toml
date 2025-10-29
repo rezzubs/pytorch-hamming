@@ -5,7 +5,7 @@ description = "Error correction utilities for pytorch"
 authors = [
     { name = "Marten Roots", email = "marten.roots@gmail.com" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
     "hamming-core",
     "matplotlib>=3.10.5",
