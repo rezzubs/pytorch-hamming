@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import abc
-from typing import Generic, TypeVar
 
 import torch
 
@@ -10,10 +9,7 @@ from .tensor_ops import (
 )
 
 
-T = TypeVar("T")
-
-
-class BaseSystem(abc.ABC, Generic[T]):
+class BaseSystem[T](abc.ABC):
     @abc.abstractmethod
     def system_data(self) -> T:
         """Return the data that will be used as input to other functions expecting `data`.

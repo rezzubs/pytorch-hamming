@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Generic, TypeVar, TypeAlias
 import copy
 from typing_extensions import override
 from .._system import BaseSystem
@@ -13,22 +12,20 @@ class EncodingFormatFull:
 
 
 # NOTE: the type alias is here because more types will be added later.
-EncodingFormat: TypeAlias = EncodingFormatFull
+type EncodingFormat = EncodingFormatFull
 
 # NOTE: the type alias is here because more types will be added later.
-Encoding: TypeAlias = EncodingFull
-
-T_co = TypeVar("T_co", covariant=True)
+type Encoding = EncodingFull
 
 
-class EncodedSystem(BaseSystem[Encoding], Generic[T_co]):
+class EncodedSystem[T](BaseSystem[Encoding]):
     def __init__(
         self,
-        base: BaseSystem[T_co],
+        base: BaseSystem[T],
         format: EncodingFormat,
     ) -> None:
         # self.EncodingStrategy = encoding_strategy
-        self.base: BaseSystem[T_co] = base
+        self.base: BaseSystem[T] = base
         self.format: EncodingFormat = format
         self._encoded_cache: Encoding | None = None
 
@@ -38,7 +35,7 @@ class EncodedSystem(BaseSystem[Encoding], Generic[T_co]):
                 data = self.base.system_data_tensors_fi(self.base.system_data())
                 return EncodingFull.encode_tensor_list(data, bits_per_chunk)
 
-    def decoded_base_data(self, data: Encoding) -> T_co:
+    def decoded_base_data(self, data: Encoding) -> T:
         base_data_copy = copy.deepcopy(self.base.system_data())
         base_data_copy_tensors = self.base.system_data_tensors_fi(base_data_copy)
 

@@ -1,16 +1,15 @@
-from typing import TypeAlias, TypeVar
 import numpy as np
 import numpy.typing as npt
 
 __all__ = [
+    "ListOfArray",
     "compare_array_list_bitwise_f32",
     "compare_array_list_bitwise_u16",
     "f32_array_list_fi",
     "u16_array_list_fi",
 ]
 
-T = TypeVar("T", bound=np.generic)
-ListOfArray: TypeAlias = list[npt.NDArray[T]]
+type ListOfArray[T: np.generic] = list[npt.NDArray[T]]
 
 def f32_array_list_fi(
     input: ListOfArray[np.float32],

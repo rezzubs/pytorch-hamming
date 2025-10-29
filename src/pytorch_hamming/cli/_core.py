@@ -6,7 +6,6 @@ import os
 from dataclasses import dataclass
 from typing import (
     Literal,
-    TypeVar,
     cast,
 )
 
@@ -191,16 +190,13 @@ a chunk size of 64 should be used",
     return parser
 
 
-T = TypeVar("T")
-
-
-def get_arg_typed(args: argparse.Namespace, name: str, expected: type[T]) -> T:
+def get_arg_typed[T](args: argparse.Namespace, name: str, expected: type[T]) -> T:
     arg = getattr(args, name)  # pyright: ignore[reportAny]
     assert isinstance(arg, expected)
     return arg
 
 
-def get_arg_typed_opt(
+def get_arg_typed_opt[T](
     args: argparse.Namespace, name: str, expected: type[T]
 ) -> T | None:
     arg = getattr(args, name)  # pyright: ignore[reportAny]
