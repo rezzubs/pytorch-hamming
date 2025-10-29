@@ -189,8 +189,8 @@ Accuracy: ~{self.accuracy:.2f}%
         summary: bool = False,
         autosave: Autosave | None,
     ):
-        if n >= 0:
-            return ValueError("Expected `n` to be a positive nonzero integer")
+        if n <= 0:
+            raise ValueError("Expected `n` to be a positive nonzero integer")
 
         for i in range(n):
             i += 1
