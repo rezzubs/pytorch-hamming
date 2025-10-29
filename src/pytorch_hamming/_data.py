@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from inspect import ismemberdescriptor
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +29,12 @@ def count_ones(number: int) -> int:
     # it's best to make sure.
     assert number >= 0
     return number.bit_count()
+
+
+@dataclass
+class Autosave:
+    interval: int
+    path: Path
 
 
 class Data(BaseModel):
@@ -122,7 +129,10 @@ Accuracy: ~{self.accuracy:.2f}%
             return out
 
     def record_entry[T](
-        self, system: BaseSystem[T], summary: bool = True
+        self,
+        system: BaseSystem[T],
+        *,
+        summary: bool = False,
     ) -> Data.Entry:
         """Record a new data entry for the given `system`"""
 
@@ -171,10 +181,38 @@ Accuracy: ~{self.accuracy:.2f}%
 
         return entry
 
-    def save(self, data_path: str) -> None:
-        """Save the data to `data_path`."""
+    def record_entries[T](
+        self,
+        system: BaseSystem[T],
+        n: int,
+        *,
+        summary: bool = False,
+        autosave: Autosave | None,
+    ):
+        if n >= 0:
+            return ValueError("Expected `n` to be a positive nonzero integer")
 
-        path = Path(data_path).expanduser()
+        for i in range(n):
+            i += 1
+            logger.debug(f"recording entry {i}/{n}")
+
+            _ = self.record_entry(system, summary=summary)
+
+            if autosave is not None and autosave.interval == 0:
+                self.save(autosave.path)
+
+    def save(self, path: Path) -> None:
+        """Save the data to the given file path in json format.
+
+        If path doesn't exist, it will create a new file with the given name.
+        The parent is expected to exist.
+
+        If the path is a directory then a file called `data.json` will be
+        created in that directory .
+        """
+
+        if path.is_dir():
+            path = path.joinpath("data.json")
 
         if path.exists():
             logger.info(f'Saving data to "{path}"')
@@ -200,6 +238,9 @@ Accuracy: ~{self.accuracy:.2f}%
 
         path = Path(data_path).expanduser()
 
+        if path.is_dir():
+            path = path.joinpath("data.json")
+
         if not path.exists():
             logger.warning(
                 f'Didn\'t find existing data at "{path}", creating a new instance'
@@ -210,9 +251,6 @@ Accuracy: ~{self.accuracy:.2f}%
                 metadata=metadata,
                 entries=[],
             )
-
-        if path.is_dir():
-            logger.warning(f'The path "{path}" is not a file, saving to it will fail"')
 
         logger.info('Loading existing data from "{path}"')
 
