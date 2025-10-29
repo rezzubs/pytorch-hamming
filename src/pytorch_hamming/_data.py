@@ -145,16 +145,19 @@ Accuracy: ~{self.accuracy:.2f}%
             tensor_list_fault_injection(
                 system.system_data_tensors_fi(data), self.faults_count
             )
+            logger.debug("Fault injection finished")
         else:
             logger.debug("Skipping fault injection")
 
         logger.debug("Recording accuracy")
         accuracy = system.system_accuracy(data)
+        logger.debug("Finished recording accuracy")
 
         logger.debug("Comparing outputs")
         faulty_parameters = tensor_list_compare_bitwise(
             original_tensors, system.system_data_tensors_cmp(data)
         )
+        logger.debug("Finished comparing outputs")
 
         entry = Data.Entry(
             accuracy=accuracy,
