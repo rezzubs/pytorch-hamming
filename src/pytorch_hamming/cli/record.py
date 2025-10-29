@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import enum
 import logging
+from pathlib import Path
 from typing import (
     Annotated,
+    Any,
+    cast,
 )
 
 import torch
 import typer
 
 from pytorch_hamming import (
+    Autosave,
+    BaseSystem,
     Data,
     DnnDtype,
 )
@@ -135,6 +140,38 @@ a chunk size of 64 should be used.",
             help="A pytorch device string, for example `cuda:0`.",
         ),
     ] = "cpu",
+    runs: Annotated[
+        int,
+        typer.Option(
+            help="How many runs to perform.",
+            rich_help_panel="Recording settings",
+        ),
+    ] = 1,
+    output_path: Annotated[
+        Path | None,
+        typer.Option(
+            help="The path of the file to save the results into. \
+If the file doesn't exist then it will be created. \
+If the path is a directory (existing) then the file will be called data.json",
+            rich_help_panel="Recording settings",
+        ),
+    ] = None,
+    autosave: Annotated[
+        int | None,
+        typer.Option(
+            min=1,
+            help="How often to save the data while recording, interval - number of runs. \
+The default is to only save at the very end",
+            rich_help_panel="Recording settings",
+        ),
+    ] = None,
+    summary: Annotated[
+        bool,
+        typer.Option(
+            help="Print a summary at the end of each evaluation",
+            rich_help_panel="Recording settings",
+        ),
+    ] = False,
 ):
     """Record data entries for a model and dataset."""
     device: torch.device = torch.device(device)
@@ -162,7 +199,7 @@ a chunk size of 64 should be used.",
             raise typer.Abort("Choose one of --bit_error_rate and --faults_count")
 
     data = Data.load_or_create(
-        "temp.json",
+        output_path,
         faults_count=faults_count,
         bits_count=total_num_bits,
         metadata=system.system_metadata(),
@@ -170,14 +207,27 @@ a chunk size of 64 should be used.",
 
     logger.debug(f"Proceeding with data: {data}")
 
-    # NOTE: The match is otherwise redundant but we're using it to satisfy the
-    # type checker. An alternative would be using `Any` to erase the `T` in
-    # `BaseSystem[T]` but this causes various "partially unknown warnings".
-    match system:
-        case System():
-            _ = data.record_entry(system)
-        case EncodedSystem():
-            _ = data.record_entry(system)
+    match runs:
+        case 1:
+            _ = data.record_entry(
+                cast(BaseSystem[Any], system),  # pyright: ignore[reportExplicitAny]
+                summary=summary,
+            )
+        case _:
+            if autosave is not None and output_path is not None:
+                save_config = Autosave(autosave, output_path)
+            else:
+                save_config = None
+
+            _ = data.record_entries(
+                cast(BaseSystem[Any], system),  # pyright: ignore[reportExplicitAny]
+                runs,
+                summary=summary,
+                autosave=save_config,
+            )
+
+    if output_path:
+        data.save(output_path)
 
 
 if __name__ == "__main__":

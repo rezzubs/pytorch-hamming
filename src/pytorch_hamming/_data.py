@@ -198,7 +198,7 @@ Accuracy: ~{self.accuracy:.2f}%
 
             _ = self.record_entry(system, summary=summary)
 
-            if autosave is not None and autosave.interval == 0:
+            if autosave is not None and autosave.interval % i == 0:
                 self.save(autosave.path)
 
     def save(self, path: Path) -> None:
