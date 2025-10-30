@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-from inspect import ismemberdescriptor
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -194,7 +193,7 @@ Accuracy: ~{self.accuracy:.2f}%
 
         for i in range(n):
             i += 1
-            logger.debug(f"recording entry {i}/{n}")
+            logger.info(f"recording entry {i}/{n}")
 
             _ = self.record_entry(system, summary=summary)
 
@@ -225,7 +224,7 @@ Accuracy: ~{self.accuracy:.2f}%
     @classmethod
     def load_or_create(
         cls,
-        data_path: str,
+        data_path: Path | None,
         *,
         faults_count: int,
         bits_count: int,
@@ -236,15 +235,7 @@ Accuracy: ~{self.accuracy:.2f}%
         Note: This doesn't actually create the file. For that use `save`.
         """
 
-        path = Path(data_path).expanduser()
-
-        if path.is_dir():
-            path = path.joinpath("data.json")
-
-        if not path.exists():
-            logger.warning(
-                f'Didn\'t find existing data at "{path}", creating a new instance'
-            )
+        def create():
             return cls(
                 faults_count=faults_count,
                 bits_count=bits_count,
@@ -252,8 +243,21 @@ Accuracy: ~{self.accuracy:.2f}%
                 entries=[],
             )
 
+        if data_path is None:
+            logger.debug("Creating new data")
+            return create()
+
+        if data_path.is_dir():
+            data_path = data_path.joinpath("data.json")
+
+        if not data_path.exists():
+            logger.warning(
+                f'Didn\'t find existing data at "{data_path}", creating a new instance'
+            )
+            return create()
+
         logger.info('Loading existing data from "{path}"')
 
-        with open(path, "r") as f:
+        with open(data_path, "r") as f:
             content = f.read()
             return Data.model_validate_json(content)

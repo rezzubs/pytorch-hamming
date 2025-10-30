@@ -198,6 +198,9 @@ The default is to only save at the very end",
         case _:
             raise typer.Abort("Choose one of --bit_error_rate and --faults_count")
 
+    if output_path is not None:
+        output_path = output_path.expanduser()
+
     data = Data.load_or_create(
         output_path,
         faults_count=faults_count,
@@ -205,7 +208,7 @@ The default is to only save at the very end",
         metadata=system.system_metadata(),
     )
 
-    logger.debug(f"Proceeding with data: {data}")
+    logger.debug(f"Proceeding with metadata: {data.metadata}")
 
     match runs:
         case 1:
