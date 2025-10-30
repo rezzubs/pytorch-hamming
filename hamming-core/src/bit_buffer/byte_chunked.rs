@@ -1,5 +1,8 @@
 use crate::{
-    bit_buffer::chunks::{ByteChunks, Chunks},
+    bit_buffer::{
+        chunks::{ByteChunks, Chunks},
+        CopyIntoResult,
+    },
     prelude::*,
 };
 
@@ -14,28 +17,52 @@ pub trait ByteChunkedBitBuffer: BitBuffer {
     /// Set byte `n` to `value`.
     fn set_byte(&mut self, n: usize, value: u8);
 
-    /// Copy all the bytes from `self` to `other`
+    /// [`ByteChunkedBitBuffer::copy_into_chunked`] with start offsets for `self` and `dest`.
     ///
-    /// Returns the number of bytes copied.
+    /// `self_offset` can be useful for copying into many sequential destinations.
     ///
-    /// # Panics
-    ///
-    /// if `start >= self.num_bytes()`.
-    #[must_use]
-    fn copy_into_chunked<O>(&self, start: usize, other: &mut O) -> usize
+    /// `dest_offset` can be useful for copying different sources into the same destination.
+    fn copy_into_chunked_offset<D>(
+        &self,
+        self_offset: usize,
+        dest_offset: usize,
+        dest: &mut D,
+    ) -> CopyIntoResult
     where
-        O: ByteChunkedBitBuffer,
+        D: ByteChunkedBitBuffer,
     {
-        assert!(start < self.num_bytes());
+        let remaining_source = self.num_bytes().saturating_sub(self_offset);
+        let remaining_dest = dest.num_bytes().saturating_sub(dest_offset);
 
-        for (source_i, dest_i) in (start..self.num_bytes()).zip(0..other.num_bytes()) {
-            let byte = self.get_byte(source_i);
-
-            other.set_byte(dest_i, byte);
+        if remaining_source == 0 {
+            return CopyIntoResult::done(0);
         }
 
-        // Either `self` was copied fully or was limited by the size of `other`.
-        (self.num_bytes() - start).min(other.num_bytes())
+        if remaining_dest == 0 {
+            return CopyIntoResult::pending(0);
+        }
+
+        for (source_i, dest_i) in (self_offset..self.num_bytes()).zip(dest_offset..dest.num_bytes())
+        {
+            dest.set_byte(dest_i, self.get_byte(source_i));
+        }
+
+        if remaining_source <= remaining_dest {
+            CopyIntoResult::done(remaining_source)
+        } else {
+            CopyIntoResult::pending(remaining_dest)
+        }
+    }
+
+    /// Copy all the bytes from `self` to `other`
+    ///
+    /// See [`ByteChunkedBitBuffer::copy_into_chunked_offset`] for copying from/to multiple sequential buffers.
+    #[must_use]
+    fn copy_into_chunked<D>(&self, dest: &mut D) -> CopyIntoResult
+    where
+        D: ByteChunkedBitBuffer,
+    {
+        self.copy_into_chunked_offset(0, 0, dest)
     }
 
     /// Convert to chunks of equal length where each chunk is a number of bytes long.
@@ -238,13 +265,13 @@ mod tests {
         ];
 
         let mut b = vec![0u16; 4];
-        let copied = a_actual.copy_into_chunked(0, &mut b);
-        assert_eq!(copied, num_bytes);
+        let result = a_actual.copy_into_chunked(&mut b);
+        assert_eq!(result, CopyIntoResult::done(num_bytes));
         assert_eq!(b, b_actual);
 
         let mut a = vec![0u8; 8];
-        let copied = b_actual.copy_into_chunked(0, &mut a);
-        assert_eq!(copied, num_bytes);
+        let result = b_actual.copy_into_chunked(&mut a);
+        assert_eq!(result, CopyIntoResult::done(num_bytes));
         assert_eq!(a, a_actual);
     }
 
@@ -254,20 +281,29 @@ mod tests {
         let mut dest = 0b01011010u8;
 
         let mut start = 0;
-        for expected in source {
-            let copied = source.copy_into_chunked(start, &mut dest);
-            assert_eq!(copied, 1);
-            start += copied;
+        for (i, expected) in source.into_iter().enumerate() {
+            let copied = source.copy_into_chunked_offset(start, 0, &mut dest);
+            if i + 1 == source.len() {
+                assert_eq!(copied, CopyIntoResult::done(1));
+            } else {
+                assert_eq!(copied, CopyIntoResult::pending(1));
+            }
+            start += copied.units_copied;
             assert_eq!(dest, expected);
         }
 
-        let mut dest = [0b01010101, 0b10101010];
+        let mut dest = [0b01010101u8, 0b10101010u8];
 
         let mut start = 0;
-        for expected in source.chunks(2) {
-            let copied = source.copy_into_chunked(start, &mut dest);
-            assert_eq!(copied, 2);
-            start += copied;
+        for (i, expected) in source.chunks(2).enumerate() {
+            let result = source.copy_into_chunked_offset(start, 0, &mut dest);
+            if i == 1 {
+                // The last chunk
+                assert_eq!(result, CopyIntoResult::done(2));
+            } else {
+                assert_eq!(result, CopyIntoResult::pending(2));
+            }
+            start += result.units_copied;
             assert_eq!(dest, expected);
         }
     }

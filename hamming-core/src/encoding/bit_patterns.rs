@@ -268,9 +268,9 @@ impl BitPatternEncoding {
 
         let result2 = self
             .protected
-            .copy_into_offset(0, result.bits_copied, &mut bytes);
+            .copy_into_offset(0, result.units_copied, &mut bytes);
         debug_assert_eq!(result2, CopyIntoResult::done(self.protected.num_bits()));
-        debug_assert_eq!(result.bits_copied + result2.bits_copied, bytes.num_bits());
+        debug_assert_eq!(result.units_copied + result2.units_copied, bytes.num_bits());
 
         BitPatternEncodingBytes {
             bytes,
@@ -307,7 +307,7 @@ impl BitPatternEncoding {
 
         let result2 = bytes
             .bytes
-            .copy_into_offset(result.bits_copied, 0, &mut protected);
+            .copy_into_offset(result.units_copied, 0, &mut protected);
 
         assert_eq!(result2, CopyIntoResult::done(protected.num_bits()));
 

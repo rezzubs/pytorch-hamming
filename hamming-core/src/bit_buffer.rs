@@ -23,23 +23,25 @@ pub enum CopyIntoResultKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CopyIntoResult {
-    pub bits_copied: usize,
+    /// The number of items copied of the fundamental unit of the buffer. Bits or bytes depending on
+    /// the function called.
+    pub units_copied: usize,
     pub kind: CopyIntoResultKind,
 }
 
 impl CopyIntoResult {
     #[must_use]
-    pub fn done(bits_copied: usize) -> Self {
+    pub fn done(units_copied: usize) -> Self {
         Self {
-            bits_copied,
+            units_copied,
             kind: CopyIntoResultKind::Done,
         }
     }
 
     #[must_use]
-    pub fn pending(bits_copied: usize) -> Self {
+    pub fn pending(units_copied: usize) -> Self {
         Self {
-            bits_copied,
+            units_copied,
             kind: CopyIntoResultKind::Pending,
         }
     }
@@ -186,6 +188,9 @@ pub trait BitBuffer {
     }
 
     /// Copy all the bits from `self` to `other`
+    ///
+    /// If both the source and destination buffers also satisfy [`ByteChunkedBitBuffer`] then
+    /// [`ByteChunkedBitBuffer::copy_into_chunked`] should be used for much greated performance.
     ///
     /// See [`BitBuffer::copy_into_offset`] for copying from/to multiple sequential buffers.
     #[must_use]
@@ -608,7 +613,10 @@ mod tests {
 
         let mut start = 0;
         for (i, &expected) in source.iter().enumerate() {
-            let CopyIntoResult { bits_copied, kind } = source.copy_into_offset(start, 0, &mut dest);
+            let CopyIntoResult {
+                units_copied: bits_copied,
+                kind,
+            } = source.copy_into_offset(start, 0, &mut dest);
             assert_eq!(bits_copied, 8);
             start += bits_copied;
             assert_eq!(dest, expected);

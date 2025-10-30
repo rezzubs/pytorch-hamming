@@ -54,8 +54,8 @@ impl ByteChunks {
         let num_bytes = buffer.num_bytes();
         let mut output_buffer = Self::zero(num_bytes, bytes_per_chunk);
 
-        let num_copied = buffer.copy_into_chunked(0, &mut output_buffer);
-        assert_eq!(num_copied, num_bytes);
+        let result = buffer.copy_into_chunked(&mut output_buffer);
+        assert_eq!(result.units_copied, num_bytes);
 
         output_buffer
     }
@@ -127,7 +127,7 @@ impl DynChunks {
         let input_size = buffer.num_bits();
         let mut output_buffer = Self::zero(input_size, bits_per_chunk);
         let result = buffer.copy_into(&mut output_buffer);
-        assert_eq!(result.bits_copied, input_size);
+        assert_eq!(result.units_copied, input_size);
 
         output_buffer
     }
@@ -447,10 +447,10 @@ mod tests {
         assert_eq!(restored, source);
 
         assert_eq!(
-            chunks.bits().skip(result.bits_copied).count(),
+            chunks.bits().skip(result.units_copied).count(),
             chunks.num_bits() - source.num_bits()
         );
-        assert!(chunks.bits().skip(result.bits_copied).all(|is_1| !is_1));
+        assert!(chunks.bits().skip(result.units_copied).all(|is_1| !is_1));
 
         let chunks = source.to_dyn_chunks(9);
         // The original is 6 bytes -> 48 bits long;
@@ -471,7 +471,7 @@ mod tests {
 
         let mut restored = [0u16; 3];
         let result = chunks.copy_into(&mut restored);
-        assert_eq!(result.bits_copied, restored.num_bits());
+        assert_eq!(result.units_copied, restored.num_bits());
     }
 
     #[test]
@@ -554,8 +554,8 @@ mod tests {
             };
 
             let mut target = [0f32; 4];
-            let copied = raw_decoded.copy_into_chunked(0, &mut target);
-            assert_eq!(copied, source.num_bytes());
+            let result = raw_decoded.copy_into_chunked(&mut target);
+            assert_eq!(result.units_copied, source.num_bytes());
 
             assert_eq!(target, source);
         }
@@ -581,8 +581,8 @@ mod tests {
             }
 
             let mut target = [0f32; 4];
-            let copied = raw_decoded.copy_into_chunked(0, &mut target);
-            assert_eq!(copied, source.num_bytes());
+            let result = raw_decoded.copy_into_chunked(&mut target);
+            assert_eq!(result.units_copied, source.num_bytes());
 
             assert_eq!(target, source, "failed on fault_index={fault_index}");
         }
