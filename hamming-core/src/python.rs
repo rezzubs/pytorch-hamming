@@ -1,7 +1,10 @@
 //! Python bindings
 
 use crate::{
-    bit_buffer::{chunks::DynChunks, CopyIntoResult},
+    bit_buffer::{
+        chunks::{Chunks, DynChunks},
+        CopyIntoResult,
+    },
     encoding::num_encoded_bits,
     prelude::*,
 };
@@ -242,7 +245,7 @@ pub fn decode_full_generic<'py, I, O>(
 ) -> PyResult<(Vec<OutputArr<'py, O>>, Vec<bool>)>
 where
     I: BitBuffer,
-    O: SizedBitBuffer + numpy::Element,
+    O: SizedBitBuffer + numpy::Element + ByteChunkedBitBuffer,
 {
     let input_num_bits = input_buffer.num_bits();
     let Some(input_buffer) = Limited::new(input_buffer, encoded_bits_count) else {
@@ -262,8 +265,16 @@ This means one of the input parameters is incorrect but there's no way to tell w
     }
 
     let (output_chunks, decoding_resuls) = input_chunks.decode_chunks(bits_per_chunk);
-    let copy_result = output_chunks.copy_into(&mut output_buffer);
-    assert_eq!(copy_result.bits_copied, output_buffer.num_bits(), "these must match because the chunked buffer can potentially only have more bits, not less.",);
+    let bits_copied = match output_chunks {
+        Chunks::Byte(byte_chunks) => {
+            byte_chunks
+                .copy_into_chunked(&mut output_buffer)
+                .units_copied
+                * 8
+        }
+        Chunks::Dyn(dyn_chunks) => dyn_chunks.copy_into(&mut output_buffer).units_copied,
+    };
+    assert_eq!(bits_copied, output_buffer.num_bits(), "these must match because the chunked buffer can potentially only have more bits, not less.",);
 
     Ok((
         output_buffer
