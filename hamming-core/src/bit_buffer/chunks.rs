@@ -285,8 +285,10 @@ impl Chunks {
         T: ByteChunkedBitBuffer,
     {
         if bits_per_chunk.is_multiple_of(8) {
+            println!("using byte chunks of {} bytes", bits_per_chunk / 8);
             Chunks::Byte(buffer.to_byte_chunks(bits_per_chunk / 8))
         } else {
+            println!("using dyn chunks of {} bits", bits_per_chunk);
             Chunks::Dyn(buffer.to_dyn_chunks(bits_per_chunk))
         }
     }

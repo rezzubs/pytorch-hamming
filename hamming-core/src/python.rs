@@ -1,5 +1,7 @@
 //! Python bindings
 
+use std::time::Instant;
+
 use crate::{
     bit_buffer::{
         chunks::{Chunks, DynChunks},
@@ -182,12 +184,23 @@ fn encode_full_generic<'py, B>(
 where
     B: ByteChunkedBitBuffer,
 {
-    let encoded_chunks = buffer.to_chunks(bits_per_chunk).encode_chunks();
+    let start = Instant::now();
+    let chunks = buffer.to_chunks(bits_per_chunk);
+    println!("Encoding: {:?} spent on chunking", Instant::now() - start);
+
+    let start = Instant::now();
+    let encoded_chunks = chunks.encode_chunks();
+    println!("Encoding: {:?} spent on encoding", Instant::now() - start);
 
     let encoded_bits_count = encoded_chunks.num_bits();
     let mut output_buffer = Limited::bytes(encoded_bits_count);
 
+    let start = Instant::now();
     let result = encoded_chunks.copy_into(&mut output_buffer);
+    println!(
+        "Encoding: {:?} spent on copying into the output",
+        Instant::now() - start
+    );
     assert_eq!(
         result,
         CopyIntoResult::done(encoded_bits_count),
@@ -213,7 +226,12 @@ pub fn encode_full_f32<'py>(
     input: Vec<InputArr<f32>>,
     bits_per_chunk: usize,
 ) -> (OutputArr<'py, u8>, usize) {
+    let start = Instant::now();
     let buffer = prep_input_array_list(input);
+    println!(
+        "Encoding: {:?} spent on preparing the input",
+        Instant::now() - start
+    );
 
     encode_full_generic(py, buffer, bits_per_chunk)
 }
@@ -248,6 +266,7 @@ where
     O: SizedBitBuffer + numpy::Element + ByteChunkedBitBuffer,
 {
     let input_num_bits = input_buffer.num_bits();
+
     let Some(input_buffer) = Limited::new(input_buffer, encoded_bits_count) else {
         return Err(PyValueError::new_err(format!(
             "Got an `encoded_bits_count` ({}) which larger than the actual number of bits than the encoded buffer ({}).",
@@ -257,14 +276,21 @@ where
     };
 
     let bits_per_encoded_chunk = num_encoded_bits(bits_per_chunk);
+
+    let start = Instant::now();
     let input_chunks = DynChunks::from_buffer(&input_buffer, bits_per_encoded_chunk);
+    println!("Decoding: {:?} spent on chunking", Instant::now() - start);
 
     if input_chunks.num_bits() != input_buffer.num_bits() {
         return Err(PyValueError::new_err("The number of bits in the limited input buffer and chunked input doesn't match (extra padding was added). \
 This means one of the input parameters is incorrect but there's no way to tell which one."));
     }
 
+    let start = Instant::now();
     let (output_chunks, decoding_resuls) = input_chunks.decode_chunks(bits_per_chunk);
+    println!("Decoding: {:?} spent on decoding", Instant::now() - start);
+
+    let start = Instant::now();
     let bits_copied = match output_chunks {
         Chunks::Byte(byte_chunks) => {
             byte_chunks
@@ -274,6 +300,10 @@ This means one of the input parameters is incorrect but there's no way to tell w
         }
         Chunks::Dyn(dyn_chunks) => dyn_chunks.copy_into(&mut output_buffer).units_copied,
     };
+    println!(
+        "Decoding: {:?} spent on copying to the output",
+        Instant::now() - start
+    );
     assert_eq!(bits_copied, output_buffer.num_bits(), "these must match because the chunked buffer can potentially only have more bits, not less.",);
 
     Ok((
@@ -298,7 +328,12 @@ pub fn decode_full_f32<'py>(
     bits_per_chunk: usize,
     decoded_array_element_counts: Vec<usize>,
 ) -> PyResult<(Vec<OutputArr<'py, f32>>, Vec<bool>)> {
+    let start = Instant::now();
     let input_buffer = prep_input_array(encoded);
+    println!(
+        "Decoding: {:?} spent on preparing the input",
+        Instant::now() - start
+    );
 
     let output_buffer = NonUniformSequence(
         decoded_array_element_counts
