@@ -6,7 +6,7 @@ use crate::{
         CopyIntoResult,
     },
     encoding::{
-        bit_patterns::{self, BitPattern, BitPatternEncodingBytes},
+        bit_patterns::{self, BitPattern, BitPatternEncoding, BitPatternEncodingBytes},
         num_encoded_bits,
     },
     prelude::*,
@@ -382,12 +382,12 @@ where
         num_encoded_chunks,
     } = encoded.to_bytes();
 
-    let total_bits = bytes.num_bits();
+    let encoded_bits_count = bytes.num_bits();
     let bytes = bytes.into_inner();
 
     Ok((
         PyArray1::from_vec(py, bytes),
-        total_bits,
+        encoded_bits_count,
         num_unprotected,
         encoded_chunk_size,
         num_encoded_chunks,
@@ -430,6 +430,50 @@ pub fn encode_bit_pattern_u16<'py>(
         bit_pattern_length,
         bits_per_chunk,
     )
+}
+
+#[pyfunction]
+pub fn decode_bit_pattern_f32<'py>(
+    py: Python<'py>,
+    bytes: InputArr<u8>,
+    encoded_bits_count: usize,
+    unprotected_count: usize,
+    encoded_chunk_size: usize,
+    encoded_chunks_count: usize,
+    decoded_array_element_counts: Vec<usize>,
+    data_bits_per_chunk: usize,
+) -> PyResult<Vec<OutputArr<'py, f32>>> {
+    let buffer = prep_input_array(bytes);
+
+    let output_buffer = NonUniformSequence(
+        decoded_array_element_counts
+            .iter()
+            .map(|&numel| vec![0f32; numel])
+            .collect::<Vec<_>>(),
+    );
+
+    let buffer_total_bits = buffer.num_bits();
+    let Some(limited) = Limited::new(buffer, encoded_bits_count) else {
+        return Err(PyValueError::new_err(format!(
+            "Got an `encoded_bits_count` ({}) which larger than the actual number of bits than the encoded buffer ({}).",
+            encoded_bits_count,
+            buffer_total_bits,
+        )));
+    };
+
+    let ir = BitPatternEncodingBytes {
+        bytes: limited,
+        num_unprotected: unprotected_count,
+        encoded_chunk_size,
+        num_encoded_chunks: encoded_chunks_count,
+    };
+
+    let encoded = BitPatternEncoding::from_bytes(&ir)
+        .map_err(|err| PyValueError::new_err(err.to_string()))?;
+
+    // encoded.decode_into(output_buffer, data_bits_per_chunk, pattern);
+
+    todo!()
 }
 
 #[cfg(test)]

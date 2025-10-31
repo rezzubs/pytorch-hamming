@@ -21,6 +21,7 @@ ON_DISK_CACHE = "./dataset_cache"
 
 
 CACHE: dict[CachedDataset, Dataset] = dict()
+loader_cache: list[tuple[torch.Tensor, torch.Tensor]] | None = None
 
 
 class CachedDataset(enum.Enum):
@@ -78,7 +79,10 @@ class CachedDataset(enum.Enum):
         return dataset
 
     def loader(
-        self, batch_size: int = 100
+        self,
+        device: torch.device,
+        dtype: torch.dtype,
+        batch_size: int = 1000,
     ) -> Generator[tuple[torch.Tensor, torch.Tensor]]:
         dataloader = typing.cast(
             DataLoader[list[torch.Tensor]],
@@ -97,6 +101,18 @@ class CachedDataset(enum.Enum):
             assert len(batch) == 2
             assert all(isinstance(x, torch.Tensor) for x in batch)
 
-            yield (batch[0], batch[1])
+            yield (batch[0].to(device), batch[1].to(device))
 
         return None
+
+    def loader_cached(
+        self,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> list[tuple[torch.Tensor, torch.Tensor]]:
+        global loader_cache
+
+        if loader_cache is None:
+            loader_cache = list(self.loader(device, dtype))
+
+        return loader_cache

@@ -63,10 +63,10 @@ class System(BaseSystem[nn.Module]):
         num_samples = torch.tensor(0).to(self.device)
         num_correct = torch.tensor(0).to(self.device)
 
-        for data_unit in self.dataset.loader():
+        for data_unit in self.dataset.loader_cached(self.device, self.dtype.to_torch()):
             inputs, targets = data_unit[0], data_unit[1]
-            inputs = inputs.to(self.device).to(self.dtype.to_torch())
-            targets = targets.to(self.device).to(self.dtype.to_torch())
+            inputs = inputs
+            targets = targets
 
             outputs = typing.cast(torch.Tensor, data(inputs))
             assert isinstance(outputs, torch.Tensor)
