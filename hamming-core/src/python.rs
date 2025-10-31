@@ -5,7 +5,10 @@ use crate::{
         chunks::{Chunks, DynChunks},
         CopyIntoResult,
     },
-    encoding::num_encoded_bits,
+    encoding::{
+        bit_patterns::{self, BitPattern, BitPatternEncodingBytes},
+        num_encoded_bits,
+    },
     prelude::*,
 };
 use numpy::{PyArray1, PyReadonlyArrayDyn};
@@ -338,6 +341,93 @@ pub fn decode_full_u16<'py>(
         input_buffer,
         output_buffer,
         encoded_bits_count,
+        bits_per_chunk,
+    )
+}
+
+fn encode_bit_pattern_generic<'py, T>(
+    py: Python<'py>,
+    buffer: NonUniformSequence<Vec<Vec<T>>>,
+    protected_bits: Vec<usize>,
+    bit_pattern_length: usize,
+    bits_per_chunk: usize,
+) -> PyResult<(OutputArr<'py, u8>, usize, usize, usize, usize)>
+where
+    T: SizedBitBuffer,
+{
+    let pattern = BitPattern::new(protected_bits.clone(), bit_pattern_length).map_err(|err| {
+        PyValueError::new_err(match err {
+            bit_patterns::CreationError::InvalidLength { expected_at_least } => {
+                format!(
+                    "Invalid length ({}) for bit pattern ({:?}), expected at least {}",
+                    bit_pattern_length, protected_bits, expected_at_least
+                )
+            }
+            bit_patterns::CreationError::AllProtected => format!(
+                "The pattern {:?} with length {} covers all bits, use some other technique",
+                protected_bits, bit_pattern_length,
+            ),
+            bit_patterns::CreationError::Empty => bit_patterns::CreationError::Empty.to_string(),
+        })
+    })?;
+
+    let encoded = pattern
+        .encode(&buffer, bits_per_chunk)
+        .map_err(|err| PyValueError::new_err(err.to_string()))?;
+
+    let BitPatternEncodingBytes {
+        bytes,
+        num_unprotected,
+        encoded_chunk_size,
+        num_encoded_chunks,
+    } = encoded.to_bytes();
+
+    let total_bits = bytes.num_bits();
+    let bytes = bytes.into_inner();
+
+    Ok((
+        PyArray1::from_vec(py, bytes),
+        total_bits,
+        num_unprotected,
+        encoded_chunk_size,
+        num_encoded_chunks,
+    ))
+}
+
+#[pyfunction]
+pub fn encode_bit_pattern_f32<'py>(
+    py: Python<'py>,
+    input: Vec<InputArr<f32>>,
+    protected_bits: Vec<usize>,
+    bit_pattern_length: usize,
+    bits_per_chunk: usize,
+) -> PyResult<(OutputArr<'py, u8>, usize, usize, usize, usize)> {
+    let buffer = prep_input_array_list(input);
+
+    encode_bit_pattern_generic(
+        py,
+        buffer,
+        protected_bits,
+        bit_pattern_length,
+        bits_per_chunk,
+    )
+}
+
+#[pyfunction]
+pub fn encode_bit_pattern_u16<'py>(
+    py: Python<'py>,
+    input: Vec<InputArr<u16>>,
+    protected_bits: Vec<usize>,
+    bit_pattern_length: usize,
+    bits_per_chunk: usize,
+) -> PyResult<(OutputArr<'py, u8>, usize, usize, usize, usize)> {
+    let buffer = prep_input_array_list(input);
+
+    encode_bit_pattern_generic(
+        py,
+        buffer,
+        protected_bits,
+        bit_pattern_length,
         bits_per_chunk,
     )
 }

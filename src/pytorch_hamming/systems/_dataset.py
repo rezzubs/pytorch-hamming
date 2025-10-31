@@ -78,7 +78,7 @@ class CachedDataset(enum.Enum):
         return dataset
 
     def loader(
-        self, batch_size: int = 1000
+        self, batch_size: int = 100
     ) -> Generator[tuple[torch.Tensor, torch.Tensor]]:
         dataloader = typing.cast(
             DataLoader[list[torch.Tensor]],

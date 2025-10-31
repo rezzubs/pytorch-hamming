@@ -101,14 +101,14 @@ impl BitPattern {
     pub fn partition<B>(
         &self,
         buffer: &B,
-        chunk_size: usize,
+        bits_per_chunk: usize,
     ) -> Result<(Limited<Vec<u8>>, Chunks), LengthMismatch>
     where
         B: BitBuffer,
     {
         let params = self.buffer_params(buffer)?;
 
-        let mut protected = Chunks::zero(params.num_protected_bits, chunk_size);
+        let mut protected = Chunks::zero(params.num_protected_bits, bits_per_chunk);
         let mut unprotected = Limited::bytes(params.num_unprotected_bits());
 
         let mut protected_i = 0;
@@ -135,12 +135,12 @@ impl BitPattern {
     pub fn encode<B>(
         &self,
         buffer: &B,
-        chunk_size: usize,
+        bits_per_chunk: usize,
     ) -> Result<BitPatternEncoding, LengthMismatch>
     where
         B: BitBuffer,
     {
-        let (unprotected, protected) = self.partition(buffer, chunk_size)?;
+        let (unprotected, protected) = self.partition(buffer, bits_per_chunk)?;
 
         Ok(BitPatternEncoding {
             protected: protected.encode_chunks(),
@@ -176,7 +176,7 @@ pub enum DecodeError {
     },
 }
 
-struct BitPatternEncodingBytes {
+pub struct BitPatternEncodingBytes {
     /// The raw data.
     ///
     /// Protected bits come after the protected ones
@@ -191,7 +191,7 @@ struct BitPatternEncodingBytes {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("Got a {actual_num_bits} bit buffer, but the other parameters describe a {described_num_bits} buffer")]
-struct InvalidBytesDescription {
+pub struct InvalidBytesDescription {
     pub actual_num_bits: usize,
     pub described_num_bits: usize,
 }
@@ -260,7 +260,8 @@ impl BitPatternEncoding {
         Ok(ded_results)
     }
 
-    fn to_bytes(&self) -> BitPatternEncodingBytes {
+    #[must_use]
+    pub fn to_bytes(&self) -> BitPatternEncodingBytes {
         let mut bytes = Limited::bytes(self.unprotected.num_bits() + self.protected.num_bits());
 
         let result = self.unprotected.copy_into(&mut bytes);
@@ -280,7 +281,7 @@ impl BitPatternEncoding {
         }
     }
 
-    fn from_bytes(bytes: &BitPatternEncodingBytes) -> Result<Self, InvalidBytesDescription> {
+    pub fn from_bytes(bytes: &BitPatternEncodingBytes) -> Result<Self, InvalidBytesDescription> {
         let mut unprotected = Limited::bytes(bytes.num_unprotected);
 
         let mut protected = DynChunks::zero(
