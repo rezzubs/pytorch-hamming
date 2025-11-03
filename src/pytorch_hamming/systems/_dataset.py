@@ -1,7 +1,7 @@
 from __future__ import annotations
 import functools
 
-from collections.abc import Generator, Iterator
+from collections.abc import Iterator
 import enum
 import logging
 import typing
