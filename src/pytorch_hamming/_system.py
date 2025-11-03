@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 
+from .fault_injector import BaseFaultInjector, TensorListFaultInjector
 import torch
 
 from .tensor_ops import (
@@ -24,21 +25,17 @@ class BaseSystem[T](abc.ABC):
         """Get the accuracy of the system for the given `data`"""
 
     @abc.abstractmethod
-    def system_data_tensors_cmp(self, data: T) -> list[torch.Tensor]:
+    def system_data_tensors(self, data: T) -> list[torch.Tensor]:
         """Get references to tensors that make up this `data`
 
         These are the tensors that are going to be used for comparing two systems of the same type.
+
+        By default the same tensors are used as the target of fault injection.
+        If this is not desired, `system_fault_injector` can be overridden.
         """
 
-    def system_data_tensors_fi(self, data: T) -> list[torch.Tensor]:
-        """Get references to tensors that make up this `data`.
-
-        These are the tensors that are going to be used for fault injection. The
-        default implementation uses the same value as `system_data_tensors_cmp`
-        but it can be overriden to use a different representation for fault
-        injection.
-        """
-        return self.system_data_tensors_cmp(data)
+    def system_fault_injector(self, data: T) -> BaseFaultInjector:
+        return TensorListFaultInjector(self.system_data_tensors(data))
 
     def system_metadata(self) -> dict[str, str]:
         """Return metadata about the system.
@@ -48,4 +45,4 @@ class BaseSystem[T](abc.ABC):
         return dict()
 
     def system_total_num_bits(self) -> int:
-        return tensor_list_num_bits(self.system_data_tensors_cmp(self.system_data()))
+        return tensor_list_num_bits(self.system_data_tensors(self.system_data()))

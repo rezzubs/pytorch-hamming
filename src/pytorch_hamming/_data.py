@@ -11,7 +11,6 @@ from typing_extensions import override
 from ._system import BaseSystem
 from .tensor_ops import (
     tensor_list_compare_bitwise,
-    tensor_list_fault_injection,
 )
 
 logger = logging.getLogger(__name__)
@@ -147,12 +146,12 @@ Accuracy: ~{self.accuracy:.2f}%
 
         data = copy.deepcopy(system.system_data())
 
-        original_tensors = copy.deepcopy(system.system_data_tensors_cmp(data))
+        original_tensors = copy.deepcopy(system.system_data_tensors(data))
 
         if self.faults_count > 0:
             logger.debug("Running fault injection")
-            tensor_list_fault_injection(
-                system.system_data_tensors_fi(data), self.faults_count
+            system.system_fault_injector(data).fault_injector_inject_n(
+                self.faults_count
             )
             logger.debug("Fault injection finished")
         else:
@@ -164,7 +163,7 @@ Accuracy: ~{self.accuracy:.2f}%
 
         logger.debug("Comparing outputs")
         faulty_parameters = tensor_list_compare_bitwise(
-            original_tensors, system.system_data_tensors_cmp(data)
+            original_tensors, system.system_data_tensors(data)
         )
         logger.debug("Finished comparing outputs")
 

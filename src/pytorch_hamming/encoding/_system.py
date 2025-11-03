@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import copy
 import logging
+from ..fault_injector import BaseFaultInjector, TensorListFaultInjector
 from typing_extensions import override
 from .._system import BaseSystem
 from ._full import EncodingFull
@@ -38,7 +39,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
         logger.debug("Encoding data tensors")
         match self.format:
             case EncodingFormatFull(bits_per_chunk):
-                data = self.base.system_data_tensors_fi(self.base.system_data())
+                data = self.base.system_data_tensors(self.base.system_data())
                 return EncodingFull.encode_tensor_list(data, bits_per_chunk)
 
     def decoded_base_data(self, data: Encoding) -> T:
@@ -48,7 +49,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
 
         logger.debug("Decoding data")
         base_data_copy = copy.deepcopy(self.base.system_data())
-        base_data_copy_tensors = self.base.system_data_tensors_fi(base_data_copy)
+        base_data_copy_tensors = self.base.system_data_tensors(base_data_copy)
 
         # discard because it's updated in place.
         _ = data.decode_tensor_list(base_data_copy_tensors)
@@ -68,11 +69,11 @@ class EncodedSystem[T](BaseSystem[Encoding]):
         return self.base.system_accuracy(self.decoded_base_data(data))
 
     @override
-    def system_data_tensors_cmp(self, data: Encoding) -> list[torch.Tensor]:
-        return self.base.system_data_tensors_cmp(self.decoded_base_data(data))
+    def system_data_tensors(self, data: Encoding) -> list[torch.Tensor]:
+        return self.base.system_data_tensors(self.decoded_base_data(data))
 
     @override
-    def system_data_tensors_fi(self, data: Encoding) -> list[torch.Tensor]:
+    def system_fault_injector(self, data: Encoding) -> BaseFaultInjector:
         # NOTE: we need to reset the decoded cache because the true values can
         # change if the values in the returned list are updated like through
         # fault injection.
@@ -80,7 +81,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
 
         match data:
             case EncodingFull():
-                return [data.encoded_bytes]
+                return TensorListFaultInjector([data.encoded_bytes])
 
     @override
     def system_metadata(self) -> dict[str, str]:
