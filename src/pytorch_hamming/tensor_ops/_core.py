@@ -48,9 +48,7 @@ def tensor_list_num_bits(ts: list[torch.Tensor]) -> int:
     return total
 
 
-def tensor_list_fault_injection(
-    ts: list[torch.Tensor], num_faults: int, bit_limit: int | None = None
-):
+def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
     """Flip `num_faults` unique bits in `ts`.
 
     Raises:
@@ -73,9 +71,7 @@ def tensor_list_fault_injection(
         case FiDtype.Float32:
             with torch.no_grad():
                 rust_input = [t.numpy(force=True) for t in flattened]
-                result = hamming_core.f32_array_list_fi(
-                    rust_input, num_faults, bit_limit
-                )
+                result = hamming_core.f32_array_list_fi(rust_input, num_faults)
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
                     torch.from_numpy(t)  # pyright: ignore[reportUnknownMemberType]
@@ -86,9 +82,7 @@ def tensor_list_fault_injection(
             with torch.no_grad():
                 rust_input = [t.cpu().view(torch.uint16).numpy() for t in flattened]
 
-                result = hamming_core.u16_array_list_fi(
-                    rust_input, num_faults, bit_limit
-                )
+                result = hamming_core.u16_array_list_fi(rust_input, num_faults)
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
                     torch.from_numpy(t).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
@@ -101,9 +95,7 @@ def tensor_list_fault_injection(
             with torch.no_grad():
                 rust_input = [t.numpy(force=True) for t in flattened]
 
-                result = hamming_core.u8_array_list_fi(
-                    rust_input, num_faults, bit_limit
-                )
+                result = hamming_core.u8_array_list_fi(rust_input, num_faults)
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
                     torch.from_numpy(t)  # pyright: ignore[reportUnknownMemberType]
