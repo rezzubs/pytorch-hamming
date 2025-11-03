@@ -176,7 +176,13 @@ The default is to only save at the very end",
     """Record data entries for a model and dataset."""
     device: torch.device = torch.device(device)
 
-    system = System(dataset=dataset, model=model, dtype=dtype.to_dtype(), device=device)
+    system = System(
+        dataset=dataset,
+        model=model,
+        dtype=dtype.to_dtype(),
+        device=device,
+        batch_size=batch_size,
+    )
 
     match (protected, bit_pattern):
         case (_, BitPattern()):

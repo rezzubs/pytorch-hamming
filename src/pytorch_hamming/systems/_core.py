@@ -47,6 +47,7 @@ class System(BaseSystem[nn.Module]):
     model: CachedModel
     dtype: DnnDtype
     device: torch.device
+    batch_size: int
 
     @override
     def system_data(self) -> nn.Module:
@@ -64,7 +65,7 @@ class System(BaseSystem[nn.Module]):
         num_correct = torch.tensor(0).to(self.device)
 
         for data_unit in self.dataset.batches(
-            1000,
+            self.batch_size,
             self.dtype.to_torch(),
             self.device,
         ):
