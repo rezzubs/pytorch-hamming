@@ -13,7 +13,7 @@ pub struct UniformSequence<T> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, thiserror::Error)]
-#[error("Index {0} doesn't match the rest of the sequence")]
+#[error("Index {0} has a different length than the rest of the sequence")]
 pub struct NonMatchingIndex(usize);
 
 impl<T> UniformSequence<T> {

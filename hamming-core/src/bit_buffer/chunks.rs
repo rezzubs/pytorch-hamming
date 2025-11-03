@@ -1,13 +1,14 @@
 use rayon::prelude::*;
 
+use crate::buffers::uniform::NonMatchingIndex;
 use crate::encoding::decode_into;
 use crate::{
     buffers::{Limited, UniformSequence},
     prelude::*,
 };
 
-type ByteChunk = Vec<u8>;
-type DynChunk = Limited<Vec<u8>>;
+pub type ByteChunk = Vec<u8>;
+pub type DynChunk = Limited<Vec<u8>>;
 
 /// How many chunks are required to store a buffer with `chunk_size` bits per chunk.
 #[inline]
@@ -256,6 +257,15 @@ same unless they have been tampered with after creation. Got error {err}",
             .next()
             .map(|chunk| chunk.num_bits())
             .unwrap_or(0)
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> Vec<DynChunk> {
+        self.0.into_inner()
+    }
+
+    pub fn from_raw(raw: Vec<DynChunk>) -> Result<Self, NonMatchingIndex> {
+        UniformSequence::new(raw).map(Self)
     }
 }
 

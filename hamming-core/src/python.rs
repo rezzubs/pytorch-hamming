@@ -5,18 +5,20 @@ use crate::{
         chunks::{Chunks, DynChunks},
         CopyIntoResult,
     },
+    buffers::{Limited, NonUniformSequence},
     encoding::{
-        bit_patterns::{self, BitPattern, BitPatternEncodingBytes},
+        bit_patterns::{self, BitPattern, BitPatternEncoding},
         num_encoded_bits,
     },
     prelude::*,
 };
 use numpy::{PyArray1, PyReadonlyArrayDyn};
-use pyo3::exceptions::PyValueError;
-use pyo3::prelude::*;
+use pyo3::{
+    exceptions::{PyRuntimeError, PyValueError},
+    prelude::*,
+};
 use rayon::prelude::*;
-
-use crate::buffers::{Limited, NonUniformSequence};
+use std::borrow::Cow;
 
 type OutputArr<'py, T> = Bound<'py, PyArray1<T>>;
 type InputArr<'py, T> = PyReadonlyArrayDyn<'py, T>;
@@ -267,7 +269,7 @@ where
 This means one of the input parameters is incorrect but there's no way to tell which one."));
     }
 
-    let (output_chunks, decoding_resuls) = input_chunks.decode_chunks(bits_per_chunk);
+    let (output_chunks, decoding_results) = input_chunks.decode_chunks(bits_per_chunk);
     let bits_copied = match output_chunks {
         Chunks::Byte(byte_chunks) => {
             byte_chunks
@@ -285,7 +287,7 @@ This means one of the input parameters is incorrect but there's no way to tell w
             .into_iter()
             .map(|vec| PyArray1::from_vec(py, vec))
             .collect(),
-        decoding_resuls,
+        decoding_results,
     ))
 }
 
@@ -345,17 +347,10 @@ pub fn decode_full_u16<'py>(
     )
 }
 
-fn encode_bit_pattern_generic<'py, T>(
-    py: Python<'py>,
-    buffer: NonUniformSequence<Vec<Vec<T>>>,
-    protected_bits: Vec<usize>,
-    bit_pattern_length: usize,
-    bits_per_chunk: usize,
-) -> PyResult<(OutputArr<'py, u8>, usize, usize, usize, usize)>
-where
-    T: SizedBitBuffer,
-{
-    let pattern = BitPattern::new(protected_bits.clone(), bit_pattern_length).map_err(|err| {
+type PyBitPatternEncoding<'py> = (Cow<'py, [u8]>, usize, Vec<Cow<'py, [u8]>>);
+
+fn py_bit_pattern(protected_bits: Vec<usize>, bit_pattern_length: usize) -> PyResult<BitPattern> {
+    BitPattern::new(protected_bits.clone(), bit_pattern_length).map_err(|err| {
         PyValueError::new_err(match err {
             bit_patterns::CreationError::InvalidLength { expected_at_least } => {
                 format!(
@@ -369,69 +364,180 @@ where
             ),
             bit_patterns::CreationError::Empty => bit_patterns::CreationError::Empty.to_string(),
         })
-    })?;
+    })
+}
 
-    let encoded = pattern
+fn encode_bit_pattern_generic<'py, T>(
+    buffer: NonUniformSequence<Vec<Vec<T>>>,
+    bit_pattern_bits: Vec<usize>,
+    bit_pattern_length: usize,
+    bits_per_chunk: usize,
+) -> PyResult<PyBitPatternEncoding<'py>>
+where
+    T: SizedBitBuffer,
+{
+    let pattern = py_bit_pattern(bit_pattern_bits, bit_pattern_length)?;
+
+    let BitPatternEncoding {
+        unprotected,
+        protected,
+    } = pattern
         .encode(&buffer, bits_per_chunk)
         .map_err(|err| PyValueError::new_err(err.to_string()))?;
 
-    let BitPatternEncodingBytes {
-        bytes,
-        num_unprotected,
-        encoded_chunk_size,
-        num_encoded_chunks,
-    } = encoded.to_bytes();
-
-    let total_bits = bytes.num_bits();
-    let bytes = bytes.into_inner();
-
+    let unprotected_bits_count = unprotected.num_bits();
     Ok((
-        PyArray1::from_vec(py, bytes),
-        total_bits,
-        num_unprotected,
-        encoded_chunk_size,
-        num_encoded_chunks,
+        unprotected.into_inner().into(),
+        unprotected_bits_count,
+        protected
+            .into_raw()
+            .into_iter()
+            .map(|chunk| chunk.into_inner().into())
+            .collect(),
     ))
 }
 
 #[pyfunction]
 pub fn encode_bit_pattern_f32<'py>(
-    py: Python<'py>,
     input: Vec<InputArr<f32>>,
-    protected_bits: Vec<usize>,
+    bit_pattern_bits: Vec<usize>,
     bit_pattern_length: usize,
     bits_per_chunk: usize,
-) -> PyResult<(OutputArr<'py, u8>, usize, usize, usize, usize)> {
+) -> PyResult<PyBitPatternEncoding<'py>> {
     let buffer = prep_input_array_list(input);
 
-    encode_bit_pattern_generic(
-        py,
-        buffer,
-        protected_bits,
-        bit_pattern_length,
-        bits_per_chunk,
-    )
+    encode_bit_pattern_generic(buffer, bit_pattern_bits, bit_pattern_length, bits_per_chunk)
 }
 
 #[pyfunction]
 pub fn encode_bit_pattern_u16<'py>(
-    py: Python<'py>,
     input: Vec<InputArr<u16>>,
-    protected_bits: Vec<usize>,
+    bit_pattern_bits: Vec<usize>,
     bit_pattern_length: usize,
     bits_per_chunk: usize,
-) -> PyResult<(OutputArr<'py, u8>, usize, usize, usize, usize)> {
+) -> PyResult<PyBitPatternEncoding<'py>> {
     let buffer = prep_input_array_list(input);
 
-    encode_bit_pattern_generic(
+    encode_bit_pattern_generic(buffer, bit_pattern_bits, bit_pattern_length, bits_per_chunk)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn decode_bit_pattern_generic<'py, T>(
+    py: Python<'py>,
+    unprotected: Vec<u8>,
+    unprotected_bits_count: usize,
+    protected: Vec<Vec<u8>>,
+    bit_pattern_bits: Vec<usize>,
+    bit_pattern_length: usize,
+    bits_per_chunk: usize,
+    mut output_buffer: NonUniformSequence<Vec<Vec<T>>>,
+) -> PyResult<(Vec<OutputArr<'py, T>>, Vec<bool>)>
+where
+    T: numpy::Element + BitBuffer + SizedBitBuffer,
+{
+    let pattern = py_bit_pattern(bit_pattern_bits, bit_pattern_length)?;
+
+    let unprotected_bits_count_actual = unprotected.num_bits();
+    let unprotected = Limited::new(unprotected, unprotected_bits_count).ok_or_else(|| {
+
+        PyValueError::new_err(format!("`unprotected_bits_count` ({}) cannot be larger than the number bits in of `unprotected` ({})", unprotected_bits_count, unprotected_bits_count_actual))
+    })?;
+
+    let encoded_bits_per_chunk = num_encoded_bits(bits_per_chunk);
+    let protected = protected
+        .into_iter()
+        .map(|chunk| Limited::new(chunk, encoded_bits_per_chunk))
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "`bits_per_chunk` ({}) doesn't match the encoded chunks",
+                bits_per_chunk
+            ))
+        })?;
+
+    let protected =
+        DynChunks::from_raw(protected).map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
+
+    let encoding = BitPatternEncoding {
+        unprotected,
+        protected,
+    };
+
+    let decoding_results = encoding
+        .decode_into(&mut output_buffer, bits_per_chunk, pattern)
+        .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
+
+    Ok((
+        output_buffer
+            .0
+            .into_iter()
+            .map(|vec| PyArray1::from_vec(py, vec))
+            .collect(),
+        decoding_results,
+    ))
+}
+
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+pub fn decode_bit_pattern_f32<'py>(
+    py: Python<'py>,
+    unprotected: Vec<u8>,
+    unprotected_bits_count: usize,
+    protected: Vec<Vec<u8>>,
+    bit_pattern_bits: Vec<usize>,
+    bit_pattern_length: usize,
+    bits_per_chunk: usize,
+    decoded_array_element_counts: Vec<usize>,
+) -> PyResult<(Vec<OutputArr<'py, f32>>, Vec<bool>)> {
+    let output_buffer = NonUniformSequence(
+        decoded_array_element_counts
+            .iter()
+            .map(|&numel| vec![0f32; numel])
+            .collect::<Vec<_>>(),
+    );
+
+    decode_bit_pattern_generic(
         py,
-        buffer,
-        protected_bits,
+        unprotected,
+        unprotected_bits_count,
+        protected,
+        bit_pattern_bits,
         bit_pattern_length,
         bits_per_chunk,
+        output_buffer,
     )
 }
 
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+pub fn decode_bit_pattern_u16<'py>(
+    py: Python<'py>,
+    unprotected: Vec<u8>,
+    unprotected_bits_count: usize,
+    protected: Vec<Vec<u8>>,
+    bit_pattern_bits: Vec<usize>,
+    bit_pattern_length: usize,
+    bits_per_chunk: usize,
+    decoded_array_element_counts: Vec<usize>,
+) -> PyResult<(Vec<OutputArr<'py, u16>>, Vec<bool>)> {
+    let output_buffer = NonUniformSequence(
+        decoded_array_element_counts
+            .iter()
+            .map(|&numel| vec![0u16; numel])
+            .collect::<Vec<_>>(),
+    );
+
+    decode_bit_pattern_generic(
+        py,
+        unprotected,
+        unprotected_bits_count,
+        protected,
+        bit_pattern_bits,
+        bit_pattern_length,
+        bits_per_chunk,
+        output_buffer,
+    )
+}
 #[cfg(test)]
 mod tests {
     use super::*;

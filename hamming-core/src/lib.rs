@@ -36,4 +36,9 @@ mod hamming_core {
     use crate::python::encode_bit_pattern_f32;
     #[pymodule_export]
     use crate::python::encode_bit_pattern_u16;
+
+    #[pymodule_export]
+    use crate::python::decode_bit_pattern_f32;
+    #[pymodule_export]
+    use crate::python::decode_bit_pattern_u16;
 }

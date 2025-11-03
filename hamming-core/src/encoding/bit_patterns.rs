@@ -151,8 +151,8 @@ impl BitPattern {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BitPatternEncoding {
-    unprotected: Limited<Vec<u8>>,
-    protected: DynChunks,
+    pub unprotected: Limited<Vec<u8>>,
+    pub protected: DynChunks,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
@@ -197,7 +197,7 @@ pub struct InvalidBytesDescription {
 }
 
 impl BitPatternEncoding {
-    fn decode_into<B>(
+    pub fn decode_into<B>(
         self,
         buffer: &mut B,
         data_bits_per_chunk: usize,
