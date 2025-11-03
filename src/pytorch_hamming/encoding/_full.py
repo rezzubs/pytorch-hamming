@@ -12,7 +12,7 @@ from ..tensor_ops import tensor_list_dtype
 
 
 @dataclass
-class EncodingFull:
+class FullEncoding:
     encoded_bytes: torch.Tensor
     bits_per_chunk: int
     bits_count: int
@@ -20,7 +20,7 @@ class EncodingFull:
     @classmethod
     def encode_tensor_list(
         cls, ts: list[torch.Tensor], bits_per_chunk: int
-    ) -> EncodingFull:
+    ) -> FullEncoding:
         dtype = tensor_list_dtype(ts)
         if dtype is None:
             raise ValueError("Cannot encode an empty buffer")

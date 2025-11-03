@@ -1,5 +1,5 @@
 from ._bit_pattern import BitPattern
-from ._full import EncodingFull
+from ._full import FullEncoding
 from ._system import (
     EncodedSystem,
     Encoding,
@@ -13,5 +13,5 @@ __all__ = [
     "Encoding",
     "EncodingFormat",
     "EncodingFormatFull",
-    "EncodingFull",
+    "FullEncoding",
 ]

@@ -10,6 +10,7 @@ __all__ = [
 ]
 
 type ListOfArray[T: np.generic] = list[npt.NDArray[T]]
+type BitPatternEncoding = tuple[bytes, int, list[bytes]]
 
 def f32_array_list_fi(
     input: ListOfArray[np.float32],
@@ -56,13 +57,13 @@ def encode_bit_pattern_f32(
     bit_pattern_bits: list[int],
     bit_pattern_length: int,
     bits_per_chunk: int,
-) -> tuple[bytes, int, list[bytes]]: ...
+) -> BitPatternEncoding: ...
 def encode_bit_pattern_u16(
     input: ListOfArray[np.uint16],
     bit_pattern_bits: list[int],
     bit_pattern_length: int,
     bits_per_chunk: int,
-) -> tuple[bytes, int, list[bytes]]: ...
+) -> BitPatternEncoding: ...
 def decode_bit_pattern_f32(
     unprotected: bytes,
     unprotected_bits_count: int,
@@ -71,7 +72,7 @@ def decode_bit_pattern_f32(
     bit_pattern_length: int,
     bits_per_chunk: int,
     decoded_array_element_counts: list[int],
-) -> tuple[ListOfArray[np.float32], list[bool]]: ...
+) -> tuple[ListOfArray[np.uint16], list[bool]]: ...
 def decode_bit_pattern_u16(
     unprotected: bytes,
     unprotected_bits_count: int,

@@ -3,7 +3,12 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 
+import hamming_core
+import torch
 from typing_extensions import override
+
+from pytorch_hamming import DnnDtype
+from pytorch_hamming.tensor_ops import tensor_list_dtype
 
 
 @dataclass
@@ -132,3 +137,106 @@ class BitPattern:
             ) from e
 
         return cls(bits)
+
+
+@dataclass
+class BitPatternEncoding:
+    _encoded_data: hamming_core.BitPatternEncoding
+    _pattern: BitPattern
+    _pattern_length: int
+    _bits_per_chunk: int
+
+    @classmethod
+    def encode_tensor_list(
+        cls,
+        ts: list[torch.Tensor],
+        pattern: BitPattern,
+        pattern_length: int,
+        bits_per_chunk: int,
+    ) -> BitPatternEncoding:
+        dtype = tensor_list_dtype(ts)
+        if dtype is None:
+            raise ValueError("Cannot encode an empty buffer")
+
+        match DnnDtype.from_torch(dtype):
+            case DnnDtype.Float32:
+                with torch.no_grad():
+                    rust_input = [t.flatten().numpy(force=True) for t in ts]
+                    data = hamming_core.encode_bit_pattern_f32(
+                        rust_input,
+                        list(pattern.bits),
+                        pattern_length,
+                        bits_per_chunk,
+                    )
+            case DnnDtype.Float16:
+                with torch.no_grad():
+                    rust_input = [
+                        t.flatten().view(torch.uint16).numpy(force=True) for t in ts
+                    ]
+                    data = hamming_core.encode_bit_pattern_u16(
+                        rust_input,
+                        list(pattern.bits),
+                        pattern_length,
+                        bits_per_chunk,
+                    )
+
+        return cls(
+            data,
+            pattern,
+            pattern_length,
+            bits_per_chunk,
+        )
+
+    def decode_tensor_list(
+        self, output_buffer: list[torch.Tensor]
+    ) -> list[torch.Tensor]:
+        """Decode into the output buffer.
+
+        `output_buffer` should have the same structure as the original data.
+
+        Returns a reference to the same output buffer.
+        """
+        dtype = tensor_list_dtype(output_buffer)
+        if dtype is None:
+            raise ValueError("Cannot decode into an empty buffer")
+
+        element_counts = [t.numel() for t in output_buffer]
+        match DnnDtype.from_torch(dtype):
+            case DnnDtype.Float32:
+                decoded, ded_results = hamming_core.decode_bit_pattern_f32(
+                    *self._encoded_data,
+                    list(self._pattern.bits),
+                    self._pattern_length,
+                    self._bits_per_chunk,
+                    element_counts,
+                )
+                # HACK: There's nothing we can do about this warning without an upstream fix.
+                torch_decoded = [
+                    torch.from_numpy(t)  # pyright: ignore[reportUnknownMemberType]
+                    for t in decoded
+                ]
+
+            case DnnDtype.Float16:
+                decoded, ded_results = hamming_core.decode_bit_pattern_u16(
+                    *self._encoded_data,
+                    list(self._pattern.bits),
+                    self._pattern_length,
+                    self._bits_per_chunk,
+                    element_counts,
+                )
+                # HACK: There's nothing we can do about this warning without an upstream fix.
+                torch_decoded = [
+                    torch.from_numpy(t).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
+                    for t in decoded
+                ]
+
+        for original, decoded in zip(output_buffer, torch_decoded, strict=True):
+            with torch.no_grad():
+                # Discard because it's updated inplace.
+                _ = original.flatten().copy_(decoded)
+
+        # TODO: we discard the double error detection results for now but may
+        # want to do something with them in the future.
+        _ = ded_results
+
+        return output_buffer

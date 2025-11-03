@@ -1,12 +1,13 @@
-from dataclasses import dataclass
 import copy
 import logging
-from ..fault_injector import BaseFaultInjector, TensorListFaultInjector
-from typing_extensions import override
-from .._system import BaseSystem
-from ._full import EncodingFull
-import torch
+from dataclasses import dataclass
 
+import torch
+from typing_extensions import override
+
+from .._system import BaseSystem
+from ..fault_injector import BaseFaultInjector, TensorListFaultInjector
+from ._full import FullEncoding
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class EncodingFormatFull:
 type EncodingFormat = EncodingFormatFull
 
 # NOTE: the type alias is here because more types will be added later.
-type Encoding = EncodingFull
+type Encoding = FullEncoding
 
 
 class EncodedSystem[T](BaseSystem[Encoding]):
@@ -40,7 +41,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
         match self.format:
             case EncodingFormatFull(bits_per_chunk):
                 data = self.base.system_data_tensors(self.base.system_data())
-                return EncodingFull.encode_tensor_list(data, bits_per_chunk)
+                return FullEncoding.encode_tensor_list(data, bits_per_chunk)
 
     def decoded_base_data(self, data: Encoding) -> T:
         if self._decoded_cache is not None:
@@ -80,7 +81,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
         self._decoded_cache = None
 
         match data:
-            case EncodingFull():
+            case FullEncoding():
                 return TensorListFaultInjector([data.encoded_bytes])
 
     @override
