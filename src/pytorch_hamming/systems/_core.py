@@ -63,7 +63,11 @@ class System(BaseSystem[nn.Module]):
         num_samples = torch.tensor(0).to(self.device)
         num_correct = torch.tensor(0).to(self.device)
 
-        for data_unit in self.dataset.loader():
+        for data_unit in self.dataset.batches(
+            1000,
+            self.dtype.to_torch(),
+            self.device,
+        ):
             inputs, targets = data_unit[0], data_unit[1]
             inputs = inputs.to(self.device).to(self.dtype.to_torch())
             targets = targets.to(self.device).to(self.dtype.to_torch())

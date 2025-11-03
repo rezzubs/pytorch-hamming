@@ -1,4 +1,5 @@
 from __future__ import annotations
+import functools
 
 from collections.abc import Generator, Iterator
 import enum
@@ -77,9 +78,13 @@ class CachedDataset(enum.Enum):
 
         return dataset
 
-    def loader(
-        self, batch_size: int = 100
-    ) -> Generator[tuple[torch.Tensor, torch.Tensor]]:
+    @functools.cache
+    def batches(
+        self,
+        batch_size: int,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> list[tuple[torch.Tensor, torch.Tensor]]:
         dataloader = typing.cast(
             DataLoader[list[torch.Tensor]],
             DataLoader(
@@ -89,6 +94,7 @@ class CachedDataset(enum.Enum):
             ),
         )
 
+        batches: list[tuple[torch.Tensor, torch.Tensor]] = []
         # NOTE: The following is necessary because pytorch doesn't provide a
         # type safe API for `DataLoader`.
         iterator = typing.cast(Iterator[list[torch.Tensor]], iter(dataloader))
@@ -97,6 +103,8 @@ class CachedDataset(enum.Enum):
             assert len(batch) == 2
             assert all(isinstance(x, torch.Tensor) for x in batch)
 
-            yield (batch[0], batch[1])
+            batches.append(
+                (batch[0].to(dtype).to(device), batch[1].to(dtype).to(device))
+            )
 
-        return None
+        return batches
