@@ -2,7 +2,7 @@ use crate::{
     bit_buffer::chunks::DynChunks,
     buffers::{Limited, NonUniformSequence},
     encoding::{
-        bit_patterns::{self, BitPattern, BitPatternEncoding},
+        bit_patterns::{self, BitPattern, BitPatternEncoding, BitPatternEncodingData},
         num_encoded_bits,
     },
     prelude::*,
@@ -57,8 +57,10 @@ impl PyBitPatternEncoding {
             .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
 
         Ok(BitPatternEncoding {
-            unprotected,
-            protected,
+            data: BitPatternEncodingData {
+                unprotected,
+                protected,
+            },
             bits_per_chunk: self.bits_per_chunk,
             pattern: BitPattern::new(self.pattern_bits.clone(), self.pattern_length)
                 .expect("The pattern is expected to be correct because the python side is opaque"),
@@ -66,9 +68,10 @@ impl PyBitPatternEncoding {
     }
 
     fn from_rust<'py>(py: Python<'py>, encoding: BitPatternEncoding) -> PyResult<Self> {
-        let unprotected_bits_count = encoding.unprotected.num_bits();
+        let unprotected_bits_count = encoding.data.unprotected.num_bits();
 
         let protected = encoding
+            .data
             .protected
             .into_raw()
             .into_iter()
@@ -77,7 +80,7 @@ impl PyBitPatternEncoding {
         let protected = PyList::new(py, protected)?.unbind();
 
         Ok(PyBitPatternEncoding {
-            unprotected: PyBytes::new(py, &encoding.unprotected.into_inner()).unbind(),
+            unprotected: PyBytes::new(py, &encoding.data.unprotected.into_inner()).unbind(),
             unprotected_bits_count,
             protected,
             bits_per_chunk: encoding.bits_per_chunk,

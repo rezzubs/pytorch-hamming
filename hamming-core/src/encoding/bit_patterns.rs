@@ -150,18 +150,71 @@ impl BitPattern {
         let (unprotected, protected) = self.partition(buffer, bits_per_chunk)?;
 
         Ok(BitPatternEncoding {
-            protected: protected.encode_chunks(),
-            unprotected,
+            data: BitPatternEncodingData {
+                protected: protected.encode_chunks(),
+                unprotected,
+            },
             bits_per_chunk,
             pattern: self.clone(),
         })
     }
 }
 
+/// The raw bytes that are made up of the orgiginal data bits + parity bits.
+///
+/// A bit buffer implementation is also provided. The unprotected bits come before the protected
+/// bits.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BitPatternEncoding {
+pub struct BitPatternEncodingData {
     pub(crate) unprotected: Limited<Vec<u8>>,
     pub(crate) protected: DynChunks,
+}
+
+impl BitBuffer for BitPatternEncodingData {
+    fn num_bits(&self) -> usize {
+        self.unprotected.num_bits() + self.protected.num_bits()
+    }
+
+    fn set_1(&mut self, bit_index: usize) {
+        let unprotected_count = self.unprotected.num_bits();
+        if bit_index < unprotected_count {
+            self.unprotected.set_1(bit_index);
+        } else {
+            self.protected.set_1(bit_index - unprotected_count);
+        }
+    }
+
+    fn set_0(&mut self, bit_index: usize) {
+        let unprotected_count = self.unprotected.num_bits();
+        if bit_index < unprotected_count {
+            self.unprotected.set_0(bit_index);
+        } else {
+            self.protected.set_1(bit_index - unprotected_count);
+        }
+    }
+
+    fn is_1(&self, bit_index: usize) -> bool {
+        let unprotected_count = self.unprotected.num_bits();
+        if bit_index < unprotected_count {
+            self.unprotected.is_1(bit_index)
+        } else {
+            self.protected.is_1(bit_index - unprotected_count)
+        }
+    }
+
+    fn flip_bit(&mut self, bit_index: usize) {
+        let unprotected_count = self.unprotected.num_bits();
+        if bit_index < unprotected_count {
+            self.unprotected.flip_bit(bit_index)
+        } else {
+            self.protected.flip_bit(bit_index - unprotected_count)
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BitPatternEncoding {
+    pub(crate) data: BitPatternEncodingData,
     pub(crate) bits_per_chunk: usize,
     pub(crate) pattern: BitPattern,
 }
@@ -172,8 +225,11 @@ impl BitPatternEncoding {
         B: BitBuffer,
     {
         let BitPatternEncoding {
-            unprotected,
-            protected,
+            data:
+                BitPatternEncodingData {
+                    unprotected,
+                    protected,
+                },
             bits_per_chunk,
             pattern,
         } = self;
