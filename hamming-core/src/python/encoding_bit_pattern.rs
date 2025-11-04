@@ -116,6 +116,16 @@ impl PyBitPatternEncoding {
 
 #[pymethods]
 impl PyBitPatternEncoding {
+    fn flip_n_bits<'py>(&mut self, py: Python<'py>, n: usize) -> PyResult<()> {
+        let mut encoding = self.to_rust(py);
+
+        encoding.data.flip_n_bits(n);
+
+        *self = PyBitPatternEncoding::from_rust(py, encoding)?;
+
+        Ok(())
+    }
+
     pub fn decode_bit_pattern_f32<'py>(
         &self,
         py: Python<'py>,

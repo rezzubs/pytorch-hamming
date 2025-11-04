@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 
 import torch
+import copy
 
 from .tensor_ops import (
     tensor_list_fault_injection,
@@ -45,6 +46,14 @@ class BaseSystem[T](abc.ABC):
         This will be used to uniquely identify the system.
         """
         return dict()
+
+    def system_clone_data(self, data: T) -> T:
+        """Clone the data.
+
+        The default implementation uses `deepcopy` but this behavior can be
+        overriden.
+        """
+        return copy.deepcopy(data)
 
     def system_total_num_bits(self) -> int:
         return tensor_list_num_bits(self.system_data_tensors(self.system_data()))

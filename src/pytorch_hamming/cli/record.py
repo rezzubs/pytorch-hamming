@@ -23,6 +23,7 @@ from pytorch_hamming.encoding import (
     BitPattern,
     EncodedSystem,
     EncodingFormatFull,
+    EncodingFormatBitPattern,
 )
 from pytorch_hamming.systems import (
     CachedDataset,
@@ -71,7 +72,7 @@ def record(
             rich_help_panel="Model setup",
         ),
     ],
-    dtype: Annotated[
+    dtype: Annotated[  # pyright: ignore[reportRedeclaration]
         DtypeChoices,
         typer.Option(
             help="The data type to use for the model.",
@@ -176,17 +177,26 @@ The default is to only save at the very end",
     """Record data entries for a model and dataset."""
     device: torch.device = torch.device(device)
 
+    dtype: DnnDtype = dtype.to_dtype()
+
     system = System(
         dataset=dataset,
         model=model,
-        dtype=dtype.to_dtype(),
+        dtype=dtype,
         device=device,
         batch_size=batch_size,
     )
 
     match (protected, bit_pattern):
         case (_, BitPattern()):
-            raise NotImplementedError
+            system = EncodedSystem(
+                system,
+                EncodingFormatBitPattern(
+                    pattern=bit_pattern,
+                    pattern_length=dtype.bits_count(),
+                    bits_per_chunk=bits_per_chunk,
+                ),
+            )
         case (True, None):
             system = EncodedSystem(system, EncodingFormatFull(bits_per_chunk))
         case _:

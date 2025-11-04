@@ -66,14 +66,14 @@ class Data(BaseModel):
 
                 output_str = (
                     f"""{self.output_faulty_parameters_count()} parameters were affected
-{self.output_faulty_bits_count()} bits were measured faulty (~{self.masked_percentage()}% masked)
+{self.output_faulty_bits_count()} bits were measured faulty ({self.masked_percentage():.2f}% masked)
 """
                     if self.faults_count > 0
                     else ""
                 )
 
-                return f"""Flipped {self.faults_count}/{self.bits_count} bits - BER: ~{self.bit_error_rate():.2e}
-Accuracy: ~{self.accuracy:.2f}%
+                return f"""Flipped {self.faults_count}/{self.bits_count} bits - BER: {self.bit_error_rate():.2e}
+Accuracy: {self.accuracy:.2f}%
 {output_str}{error_counts_str}"""
 
             def error_counts_sorted(self) -> list[tuple[int, int]]:
@@ -144,7 +144,7 @@ Accuracy: ~{self.accuracy:.2f}%
                 """
             )
 
-        data = copy.deepcopy(system.system_data())
+        data = system.system_clone_data(system.system_data())
 
         original_tensors = copy.deepcopy(system.system_data_tensors(data))
 

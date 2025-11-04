@@ -142,9 +142,6 @@ class BitPattern:
 @dataclass
 class BitPatternEncoding:
     _encoded_data: hamming_core.BitPatternEncoding
-    _pattern: BitPattern
-    _pattern_length: int
-    _bits_per_chunk: int
 
     @classmethod
     def encode_tensor_list(
@@ -180,12 +177,7 @@ class BitPatternEncoding:
                         bits_per_chunk,
                     )
 
-        return cls(
-            data,
-            pattern,
-            pattern_length,
-            bits_per_chunk,
-        )
+        return cls(data)
 
     def decode_tensor_list(
         self, output_buffer: list[torch.Tensor]
@@ -203,12 +195,8 @@ class BitPatternEncoding:
         element_counts = [t.numel() for t in output_buffer]
         match DnnDtype.from_torch(dtype):
             case DnnDtype.Float32:
-                decoded, ded_results = hamming_core.decode_bit_pattern_f32(
-                    self._encoded_data,
-                    self._pattern.bits,
-                    self._pattern_length,
-                    self._bits_per_chunk,
-                    element_counts,
+                decoded, ded_results = self._encoded_data.decode_bit_pattern_f32(
+                    element_counts
                 )
                 # HACK: There's nothing we can do about this warning without an upstream fix.
                 torch_decoded = [
@@ -217,12 +205,8 @@ class BitPatternEncoding:
                 ]
 
             case DnnDtype.Float16:
-                decoded, ded_results = hamming_core.decode_bit_pattern_u16(
-                    self._encoded_data,
-                    self._pattern.bits,
-                    self._pattern_length,
-                    self._bits_per_chunk,
-                    element_counts,
+                decoded, ded_results = self._encoded_data.decode_bit_pattern_u16(
+                    element_counts
                 )
                 # HACK: There's nothing we can do about this warning without an upstream fix.
                 torch_decoded = [
@@ -240,3 +224,9 @@ class BitPatternEncoding:
         _ = ded_results
 
         return output_buffer
+
+    def flip_n_bits(self, n: int):
+        self._encoded_data.flip_n_bits(n)
+
+    def clone(self) -> BitPatternEncoding:
+        return BitPatternEncoding(self._encoded_data.clone())

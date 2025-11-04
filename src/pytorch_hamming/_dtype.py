@@ -34,6 +34,13 @@ class DnnDtype(enum.Enum):
             case other:
                 raise ValueError(f"Unsupported pytorch data type {other}")
 
+    def bits_count(self) -> int:
+        match self:
+            case DnnDtype.Float32:
+                return 32
+            case DnnDtype.Float16:
+                return 16
+
 
 class FiDtype(enum.Enum):
     """Suppored data types for fault injection."""
