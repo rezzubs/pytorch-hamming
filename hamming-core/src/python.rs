@@ -1,6 +1,7 @@
 //! Python bindings
 
 mod common;
-pub(crate) mod comparison;
-pub(crate) mod encoding;
-pub(crate) mod fault_injection;
+pub mod comparison;
+pub mod encoding_bit_pattern;
+pub mod encoding_full;
+pub mod generic_fault_injection;
