@@ -55,26 +55,26 @@ def decode_full_u16(
 ) -> tuple[ListOfArray[np.uint16], list[bool]]: ...
 def encode_bit_pattern_f32(
     input: ListOfArray[np.float32],
-    bit_pattern_bits: list[int],
+    bit_pattern_bits: set[int],
     bit_pattern_length: int,
     bits_per_chunk: int,
 ) -> BitPatternEncoding: ...
 def encode_bit_pattern_u16(
     input: ListOfArray[np.uint16],
-    bit_pattern_bits: list[int],
+    bit_pattern_bits: set[int],
     bit_pattern_length: int,
     bits_per_chunk: int,
 ) -> BitPatternEncoding: ...
 def decode_bit_pattern_f32(
     encoded: BitPatternEncoding,
-    bit_pattern_bits: list[int],
+    bit_pattern_bits: set[int],
     bit_pattern_length: int,
     bits_per_chunk: int,
     decoded_array_element_counts: list[int],
 ) -> tuple[ListOfArray[np.uint16], list[bool]]: ...
 def decode_bit_pattern_u16(
     encoded: BitPatternEncoding,
-    bit_pattern_bits: list[int],
+    bit_pattern_bits: set[int],
     bit_pattern_length: int,
     bits_per_chunk: int,
     decoded_array_element_counts: list[int],

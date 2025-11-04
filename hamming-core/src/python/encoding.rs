@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::{
     bit_buffer::{
         chunks::{Chunks, DynChunks},
@@ -194,7 +196,10 @@ pub struct PyBitPatternEncoding {
     protected: Py<PyList>,
 }
 
-fn py_bit_pattern(protected_bits: Vec<usize>, bit_pattern_length: usize) -> PyResult<BitPattern> {
+fn py_bit_pattern(
+    protected_bits: HashSet<usize>,
+    bit_pattern_length: usize,
+) -> PyResult<BitPattern> {
     BitPattern::new(protected_bits.clone(), bit_pattern_length).map_err(|err| {
         PyValueError::new_err(match err {
             bit_patterns::CreationError::InvalidLength { expected_at_least } => {
@@ -215,7 +220,7 @@ fn py_bit_pattern(protected_bits: Vec<usize>, bit_pattern_length: usize) -> PyRe
 fn encode_bit_pattern_generic<'py, T>(
     py: Python<'py>,
     buffer: NonUniformSequence<Vec<Vec<T>>>,
-    bit_pattern_bits: Vec<usize>,
+    bit_pattern_bits: HashSet<usize>,
     bit_pattern_length: usize,
     bits_per_chunk: usize,
 ) -> PyResult<PyBitPatternEncoding>
@@ -251,7 +256,7 @@ where
 pub fn encode_bit_pattern_f32<'py>(
     py: Python<'py>,
     input: Vec<InputArr<f32>>,
-    bit_pattern_bits: Vec<usize>,
+    bit_pattern_bits: HashSet<usize>,
     bit_pattern_length: usize,
     bits_per_chunk: usize,
 ) -> PyResult<PyBitPatternEncoding> {
@@ -270,7 +275,7 @@ pub fn encode_bit_pattern_f32<'py>(
 pub fn encode_bit_pattern_u16<'py>(
     py: Python<'py>,
     input: Vec<InputArr<u16>>,
-    bit_pattern_bits: Vec<usize>,
+    bit_pattern_bits: HashSet<usize>,
     bit_pattern_length: usize,
     bits_per_chunk: usize,
 ) -> PyResult<PyBitPatternEncoding> {
@@ -288,7 +293,7 @@ pub fn encode_bit_pattern_u16<'py>(
 pub fn decode_bit_pattern_generic<'py, T>(
     py: Python<'py>,
     encoding: PyRef<PyBitPatternEncoding>,
-    bit_pattern_bits: Vec<usize>,
+    bit_pattern_bits: HashSet<usize>,
     bit_pattern_length: usize,
     bits_per_chunk: usize,
     mut output_buffer: NonUniformSequence<Vec<Vec<T>>>,
@@ -349,7 +354,7 @@ where
 pub fn decode_bit_pattern_f32<'py>(
     py: Python<'py>,
     encoding: PyRef<PyBitPatternEncoding>,
-    bit_pattern_bits: Vec<usize>,
+    bit_pattern_bits: HashSet<usize>,
     bit_pattern_length: usize,
     bits_per_chunk: usize,
     decoded_array_element_counts: Vec<usize>,
@@ -376,7 +381,7 @@ pub fn decode_bit_pattern_f32<'py>(
 pub fn decode_bit_pattern_u16<'py>(
     py: Python<'py>,
     encoding: PyRef<PyBitPatternEncoding>,
-    bit_pattern_bits: Vec<usize>,
+    bit_pattern_bits: HashSet<usize>,
     bit_pattern_length: usize,
     bits_per_chunk: usize,
     decoded_array_element_counts: Vec<usize>,

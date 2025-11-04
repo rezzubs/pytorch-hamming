@@ -164,7 +164,7 @@ class BitPatternEncoding:
                     rust_input = [t.flatten().numpy(force=True) for t in ts]
                     data = hamming_core.encode_bit_pattern_f32(
                         rust_input,
-                        list(pattern.bits),
+                        pattern.bits,
                         pattern_length,
                         bits_per_chunk,
                     )
@@ -175,7 +175,7 @@ class BitPatternEncoding:
                     ]
                     data = hamming_core.encode_bit_pattern_u16(
                         rust_input,
-                        list(pattern.bits),
+                        pattern.bits,
                         pattern_length,
                         bits_per_chunk,
                     )
@@ -205,7 +205,7 @@ class BitPatternEncoding:
             case DnnDtype.Float32:
                 decoded, ded_results = hamming_core.decode_bit_pattern_f32(
                     self._encoded_data,
-                    list(self._pattern.bits),
+                    self._pattern.bits,
                     self._pattern_length,
                     self._bits_per_chunk,
                     element_counts,
@@ -219,7 +219,7 @@ class BitPatternEncoding:
             case DnnDtype.Float16:
                 decoded, ded_results = hamming_core.decode_bit_pattern_u16(
                     self._encoded_data,
-                    list(self._pattern.bits),
+                    self._pattern.bits,
                     self._pattern_length,
                     self._bits_per_chunk,
                     element_counts,
