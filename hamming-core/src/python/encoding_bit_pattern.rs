@@ -90,6 +90,61 @@ impl PyBitPatternEncoding {
             pattern_length: encoding.pattern.length(),
         })
     }
+
+    pub fn decode_bit_pattern_generic<'py, T>(
+        &self,
+        py: Python<'py>,
+        mut output_buffer: NonUniformSequence<Vec<Vec<T>>>,
+    ) -> (Vec<OutputArr<'py, T>>, Vec<bool>)
+    where
+        T: numpy::Element + BitBuffer + SizedBitBuffer,
+    {
+        let encoding = self.to_rust(py);
+
+        let decoding_results = encoding.decode_into(&mut output_buffer);
+
+        (
+            output_buffer
+                .0
+                .into_iter()
+                .map(|vec| PyArray1::from_vec(py, vec))
+                .collect(),
+            decoding_results,
+        )
+    }
+}
+
+#[pymethods]
+impl PyBitPatternEncoding {
+    pub fn decode_bit_pattern_f32<'py>(
+        &self,
+        py: Python<'py>,
+        decoded_array_element_counts: Vec<usize>,
+    ) -> (Vec<OutputArr<'py, f32>>, Vec<bool>) {
+        let output_buffer = NonUniformSequence(
+            decoded_array_element_counts
+                .iter()
+                .map(|&numel| vec![0f32; numel])
+                .collect::<Vec<_>>(),
+        );
+
+        self.decode_bit_pattern_generic(py, output_buffer)
+    }
+
+    pub fn decode_bit_pattern_u16<'py>(
+        &self,
+        py: Python<'py>,
+        decoded_array_element_counts: Vec<usize>,
+    ) -> (Vec<OutputArr<'py, u16>>, Vec<bool>) {
+        let output_buffer = NonUniformSequence(
+            decoded_array_element_counts
+                .iter()
+                .map(|&numel| vec![0u16; numel])
+                .collect::<Vec<_>>(),
+        );
+
+        self.decode_bit_pattern_generic(py, output_buffer)
+    }
 }
 
 fn py_bit_pattern(
@@ -168,60 +223,4 @@ pub fn encode_bit_pattern_u16<'py>(
         bit_pattern_length,
         bits_per_chunk,
     )
-}
-
-pub fn decode_bit_pattern_generic<'py, T>(
-    py: Python<'py>,
-    encoding: PyRef<PyBitPatternEncoding>,
-    mut output_buffer: NonUniformSequence<Vec<Vec<T>>>,
-) -> (Vec<OutputArr<'py, T>>, Vec<bool>)
-where
-    T: numpy::Element + BitBuffer + SizedBitBuffer,
-{
-    let encoding = encoding.to_rust(py);
-
-    let decoding_results = encoding.decode_into(&mut output_buffer);
-
-    (
-        output_buffer
-            .0
-            .into_iter()
-            .map(|vec| PyArray1::from_vec(py, vec))
-            .collect(),
-        decoding_results,
-    )
-}
-
-#[pyfunction]
-#[allow(clippy::too_many_arguments)]
-pub fn decode_bit_pattern_f32<'py>(
-    py: Python<'py>,
-    encoding: PyRef<PyBitPatternEncoding>,
-    decoded_array_element_counts: Vec<usize>,
-) -> (Vec<OutputArr<'py, f32>>, Vec<bool>) {
-    let output_buffer = NonUniformSequence(
-        decoded_array_element_counts
-            .iter()
-            .map(|&numel| vec![0f32; numel])
-            .collect::<Vec<_>>(),
-    );
-
-    decode_bit_pattern_generic(py, encoding, output_buffer)
-}
-
-#[pyfunction]
-#[allow(clippy::too_many_arguments)]
-pub fn decode_bit_pattern_u16<'py>(
-    py: Python<'py>,
-    encoding: PyRef<PyBitPatternEncoding>,
-    decoded_array_element_counts: Vec<usize>,
-) -> (Vec<OutputArr<'py, u16>>, Vec<bool>) {
-    let output_buffer = NonUniformSequence(
-        decoded_array_element_counts
-            .iter()
-            .map(|&numel| vec![0u16; numel])
-            .collect::<Vec<_>>(),
-    );
-
-    decode_bit_pattern_generic(py, encoding, output_buffer)
 }
