@@ -10,7 +10,7 @@ use crate::{
 };
 use numpy::PyArray1;
 use pyo3::{
-    exceptions::{PyRuntimeError, PyValueError},
+    exceptions::PyValueError,
     prelude::*,
     types::{PyBytes, PyList},
 };
@@ -28,35 +28,37 @@ pub struct PyBitPatternEncoding {
 }
 
 impl PyBitPatternEncoding {
-    fn to_rust<'py>(&self, py: Python<'py>) -> PyResult<BitPatternEncoding> {
+    fn to_rust<'py>(&self, py: Python<'py>) -> BitPatternEncoding {
         let unprotected = Vec::from(self.unprotected.as_bytes(py));
         let unprotected_bits_count_actual = unprotected.num_bits();
-        let unprotected = Limited::new(unprotected, self.unprotected_bits_count).ok_or_else(|| {
-
-            PyValueError::new_err(format!("`unprotected_bits_count` ({}) cannot be larger than the number bits in of `unprotected` ({})", self.unprotected_bits_count, unprotected_bits_count_actual))
-        })?;
+        let unprotected = Limited::new(unprotected, self.unprotected_bits_count).unwrap_or_else(|| {
+            panic!("`unprotected_bits_count` ({}) cannot be larger than the number bits in of `unprotected` ({})", self.unprotected_bits_count, unprotected_bits_count_actual);
+        });
 
         let encoded_bits_per_chunk = num_encoded_bits(self.bits_per_chunk);
-        let protected = self
-            .protected
-            .bind(py)
-            .iter()
-            .map(|chunk| -> PyResult<_> {
-                let chunk = chunk.downcast_into::<PyBytes>()?;
+        let protected =
+            self.protected
+                .bind(py)
+                .iter()
+                .map(|chunk| {
+                    let chunk = chunk
+                        .downcast_into::<PyBytes>()
+                        .expect("failure should not be possible as the encoding type is immutable");
 
-                Limited::new(Vec::from(chunk.as_bytes()), encoded_bits_per_chunk).ok_or_else(|| {
-                    PyValueError::new_err(format!(
-                        "`bits_per_chunk` ({}) doesn't match the encoded chunks",
-                        self.bits_per_chunk
-                    ))
+                    Limited::new(Vec::from(chunk.as_bytes()), encoded_bits_per_chunk)
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "`bits_per_chunk` ({}) doesn't match the encoded chunks",
+                                self.bits_per_chunk
+                            )
+                        })
                 })
-            })
-            .collect::<PyResult<_>>()?;
+                .collect();
 
         let protected = DynChunks::from_raw(protected)
-            .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
+            .expect("Should pass given the immutable nature of PyBitPatternEncoding");
 
-        Ok(BitPatternEncoding {
+        BitPatternEncoding {
             data: BitPatternEncodingData {
                 unprotected,
                 protected,
@@ -64,7 +66,7 @@ impl PyBitPatternEncoding {
             bits_per_chunk: self.bits_per_chunk,
             pattern: BitPattern::new(self.pattern_bits.clone(), self.pattern_length)
                 .expect("The pattern is expected to be correct because the python side is opaque"),
-        })
+        }
     }
 
     fn from_rust<'py>(py: Python<'py>, encoding: BitPatternEncoding) -> PyResult<Self> {
@@ -172,22 +174,22 @@ pub fn decode_bit_pattern_generic<'py, T>(
     py: Python<'py>,
     encoding: PyRef<PyBitPatternEncoding>,
     mut output_buffer: NonUniformSequence<Vec<Vec<T>>>,
-) -> PyResult<(Vec<OutputArr<'py, T>>, Vec<bool>)>
+) -> (Vec<OutputArr<'py, T>>, Vec<bool>)
 where
     T: numpy::Element + BitBuffer + SizedBitBuffer,
 {
-    let encoding = encoding.to_rust(py)?;
+    let encoding = encoding.to_rust(py);
 
     let decoding_results = encoding.decode_into(&mut output_buffer);
 
-    Ok((
+    (
         output_buffer
             .0
             .into_iter()
             .map(|vec| PyArray1::from_vec(py, vec))
             .collect(),
         decoding_results,
-    ))
+    )
 }
 
 #[pyfunction]
@@ -196,7 +198,7 @@ pub fn decode_bit_pattern_f32<'py>(
     py: Python<'py>,
     encoding: PyRef<PyBitPatternEncoding>,
     decoded_array_element_counts: Vec<usize>,
-) -> PyResult<(Vec<OutputArr<'py, f32>>, Vec<bool>)> {
+) -> (Vec<OutputArr<'py, f32>>, Vec<bool>) {
     let output_buffer = NonUniformSequence(
         decoded_array_element_counts
             .iter()
@@ -213,7 +215,7 @@ pub fn decode_bit_pattern_u16<'py>(
     py: Python<'py>,
     encoding: PyRef<PyBitPatternEncoding>,
     decoded_array_element_counts: Vec<usize>,
-) -> PyResult<(Vec<OutputArr<'py, u16>>, Vec<bool>)> {
+) -> (Vec<OutputArr<'py, u16>>, Vec<bool>) {
     let output_buffer = NonUniformSequence(
         decoded_array_element_counts
             .iter()
