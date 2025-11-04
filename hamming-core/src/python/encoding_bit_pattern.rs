@@ -22,6 +22,69 @@ pub struct PyBitPatternEncoding {
     unprotected_bits_count: usize,
     // Storing PyBytes elements
     protected: Py<PyList>,
+    bits_per_chunk: usize,
+    pattern_bits: HashSet<usize>,
+    pattern_length: usize,
+}
+
+impl PyBitPatternEncoding {
+    fn to_rust<'py>(&self, py: Python<'py>) -> PyResult<BitPatternEncoding> {
+        let unprotected = Vec::from(self.unprotected.as_bytes(py));
+        let unprotected_bits_count_actual = unprotected.num_bits();
+        let unprotected = Limited::new(unprotected, self.unprotected_bits_count).ok_or_else(|| {
+
+            PyValueError::new_err(format!("`unprotected_bits_count` ({}) cannot be larger than the number bits in of `unprotected` ({})", self.unprotected_bits_count, unprotected_bits_count_actual))
+        })?;
+
+        let encoded_bits_per_chunk = num_encoded_bits(self.bits_per_chunk);
+        let protected = self
+            .protected
+            .bind(py)
+            .iter()
+            .map(|chunk| -> PyResult<_> {
+                let chunk = chunk.downcast_into::<PyBytes>()?;
+
+                Limited::new(Vec::from(chunk.as_bytes()), encoded_bits_per_chunk).ok_or_else(|| {
+                    PyValueError::new_err(format!(
+                        "`bits_per_chunk` ({}) doesn't match the encoded chunks",
+                        self.bits_per_chunk
+                    ))
+                })
+            })
+            .collect::<PyResult<_>>()?;
+
+        let protected = DynChunks::from_raw(protected)
+            .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
+
+        Ok(BitPatternEncoding {
+            unprotected,
+            protected,
+            bits_per_chunk: self.bits_per_chunk,
+            pattern: BitPattern::new(self.pattern_bits.clone(), self.pattern_length)
+                .expect("The pattern is expected to be correct because the python side is opaque"),
+        })
+    }
+
+    fn from_rust<'py>(py: Python<'py>, encoding: BitPatternEncoding) -> PyResult<Self> {
+        let unprotected_bits_count = encoding.unprotected.num_bits();
+
+        let protected = encoding
+            .protected
+            .into_raw()
+            .into_iter()
+            .map(|chunk| PyBytes::new(py, &chunk.into_inner()).unbind());
+
+        let protected = PyList::new(py, protected)?.unbind();
+
+        Ok(PyBitPatternEncoding {
+            unprotected: PyBytes::new(py, &encoding.unprotected.into_inner()).unbind(),
+            unprotected_bits_count,
+            protected,
+            bits_per_chunk: encoding.bits_per_chunk,
+            pattern_bits: encoding.pattern.mask().clone(),
+            pattern_length: encoding.pattern.length(),
+        })
+    }
 }
 
 fn py_bit_pattern(
@@ -57,27 +120,11 @@ where
 {
     let pattern = py_bit_pattern(bit_pattern_bits, bit_pattern_length)?;
 
-    let BitPatternEncoding {
-        unprotected,
-        protected,
-    } = pattern
+    let encoding = pattern
         .encode(&buffer, bits_per_chunk)
         .map_err(|err| PyValueError::new_err(err.to_string()))?;
 
-    let unprotected_bits_count = unprotected.num_bits();
-
-    let protected = protected
-        .into_raw()
-        .into_iter()
-        .map(|chunk| PyBytes::new(py, &chunk.into_inner()).unbind());
-
-    let protected = PyList::new(py, protected)?.unbind();
-
-    Ok(PyBitPatternEncoding {
-        unprotected: PyBytes::new(py, &unprotected.into_inner()).unbind(),
-        unprotected_bits_count,
-        protected,
-    })
+    PyBitPatternEncoding::from_rust(py, encoding)
 }
 
 #[pyfunction]
@@ -121,51 +168,14 @@ pub fn encode_bit_pattern_u16<'py>(
 pub fn decode_bit_pattern_generic<'py, T>(
     py: Python<'py>,
     encoding: PyRef<PyBitPatternEncoding>,
-    bit_pattern_bits: HashSet<usize>,
-    bit_pattern_length: usize,
-    bits_per_chunk: usize,
     mut output_buffer: NonUniformSequence<Vec<Vec<T>>>,
 ) -> PyResult<(Vec<OutputArr<'py, T>>, Vec<bool>)>
 where
     T: numpy::Element + BitBuffer + SizedBitBuffer,
 {
-    let pattern = py_bit_pattern(bit_pattern_bits, bit_pattern_length)?;
+    let encoding = encoding.to_rust(py)?;
 
-    let unprotected = Vec::from(encoding.unprotected.as_bytes(py));
-    let unprotected_bits_count_actual = unprotected.num_bits();
-    let unprotected = Limited::new(unprotected, encoding.unprotected_bits_count).ok_or_else(|| {
-
-        PyValueError::new_err(format!("`unprotected_bits_count` ({}) cannot be larger than the number bits in of `unprotected` ({})", encoding.unprotected_bits_count, unprotected_bits_count_actual))
-    })?;
-
-    let encoded_bits_per_chunk = num_encoded_bits(bits_per_chunk);
-    let protected = encoding
-        .protected
-        .bind(py)
-        .iter()
-        .map(|chunk| -> PyResult<_> {
-            let chunk = chunk.downcast_into::<PyBytes>()?;
-
-            Limited::new(Vec::from(chunk.as_bytes()), encoded_bits_per_chunk).ok_or_else(|| {
-                PyValueError::new_err(format!(
-                    "`bits_per_chunk` ({}) doesn't match the encoded chunks",
-                    bits_per_chunk
-                ))
-            })
-        })
-        .collect::<PyResult<_>>()?;
-
-    let protected =
-        DynChunks::from_raw(protected).map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
-
-    let encoding = BitPatternEncoding {
-        unprotected,
-        protected,
-    };
-
-    let decoding_results = encoding
-        .decode_into(&mut output_buffer, bits_per_chunk, pattern)
-        .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
+    let decoding_results = encoding.decode_into(&mut output_buffer);
 
     Ok((
         output_buffer
@@ -182,9 +192,6 @@ where
 pub fn decode_bit_pattern_f32<'py>(
     py: Python<'py>,
     encoding: PyRef<PyBitPatternEncoding>,
-    bit_pattern_bits: HashSet<usize>,
-    bit_pattern_length: usize,
-    bits_per_chunk: usize,
     decoded_array_element_counts: Vec<usize>,
 ) -> PyResult<(Vec<OutputArr<'py, f32>>, Vec<bool>)> {
     let output_buffer = NonUniformSequence(
@@ -194,14 +201,7 @@ pub fn decode_bit_pattern_f32<'py>(
             .collect::<Vec<_>>(),
     );
 
-    decode_bit_pattern_generic(
-        py,
-        encoding,
-        bit_pattern_bits,
-        bit_pattern_length,
-        bits_per_chunk,
-        output_buffer,
-    )
+    decode_bit_pattern_generic(py, encoding, output_buffer)
 }
 
 #[pyfunction]
@@ -209,9 +209,6 @@ pub fn decode_bit_pattern_f32<'py>(
 pub fn decode_bit_pattern_u16<'py>(
     py: Python<'py>,
     encoding: PyRef<PyBitPatternEncoding>,
-    bit_pattern_bits: HashSet<usize>,
-    bit_pattern_length: usize,
-    bits_per_chunk: usize,
     decoded_array_element_counts: Vec<usize>,
 ) -> PyResult<(Vec<OutputArr<'py, u16>>, Vec<bool>)> {
     let output_buffer = NonUniformSequence(
@@ -221,12 +218,5 @@ pub fn decode_bit_pattern_u16<'py>(
             .collect::<Vec<_>>(),
     );
 
-    decode_bit_pattern_generic(
-        py,
-        encoding,
-        bit_pattern_bits,
-        bit_pattern_length,
-        bits_per_chunk,
-        output_buffer,
-    )
+    decode_bit_pattern_generic(py, encoding, output_buffer)
 }

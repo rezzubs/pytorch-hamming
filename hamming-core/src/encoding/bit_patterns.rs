@@ -3,10 +3,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    bit_buffer::{
-        chunks::{self, Chunks, DynChunks},
-        CopyIntoResult,
-    },
+    bit_buffer::chunks::{self, Chunks, DynChunks},
     buffers::Limited,
     prelude::*,
 };
@@ -71,6 +68,16 @@ impl BitPattern {
         }
 
         Ok(Self { mask, length })
+    }
+
+    #[must_use]
+    pub fn mask(&self) -> &HashSet<usize> {
+        &self.mask
+    }
+
+    #[must_use]
+    pub fn length(&self) -> usize {
+        self.length
     }
 }
 
@@ -145,94 +152,45 @@ impl BitPattern {
         Ok(BitPatternEncoding {
             protected: protected.encode_chunks(),
             unprotected,
+            bits_per_chunk,
+            pattern: self.clone(),
         })
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BitPatternEncoding {
-    pub unprotected: Limited<Vec<u8>>,
-    pub protected: DynChunks,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
-pub enum DecodeError {
-    /// The length of the buffer isn't a multiple of the [`BitPattern`].
-    #[error(transparent)]
-    LengthMismatch(#[from] LengthMismatch),
-    #[error("This buffer-pattern combo expects {expected} protected bits, got {actual}")]
-    ProtectedMimatch {
-        /// The number of unprotected bits in [`BitPatternEncoding`].
-        actual: usize,
-        /// The expected number of unprotected bits per buffer.
-        expected: usize,
-    },
-    #[error("This buffer-pattern combo expects {expected} unprotected bits, got {actual}")]
-    UnprotectedMismatch {
-        /// The number of unprotected bits in [`BitPatternEncoding`].
-        actual: usize,
-        /// The expected number of unprotected bits per buffer.
-        expected: usize,
-    },
-}
-
-pub struct BitPatternEncodingBytes {
-    /// The raw data.
-    ///
-    /// Protected bits come after the protected ones
-    pub bytes: Limited<Vec<u8>>,
-    /// Number of unprotected bits
-    pub num_unprotected: usize,
-    /// Number of bits in a protected chunk
-    pub encoded_chunk_size: usize,
-    /// Number of chunks that store the protected bits.
-    pub num_encoded_chunks: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[error("Got a {actual_num_bits} bit buffer, but the other parameters describe a {described_num_bits} buffer")]
-pub struct InvalidBytesDescription {
-    pub actual_num_bits: usize,
-    pub described_num_bits: usize,
+    pub(crate) unprotected: Limited<Vec<u8>>,
+    pub(crate) protected: DynChunks,
+    pub(crate) bits_per_chunk: usize,
+    pub(crate) pattern: BitPattern,
 }
 
 impl BitPatternEncoding {
-    pub fn decode_into<B>(
-        self,
-        buffer: &mut B,
-        data_bits_per_chunk: usize,
-        pattern: BitPattern,
-    ) -> Result<Vec<bool>, DecodeError>
+    pub fn decode_into<B>(self, buffer: &mut B) -> Vec<bool>
     where
         B: BitBuffer,
     {
-        let params = pattern.buffer_params(buffer)?;
-
         let BitPatternEncoding {
             unprotected,
             protected,
+            bits_per_chunk,
+            pattern,
         } = self;
 
-        if params.num_unprotected_bits() != unprotected.num_bits() {
-            return Err(DecodeError::UnprotectedMismatch {
-                expected: params.num_unprotected_bits(),
-                actual: unprotected.num_bits(),
-            });
-        }
+        let params = pattern
+            .buffer_params(buffer)
+            .expect("the pattern must be valid if it was used successfully for encoding");
 
-        let (protected, ded_results) = protected.decode_chunks(data_bits_per_chunk);
+        assert_eq!(params.num_unprotected_bits(), unprotected.num_bits());
+
+        let (protected, ded_results) = protected.decode_chunks(bits_per_chunk);
 
         {
-            let expected_num_chunks =
-                chunks::num_chunks(params.num_protected_bits, data_bits_per_chunk);
+            let expected_num_chunks = chunks::num_chunks(params.num_protected_bits, bits_per_chunk);
             // these values are the values from before encoding.
-            let expected_num_protected_bits_in_chunks = expected_num_chunks * data_bits_per_chunk;
-            if expected_num_protected_bits_in_chunks != protected.num_bits() {
-                return Err(DecodeError::ProtectedMimatch {
-                    expected: expected_num_protected_bits_in_chunks,
-                    actual: protected.num_bits(),
-                });
-            }
+            let expected_num_protected_bits_in_chunks = expected_num_chunks * bits_per_chunk;
+            assert_eq!(expected_num_protected_bits_in_chunks, protected.num_bits());
         }
 
         let mut protected_i = 0;
@@ -257,65 +215,7 @@ impl BitPatternEncoding {
             }
         }
 
-        Ok(ded_results)
-    }
-
-    #[must_use]
-    pub fn to_bytes(&self) -> BitPatternEncodingBytes {
-        let mut bytes = Limited::bytes(self.unprotected.num_bits() + self.protected.num_bits());
-
-        let result = self.unprotected.copy_into(&mut bytes);
-        debug_assert_eq!(result, CopyIntoResult::done(self.unprotected.num_bits()));
-
-        let result2 = self
-            .protected
-            .copy_into_offset(0, result.units_copied, &mut bytes);
-        debug_assert_eq!(result2, CopyIntoResult::done(self.protected.num_bits()));
-        debug_assert_eq!(result.units_copied + result2.units_copied, bytes.num_bits());
-
-        BitPatternEncodingBytes {
-            bytes,
-            num_unprotected: self.unprotected.num_bits(),
-            encoded_chunk_size: self.protected.bits_per_chunk(),
-            num_encoded_chunks: self.protected.num_chunks(),
-        }
-    }
-
-    pub fn from_bytes(bytes: &BitPatternEncodingBytes) -> Result<Self, InvalidBytesDescription> {
-        let mut unprotected = Limited::bytes(bytes.num_unprotected);
-
-        let mut protected = DynChunks::zero(
-            bytes.num_encoded_chunks * bytes.encoded_chunk_size,
-            bytes.encoded_chunk_size,
-        );
-
-        if bytes.bytes.num_bits() != protected.num_bits() + unprotected.num_bits() {
-            return Err(InvalidBytesDescription {
-                actual_num_bits: bytes.bytes.num_bits(),
-                described_num_bits: protected.num_bits() + unprotected.num_bits(),
-            });
-        }
-
-        let result = bytes.bytes.copy_into(&mut unprotected);
-        assert_eq!(
-            result,
-            CopyIntoResult::pending(unprotected.num_bits()),
-            concat!(
-                "the buffer is confirmed to have enough space ",
-                "and the result must be pending if `protected` a nonzero number of bits"
-            )
-        );
-
-        let result2 = bytes
-            .bytes
-            .copy_into_offset(result.units_copied, 0, &mut protected);
-
-        assert_eq!(result2, CopyIntoResult::done(protected.num_bits()));
-
-        Ok(Self {
-            unprotected,
-            protected,
-        })
+        ded_results
     }
 }
 
@@ -434,9 +334,7 @@ mod tests {
                 pattern.buffer_params(&decoded)
             );
 
-            encoded
-                .decode_into(&mut decoded, chunk_size, pattern)
-                .unwrap();
+            encoded.decode_into(&mut decoded);
 
             assert_eq!(data, decoded);
         }
@@ -444,28 +342,5 @@ mod tests {
         for i in 1..20 {
             test(i);
         }
-    }
-
-    #[test]
-    fn intermediate_repr_encode_decode() {
-        let data: [u32; 4] = [1234, 0, 1, 454378230];
-
-        // Protect every fourth bit
-        let pattern = BitPattern::new([3], 4).unwrap();
-
-        let chunk_size = 8;
-        let encoded = pattern.encode(&data, chunk_size).unwrap();
-
-        let ir = encoded.to_bytes();
-
-        let encoded2 = BitPatternEncoding::from_bytes(&ir).unwrap();
-        assert_eq!(encoded2, encoded);
-
-        let mut decoded = [0u32; 4];
-        encoded2
-            .decode_into(&mut decoded, chunk_size, pattern)
-            .unwrap();
-
-        assert_eq!(decoded, data);
     }
 }
