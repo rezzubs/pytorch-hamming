@@ -39,20 +39,18 @@ class EncodedSystem[T](BaseSystem[Encoding]):
         base: BaseSystem[T],
         format: EncodingFormat,
     ) -> None:
-        # self.EncodingStrategy = encoding_strategy
-        self.base: BaseSystem[T] = base
+        self.inner: BaseSystem[T] = base
+        self.encoded_data: Encoding | None = None
         self.format: EncodingFormat = format
-        self._encoded_cache: Encoding | None = None
-        self._decoded_cache: T | None = copy.deepcopy(self.base.system_data())
 
     def encode_base(self) -> Encoding:
         logger.debug("Encoding data tensors")
         match self.format:
             case EncodingFormatFull(bits_per_chunk):
-                data_tensors = self.base.system_data_tensors(self.base.system_data())
+                data_tensors = self.inner.system_data_tensors(self.inner.system_data())
                 return FullEncoding.encode_tensor_list(data_tensors, bits_per_chunk)
             case EncodingFormatBitPattern(pattern, pattern_length, bits_per_chunk):
-                data_tensors = self.base.system_data_tensors(self.base.system_data())
+                data_tensors = self.inner.system_data_tensors(self.inner.system_data())
                 return BitPatternEncoding.encode_tensor_list(
                     ts=data_tensors,
                     pattern=pattern,
@@ -60,42 +58,35 @@ class EncodedSystem[T](BaseSystem[Encoding]):
                     bits_per_chunk=bits_per_chunk,
                 )
 
-    def decoded_base_data(self, data: Encoding) -> T:
-        if self._decoded_cache is not None:
-            logger.debug("Using cached value for decoded data")
-            return self._decoded_cache
+    def decoded_data(self, data: Encoding) -> T:
+        # NOTE: It's fine that we're modifying the original tensors directly,
+        # not through a copy, because we're using the original only for the
+        # shape and the data will be overwritten anyway
 
-        logger.debug("Decoding data")
-        base_data_copy = self.base.system_clone_data(self.base.system_data())
-        base_data_copy_tensors = self.base.system_data_tensors(base_data_copy)
+        inner_data = self.inner.system_data()
+        inner_data_tensors = self.inner.system_data_tensors(inner_data)
 
-        # discard because it's updated in place.
-        _ = data.decode_tensor_list(base_data_copy_tensors)
+        _ = data.decode_tensor_list(inner_data_tensors)
 
-        self._decoded_cache = base_data_copy
-        return base_data_copy
+        return inner_data
 
     @override
     def system_data(self) -> Encoding:
-        if self._encoded_cache is None:
-            self._encoded_cache = self.encode_base()
+        if self.encoded_data is None:
+            self.encoded_data = self.encode_base()
 
-        return self._encoded_cache
+        return self.encoded_data
 
     @override
     def system_accuracy(self, data: Encoding) -> float:
-        return self.base.system_accuracy(self.decoded_base_data(data))
+        return self.inner.system_accuracy(self.decoded_data(data))
 
     @override
     def system_data_tensors(self, data: Encoding) -> list[torch.Tensor]:
-        return self.base.system_data_tensors(self.decoded_base_data(data))
+        return self.inner.system_data_tensors(self.decoded_data(data))
 
     @override
     def system_inject_n_faults(self, data: Encoding, n: int):
-        # NOTE: we need to reset the decoded cache because the true values will
-        # be altered for a nonzero value of `n`.
-        self._decoded_cache = None
-
         match data:
             case FullEncoding():
                 tensor_list_fault_injection([data.encoded_bytes], n)
@@ -104,7 +95,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
 
     @override
     def system_metadata(self) -> dict[str, str]:
-        metadata = copy.deepcopy(self.base.system_metadata())
+        metadata = copy.deepcopy(self.inner.system_metadata())
 
         match self.format:
             case EncodingFormatFull(chunk_size):

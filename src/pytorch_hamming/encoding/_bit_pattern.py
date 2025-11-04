@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+import logging
 
 import hamming_core
 import torch
@@ -9,6 +10,8 @@ from typing_extensions import override
 
 from pytorch_hamming import DnnDtype
 from pytorch_hamming.tensor_ops import tensor_list_dtype
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -142,6 +145,7 @@ class BitPattern:
 @dataclass
 class BitPatternEncoding:
     _encoded_data: hamming_core.BitPatternEncoding
+    _decoded_tensors: list[torch.Tensor] | None
 
     @classmethod
     def encode_tensor_list(
@@ -155,10 +159,12 @@ class BitPatternEncoding:
         if dtype is None:
             raise ValueError("Cannot encode an empty buffer")
 
+        flattened = [t.flatten() for t in ts]
+
         match DnnDtype.from_torch(dtype):
             case DnnDtype.Float32:
                 with torch.no_grad():
-                    rust_input = [t.flatten().numpy(force=True) for t in ts]
+                    rust_input = [t.numpy(force=True) for t in flattened]
                     data = hamming_core.encode_bit_pattern_f32(
                         rust_input,
                         pattern.bits,
@@ -168,7 +174,7 @@ class BitPatternEncoding:
             case DnnDtype.Float16:
                 with torch.no_grad():
                     rust_input = [
-                        t.flatten().view(torch.uint16).numpy(force=True) for t in ts
+                        t.view(torch.uint16).numpy(force=True) for t in flattened
                     ]
                     data = hamming_core.encode_bit_pattern_u16(
                         rust_input,
@@ -177,7 +183,8 @@ class BitPatternEncoding:
                         bits_per_chunk,
                     )
 
-        return cls(data)
+        flattened_copy = [t.clone() for t in flattened]
+        return cls(data, flattened_copy)
 
     def decode_tensor_list(
         self, output_buffer: list[torch.Tensor]
@@ -188,6 +195,18 @@ class BitPatternEncoding:
 
         Returns a reference to the same output buffer.
         """
+        if self._decoded_tensors is not None:
+            logger.debug("Using existing value for decoded tensors")
+            for original, decoded in zip(
+                output_buffer, self._decoded_tensors, strict=True
+            ):
+                with torch.no_grad():
+                    # Discard because it's updated inplace.
+                    _ = original.flatten().copy_(decoded)
+            return output_buffer
+
+        logger.debug("Recomputing decoded tensors")
+
         dtype = tensor_list_dtype(output_buffer)
         if dtype is None:
             raise ValueError("Cannot decode into an empty buffer")
@@ -214,6 +233,7 @@ class BitPatternEncoding:
                     for t in decoded
                 ]
 
+        self._decoded_tensors = torch_decoded
         for original, decoded in zip(output_buffer, torch_decoded, strict=True):
             with torch.no_grad():
                 # Discard because it's updated inplace.
@@ -226,7 +246,14 @@ class BitPatternEncoding:
         return output_buffer
 
     def flip_n_bits(self, n: int):
+        logger.debug("Invalidating decoded tensor cached due to fault injection.")
+        self._decoded_tensors = None
         self._encoded_data.flip_n_bits(n)
 
     def clone(self) -> BitPatternEncoding:
-        return BitPatternEncoding(self._encoded_data.clone())
+        copied_tensors = (
+            [t.clone() for t in self._decoded_tensors]
+            if self._decoded_tensors is not None
+            else None
+        )
+        return BitPatternEncoding(self._encoded_data.clone(), copied_tensors)
