@@ -204,7 +204,7 @@ class BitPatternEncoding:
         match DnnDtype.from_torch(dtype):
             case DnnDtype.Float32:
                 decoded, ded_results = hamming_core.decode_bit_pattern_f32(
-                    *self._encoded_data,
+                    self._encoded_data,
                     list(self._pattern.bits),
                     self._pattern_length,
                     self._bits_per_chunk,
@@ -218,7 +218,7 @@ class BitPatternEncoding:
 
             case DnnDtype.Float16:
                 decoded, ded_results = hamming_core.decode_bit_pattern_u16(
-                    *self._encoded_data,
+                    self._encoded_data,
                     list(self._pattern.bits),
                     self._pattern_length,
                     self._bits_per_chunk,

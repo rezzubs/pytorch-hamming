@@ -23,22 +23,21 @@ mod hamming_core {
     use crate::python::comparison::compare_array_list_bitwise_u16;
 
     #[pymodule_export]
-    use crate::python::encoding::encode_full_f32;
+    use crate::python::encoding::decode_bit_pattern_f32;
     #[pymodule_export]
-    use crate::python::encoding::encode_full_u16;
-
+    use crate::python::encoding::decode_bit_pattern_u16;
     #[pymodule_export]
     use crate::python::encoding::decode_full_f32;
     #[pymodule_export]
     use crate::python::encoding::decode_full_u16;
-
     #[pymodule_export]
     use crate::python::encoding::encode_bit_pattern_f32;
     #[pymodule_export]
     use crate::python::encoding::encode_bit_pattern_u16;
-
     #[pymodule_export]
-    use crate::python::encoding::decode_bit_pattern_f32;
+    use crate::python::encoding::encode_full_f32;
     #[pymodule_export]
-    use crate::python::encoding::decode_bit_pattern_u16;
+    use crate::python::encoding::encode_full_u16;
+    #[pymodule_export]
+    use crate::python::encoding::PyBitPatternEncoding as BitPatternEncoding;
 }
