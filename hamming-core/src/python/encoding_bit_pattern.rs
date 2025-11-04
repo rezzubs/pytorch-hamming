@@ -145,6 +145,34 @@ impl PyBitPatternEncoding {
 
         self.decode_bit_pattern_generic(py, output_buffer)
     }
+
+    /// Return a new instance with cloned data.
+    pub fn clone(&self, py: Python) -> Self {
+        let unprotected = self.unprotected.as_bytes(py).to_owned();
+        let unprotected = PyBytes::new(py, &unprotected).unbind();
+
+        let protected = self.protected.bind(py).iter().map(|chunk| {
+            let chunk = chunk
+                .downcast_into::<PyBytes>()
+                .expect("Cannot fail because the values cannot be modified from python");
+
+            let cloned = chunk.as_bytes().to_owned();
+
+            PyBytes::new(py, &cloned)
+        });
+        let protected = PyList::new(py, protected)
+            .expect("list creation failed")
+            .unbind();
+
+        Self {
+            unprotected,
+            unprotected_bits_count: self.unprotected_bits_count,
+            protected,
+            bits_per_chunk: self.bits_per_chunk,
+            pattern_bits: self.pattern_bits.clone(),
+            pattern_length: self.pattern_length,
+        }
+    }
 }
 
 fn py_bit_pattern(

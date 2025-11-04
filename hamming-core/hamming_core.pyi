@@ -20,6 +20,7 @@ class BitPatternEncoding:
         self,
         decoded_array_element_counts: list[int],
     ) -> tuple[ListOfArray[np.uint16], list[bool]]: ...
+    def clone(self) -> BitPatternEncoding: ...
 
 def f32_array_list_fi(
     input: ListOfArray[np.float32],
