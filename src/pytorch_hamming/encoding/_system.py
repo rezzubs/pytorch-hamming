@@ -2,11 +2,11 @@ import copy
 import logging
 from dataclasses import dataclass
 
+from pytorch_hamming.tensor_ops import tensor_list_fault_injection
 import torch
 from typing_extensions import override
 
 from .._system import BaseSystem
-from ..fault_injector import BaseFaultInjector, TensorListFaultInjector
 from ._full import FullEncoding
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
         return self.base.system_data_tensors(self.decoded_base_data(data))
 
     @override
-    def system_fault_injector(self, data: Encoding) -> BaseFaultInjector:
+    def system_inject_n_faults(self, data: Encoding, n: int):
         # NOTE: we need to reset the decoded cache because the true values can
         # change if the values in the returned list are updated like through
         # fault injection.
@@ -82,7 +82,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
 
         match data:
             case FullEncoding():
-                return TensorListFaultInjector([data.encoded_bytes])
+                tensor_list_fault_injection([data.encoded_bytes], n)
 
     @override
     def system_metadata(self) -> dict[str, str]:

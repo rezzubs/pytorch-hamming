@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import abc
 
-from .fault_injector import BaseFaultInjector, TensorListFaultInjector
 import torch
 
 from .tensor_ops import (
+    tensor_list_fault_injection,
     tensor_list_num_bits,
 )
 
@@ -34,8 +34,10 @@ class BaseSystem[T](abc.ABC):
         If this is not desired, `system_fault_injector` can be overridden.
         """
 
-    def system_fault_injector(self, data: T) -> BaseFaultInjector:
-        return TensorListFaultInjector(self.system_data_tensors(data))
+    def system_inject_n_faults(self, data: T, n: int):
+        """Inject `n` faults uniformly into the system `data`."""
+        tensors = self.system_data_tensors(data)
+        tensor_list_fault_injection(tensors, n)
 
     def system_metadata(self) -> dict[str, str]:
         """Return metadata about the system.

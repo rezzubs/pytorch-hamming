@@ -150,9 +150,7 @@ Accuracy: ~{self.accuracy:.2f}%
 
         if self.faults_count > 0:
             logger.debug("Running fault injection")
-            system.system_fault_injector(data).fault_injector_inject_n(
-                self.faults_count
-            )
+            system.system_inject_n_faults(data, self.faults_count)
             logger.debug("Fault injection finished")
         else:
             logger.debug("Skipping fault injection")
