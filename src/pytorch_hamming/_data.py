@@ -29,10 +29,41 @@ def count_ones(number: int) -> int:
     return number.bit_count()
 
 
+def metadata_str(metadata: dict[str, str], bit_error_rate: float) -> str:
+    parts = list(metadata.items())
+    parts.sort(key=lambda x: x[0])
+
+    parts_strs = ["-".join(p) for p in parts]
+    parts_strs.append(f"ber-{bit_error_rate:.2e}")
+
+    return "_".join(parts_strs)
+
+
+def get_path(
+    root: Path, bit_error_rate: float, metadata: dict[str, str], metadata_name: bool
+) -> Path:
+    if (not root.exists()) and metadata_name:
+        logger.info(f"Creating a new output directory at {root}")
+        root.mkdir()
+
+    if root.is_dir():
+        if metadata_name:
+            root = root.joinpath(metadata_str(metadata, bit_error_rate) + ".json")
+        else:
+            root = root.joinpath("data.json")
+    elif metadata_name:
+        raise ValueError(
+            "`metadata_name` can only be used together with directory paths"
+        )
+
+    return root
+
+
 @dataclass
 class Autosave:
     interval: int
     path: Path
+    metadata_name: bool
 
 
 class Data(BaseModel):
@@ -183,7 +214,7 @@ Accuracy: {self.accuracy:.2f}%
         n: int,
         *,
         summary: bool = False,
-        autosave: Autosave | None,
+        autosave: Autosave | None = None,
     ):
         if n <= 0:
             raise ValueError("Expected `n` to be a positive nonzero integer")
@@ -195,27 +226,32 @@ Accuracy: {self.accuracy:.2f}%
             _ = self.record_entry(system, summary=summary)
 
             if autosave is not None and autosave.interval % i == 0:
-                self.save(autosave.path)
+                self.save(autosave.path, autosave.metadata_name)
 
-    def save(self, path: Path) -> None:
+    def save(self, data_path: Path, metadata_name: bool = False) -> None:
         """Save the data to the given file path in json format.
 
         If path doesn't exist, it will create a new file with the given name.
         The parent is expected to exist.
 
         If the path is a directory then a file called `data.json` will be
-        created in that directory .
+        created in that directory.
+
+        If `metadata_path` is True then the file name is set based on the
+        metadata and bit error rate. `data_path` must be a directory in this
+        case.
         """
 
-        if path.is_dir():
-            path = path.joinpath("data.json")
+        data_path = get_path(
+            data_path, self.faults_count / self.bits_count, self.metadata, metadata_name
+        )
 
-        if path.exists():
-            logger.info(f'Saving data to "{path}"')
+        if data_path.exists():
+            logger.info(f'Saving data to "{data_path}"')
         else:
-            logger.info(f'Saving data to a new file at "{path}"')
+            logger.info(f'Saving data to a new file at "{data_path}"')
 
-        with open(path, "w") as f:
+        with open(data_path, "w") as f:
             _ = f.write(self.model_dump_json())
 
     @classmethod
@@ -226,6 +262,7 @@ Accuracy: {self.accuracy:.2f}%
         faults_count: int,
         bits_count: int,
         metadata: dict[str, str],
+        metadata_name: bool = False,
     ) -> Data:
         """Load existing data from disk or create a new instance if it doesn't exist.
 
@@ -244,8 +281,9 @@ Accuracy: {self.accuracy:.2f}%
             logger.debug("Creating new data")
             return create()
 
-        if data_path.is_dir():
-            data_path = data_path.joinpath("data.json")
+        data_path = get_path(
+            data_path, faults_count / bits_count, metadata, metadata_name
+        )
 
         if not data_path.exists():
             logger.warning(

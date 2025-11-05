@@ -165,6 +165,13 @@ If the path is a directory (existing) then the file will be called data.json",
             rich_help_panel="Recording settings",
         ),
     ] = None,
+    metadata_name: Annotated[
+        bool,
+        typer.Option(
+            help="Generate a file name based on the configuration metadata. Must be used together with --output-path.",
+            rich_help_panel="Recording settings",
+        ),
+    ] = False,
     autosave: Annotated[
         int | None,
         typer.Option(
@@ -244,6 +251,7 @@ The default is to only save at the very end",
         faults_count=faults_count,
         bits_count=total_num_bits,
         metadata=system.system_metadata(),
+        metadata_name=metadata_name,
     )
 
     logger.debug(f"Proceeding with metadata: {data.metadata}")
@@ -256,7 +264,7 @@ The default is to only save at the very end",
             )
         case _:
             if autosave is not None and output_path is not None:
-                save_config = Autosave(autosave, output_path)
+                save_config = Autosave(autosave, output_path, metadata_name)
             else:
                 save_config = None
 
@@ -268,7 +276,7 @@ The default is to only save at the very end",
             )
 
     if output_path:
-        data.save(output_path)
+        data.save(output_path, metadata_name)
 
 
 if __name__ == "__main__":
