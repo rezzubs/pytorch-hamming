@@ -102,7 +102,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
                 metadata["bit_pattern"] = "all"
                 metadata["chunk_size"] = str(chunk_size)
             case EncodingFormatBitPattern(pattern, pattern_length, bits_per_chunk):
-                metadata["bit_pattern"] = f"{pattern}:{pattern_length}"
+                metadata["bit_pattern"] = f"{pattern}({pattern_length})"
                 metadata["chunk_size"] = str(bits_per_chunk)
 
         return metadata
