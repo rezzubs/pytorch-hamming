@@ -50,8 +50,10 @@ def get_path(
 
     if root.is_dir():
         if metadata_name:
+            logger.debug("generating file name from metadata")
             root = root.joinpath(metadata_str(metadata, bit_error_rate) + ".json")
         else:
+            logger.debug("metadata_name not set, defaulting to data.json")
             root = root.joinpath("data.json")
     elif metadata_name:
         raise ValueError(
@@ -218,6 +220,7 @@ Accuracy: {self.accuracy:.2f}%
         summary: bool = False,
         autosave: Autosave | None = None,
     ):
+        logger.debug(f"Recording {n} runs")
         if n <= 0:
             raise ValueError("Expected `n` to be a positive nonzero integer")
 
@@ -229,6 +232,68 @@ Accuracy: {self.accuracy:.2f}%
 
             if autosave is not None and i % autosave.interval == 0:
                 self.save(autosave.path, autosave.metadata_name)
+
+    def record_until_stable[T](
+        self,
+        system: BaseSystem[T],
+        *,
+        threshold: float,
+        stable_within: int,
+        min_runs: int | None = None,
+        summary: bool = False,
+        autosave: Autosave | None = None,
+    ):
+        logger.debug(
+            f"Recording until mean is within {threshold}% in the last {stable_within} cycles"
+        )
+        if min_runs is None:
+            min_runs = stable_within
+
+        if stable_within <= 0:
+            raise ValueError("`stable_within` must be greater than 0")
+
+        autosave_counter = 0
+        while len(self.entries) < min_runs:
+            autosave_counter += 1
+            logger.info(f"Recording run {len(self.entries) + 1}/{min_runs}min")
+
+            _ = self.record_entry(system, summary=summary)
+
+            if autosave is not None:
+                rem = autosave_counter % autosave.interval
+                if rem == 0:
+                    logger.debug("autosave triggered")
+                    self.save(autosave.path, autosave.metadata_name)
+                else:
+                    remaining = autosave.interval - rem
+                    logger.debug(f"{remaining} runs until autosave")
+
+        logger.info(f"Passed the minimum number of runs ({min_runs})")
+
+        while not self.is_stable(stable_within, threshold):
+            autosave_counter += 1
+            drift = self.mean_drift(stable_within)
+            assert drift is not None, (
+                "Has to be a real value after the minimum number of runs"
+            )
+            drift_min, drift_max = drift
+
+            logger.info(
+                f"Recording to achieve stability at {threshold:.3}%, currently at {drift_max - drift_min:.3}%"
+            )
+
+            _ = self.record_entry(system, summary=summary)
+
+            if autosave is not None:
+                rem = autosave_counter % autosave.interval
+                if rem == 0:
+                    logger.debug("autosave triggered")
+                    self.save(autosave.path, autosave.metadata_name)
+                else:
+                    remaining = autosave.interval - rem
+                    logger.debug(f"{remaining} runs until autosave")
+
+        logger.info("Data mean is stable")
 
     def save(self, data_path: Path, metadata_name: bool = False) -> None:
         """Save the data to the given file path in json format.
@@ -347,3 +412,24 @@ Accuracy: {self.accuracy:.2f}%
         bounded = means[-within:]
 
         return (min(bounded), max(bounded))
+
+    def is_stable(self, within: int, threshold: float) -> bool:
+        drift: tuple[float, float] | None = self.mean_drift(within)
+
+        if drift is None:
+            logger.debug(
+                f"Not stable, not enough runs passed to compute mean drift ({within} required)"
+            )
+            return False
+
+        drift_min, drift_max = drift
+
+        drift_amount = drift_max - drift_min
+
+        is_stable = drift_amount <= threshold
+        if is_stable:
+            logger.debug("Achieved stability")
+        else:
+            logger.debug(f"Not stable, {drift_amount}>{threshold}")
+
+        return is_stable

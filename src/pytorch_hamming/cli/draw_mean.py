@@ -13,12 +13,13 @@ def plot(file: Path, stability_threshold: float, stable_within: int):
 
     fig, ax = plt.subplots()  # pyright: ignore[reportUnknownMemberType]
 
-    _ = ax.set_title(
+    _ = ax.set_title(  # pyright: ignore[reportUnknownMemberType]
         "\n".join(
             [f"{k}={v}" for k, v in data.metadata.items()]
             + [f"BER={data.faults_count / data.bits_count:.2e}"]
         )
-    )  # pyright: ignore[reportUnknownMemberType]
+    )
+
     fig.tight_layout()
 
     means = data.means()

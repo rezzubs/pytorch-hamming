@@ -150,9 +150,28 @@ a chunk size of 64 should be used.",
         ),
     ] = "cpu",
     runs: Annotated[
-        int,
+        int | None,
         typer.Option(
+            min=2,
             help="How many runs to perform.",
+            rich_help_panel="Recording settings. 1 run is done by default.",
+        ),
+    ] = None,
+    until_stable: Annotated[
+        int | None,
+        typer.Option(
+            min=2,
+            help="run until the accuracy mean within this many runs has not fluctuated over --stability-threshold %. \
+--runs can be used to signal the minimum number of runs",
+            rich_help_panel="Recording settings",
+        ),
+    ] = None,
+    stability_threshold: Annotated[
+        float,
+        typer.Option(
+            min=0,
+            max=100,
+            help="run until the accuracy mean within this many runs has not fluctuated over --stability-threshold %",
             rich_help_panel="Recording settings",
         ),
     ] = 1,
@@ -256,11 +275,23 @@ The default is to only save at the very end",
 
     logger.debug(f"Proceeding with metadata: {data.metadata}")
 
-    match runs:
-        case 1:
+    match (runs, until_stable):
+        case (None, None):
             _ = data.record_entry(
                 cast(BaseSystem[Any], system),  # pyright: ignore[reportExplicitAny]
                 summary=summary,
+            )
+        case (_, None):
+            if autosave is not None and output_path is not None:
+                save_config = Autosave(autosave, output_path, metadata_name)
+            else:
+                save_config = None
+
+            data.record_entries(
+                cast(BaseSystem[Any], system),  # pyright: ignore[reportExplicitAny]
+                runs,
+                summary=summary,
+                autosave=save_config,
             )
         case _:
             if autosave is not None and output_path is not None:
@@ -268,10 +299,11 @@ The default is to only save at the very end",
             else:
                 save_config = None
 
-            _ = data.record_entries(
+            _ = data.record_until_stable(
                 cast(BaseSystem[Any], system),  # pyright: ignore[reportExplicitAny]
-                runs,
-                summary=summary,
+                threshold=stability_threshold,
+                stable_within=until_stable,
+                min_runs=runs,
                 autosave=save_config,
             )
 
