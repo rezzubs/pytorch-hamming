@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 import typing
 from dataclasses import dataclass
 
@@ -48,6 +49,7 @@ class System(BaseSystem[nn.Module]):
     dtype: DnnDtype
     device: torch.device
     batch_size: int
+    dataset_cache: Path | None
 
     @override
     def system_data(self) -> nn.Module:
@@ -98,5 +100,5 @@ class System(BaseSystem[nn.Module]):
         return {
             "dtype": self.dtype.name,
             "model": self.model.name,
-            "dataset": self.dataset.name,
+            "dataset": self.dataset.kind.name,
         }

@@ -63,7 +63,7 @@ def record(
         ),
     ],
     dataset: Annotated[
-        CachedDataset,
+        CachedDataset.Kind,
         typer.Option(
             "--dataset",
             "-d",
@@ -72,6 +72,14 @@ def record(
             rich_help_panel="Model setup",
         ),
     ],
+    dataset_cache: Annotated[
+        Path | None,
+        typer.Option(
+            "--dataset-cache",
+            help="The path to use for caching the dataset. `./dataset-cache` by default.",
+            rich_help_panel="Model setup",
+        ),
+    ] = None,
     dtype: Annotated[  # pyright: ignore[reportRedeclaration]
         DtypeChoices,
         typer.Option(
@@ -179,12 +187,25 @@ The default is to only save at the very end",
 
     dtype: DnnDtype = dtype.to_dtype()
 
+    if dataset_cache is None:
+        dataset_cache = Path("./dataset-cache")
+    dataset_cache = dataset_cache.expanduser()
+
+    if not dataset_cache.exists():
+        logger.info(f"Creating a new cache directory at `{dataset_cache}`")
+        dataset_cache.mkdir(parents=True)
+
+    if not dataset_cache.is_dir():
+        print(f"Dataset cache ({dataset_cache}) must be a directory")
+        raise typer.Exit()
+
     system = System(
-        dataset=dataset,
+        dataset=CachedDataset(dataset, dataset_cache),
         model=model,
         dtype=dtype,
         device=device,
         batch_size=batch_size,
+        dataset_cache=dataset_cache,
     )
 
     match (protected, bit_pattern):
@@ -212,7 +233,8 @@ The default is to only save at the very end",
         case (None, bit_error_rate):
             faults_count = int(round(total_num_bits * bit_error_rate))
         case _:
-            raise typer.Abort("Choose one of --bit_error_rate and --faults_count")
+            print("Choose one of --bit_error_rate and --faults_count")
+            raise typer.Exit()
 
     if output_path is not None:
         output_path = output_path.expanduser()

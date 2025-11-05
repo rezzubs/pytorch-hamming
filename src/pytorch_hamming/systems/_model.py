@@ -23,7 +23,7 @@ class CachedModel(enum.Enum):
         if model is None:
             model = torch.hub.load(  # pyright: ignore[reportUnknownMemberType]
                 "chenyaofo/pytorch-cifar-models",
-                f"{dataset.value}_{self.value}",
+                f"{dataset.kind.value}_{self.value}",
                 pretrained=True,
             )
             assert isinstance(model, nn.Module)

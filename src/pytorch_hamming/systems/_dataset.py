@@ -1,9 +1,11 @@
 from __future__ import annotations
+from dataclasses import dataclass
 import functools
 
 from collections.abc import Iterator
 import enum
 import logging
+from pathlib import Path
 import typing
 
 from torch.utils.data import DataLoader
@@ -18,33 +20,35 @@ logger = logging.getLogger(__name__)
 
 Dataset = datasets.CIFAR10 | datasets.CIFAR100
 
-ON_DISK_CACHE = "./dataset_cache"
+CACHE: dict[CachedDataset.Kind, Dataset] = dict()
 
 
-CACHE: dict[CachedDataset, Dataset] = dict()
+@dataclass(frozen=True)
+class CachedDataset:
+    kind: CachedDataset.Kind
+    on_disk_cache: Path
 
-
-class CachedDataset(enum.Enum):
-    CIFAR10 = "cifar10"
-    CIFAR100 = "cifar100"
+    class Kind(enum.Enum):
+        CIFAR10 = "cifar10"
+        CIFAR100 = "cifar100"
 
     def load_data(self) -> Dataset:
-        logger.info(f"Loading dataset `{self.name}`")
+        logger.info(f"Loading dataset `{self.kind.name}`")
         try:
-            match self:
-                case CachedDataset.CIFAR10:
+            match self.kind:
+                case CachedDataset.Kind.CIFAR10:
                     mean = (0.49139968, 0.48215827, 0.44653124)
                     std = (0.24703233, 0.24348505, 0.26158768)
                     transform = transforms.Compose(
                         [transforms.ToTensor(), transforms.Normalize(mean, std)]
                     )
                     return datasets.CIFAR10(
-                        root=ON_DISK_CACHE,
+                        root=self.on_disk_cache,
                         train=False,
                         download=True,
                         transform=transform,
                     )
-                case CachedDataset.CIFAR100:
+                case CachedDataset.Kind.CIFAR100:
                     mean = (0.5070751592371323, 0.48654887331495095, 0.4409178433670343)
                     std = (0.2673342858792401, 0.2564384629170883, 0.27615047132568404)
                     transform = transforms.Compose(
@@ -58,7 +62,7 @@ class CachedDataset(enum.Enum):
                     )
 
                     return datasets.CIFAR100(
-                        root=ON_DISK_CACHE,
+                        root=self.on_disk_cache,
                         train=False,
                         download=True,
                         transform=transform,
@@ -67,14 +71,14 @@ class CachedDataset(enum.Enum):
             logger.debug("Dataset loading finished")
 
     def dataset(self) -> Dataset:
-        dataset = CACHE.get(self)
+        dataset = CACHE.get(self.kind)
 
         if dataset is None:
-            logger.debug(f"Dataset {self.name} not yet cached")
+            logger.debug(f"Dataset {self.kind.name} not yet loaded")
             dataset = self.load_data()
-            CACHE[self] = dataset
+            CACHE[self.kind] = dataset
         else:
-            logger.debug(f"Got dataset {self.name} from cache")
+            logger.debug(f"Got dataset {self.kind.name} from in memory cache")
 
         return dataset
 
