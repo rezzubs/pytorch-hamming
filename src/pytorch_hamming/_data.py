@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import copy
+import functools
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 from pydantic import BaseModel
 from typing_extensions import override
 
@@ -255,6 +257,15 @@ Accuracy: {self.accuracy:.2f}%
             _ = f.write(self.model_dump_json())
 
     @classmethod
+    def load(
+        cls,
+        data_path: Path,
+    ) -> Data:
+        with open(data_path, "r") as f:
+            content = f.read()
+            return Data.model_validate_json(content)
+
+    @classmethod
     def load_or_create(
         cls,
         data_path: Path | None,
@@ -293,6 +304,46 @@ Accuracy: {self.accuracy:.2f}%
 
         logger.info('Loading existing data from "{path}"')
 
-        with open(data_path, "r") as f:
-            content = f.read()
-            return Data.model_validate_json(content)
+        return cls.load(
+            data_path,
+        )
+
+    def mean_until(self, until: int) -> float | None:
+        """Return the mean of the accuracy until the given cycle (inclusive)"""
+        if until < 0:
+            raise ValueError("`until` must be non-negative")
+
+        if until >= len(self.entries):
+            return None
+
+        @functools.cache
+        def helper(until: int):
+            return float(
+                np.mean([entry.accuracy for entry in self.entries[: (until + 1)]])
+            )
+
+        return helper(until)
+
+    def means(self) -> list[float]:
+        output: list[float] = []
+
+        for i in range(len(self.entries)):
+            mean = self.mean_until(i)
+            assert mean is not None
+            output.append(mean)
+
+        return output
+
+    def mean_drift(self, within: int) -> tuple[float, float] | None:
+        """Get the minimum and maximum mean value within the final n cycles.
+
+        Returns None if there isn't enough data
+        """
+        if len(self.entries) < within:
+            return None
+
+        means = self.means()
+
+        bounded = means[-within:]
+
+        return (min(bounded), max(bounded))
