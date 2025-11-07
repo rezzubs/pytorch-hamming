@@ -161,6 +161,28 @@ Accuracy: {self.accuracy:.2f}%
 
             return out
 
+        def faults_per_bit_index(
+            self, skip_multi_bit_faults: bool = False
+        ) -> dict[int, int]:
+            """Get the number of faults for each bit index.
+
+            The keys of the dictionary map to the indices and the value to the
+            number of faults.
+            """
+            index_map: dict[int, int] = dict()
+
+            for fault_mask in self.faulty_parameters:
+                binary_str = bin(fault_mask)
+                if skip_multi_bit_faults:
+                    if binary_str.count("1") > 1:
+                        continue
+
+                for i, char in enumerate(reversed(binary_str)):
+                    if char == "1":
+                        index_map[i] = 1 + index_map.get(i, 0)
+
+            return index_map
+
     def record_entry[T](
         self,
         system: BaseSystem[T],

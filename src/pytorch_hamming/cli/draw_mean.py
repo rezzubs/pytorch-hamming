@@ -20,8 +20,6 @@ def plot(file: Path, stability_threshold: float, stable_within: int):
         )
     )
 
-    fig.tight_layout()
-
     means = data.means()
 
     _ = ax.plot(means)  # pyright: ignore[reportUnknownMemberType]
@@ -55,6 +53,7 @@ def plot(file: Path, stability_threshold: float, stable_within: int):
     _ = ax.set_xlabel("number of runs")  # pyright: ignore[reportUnknownMemberType]
     _ = ax.set_ylabel("accuracy [%]")  # pyright: ignore[reportUnknownMemberType]
 
+    fig.tight_layout()
     plt.show()  # pyright: ignore[reportUnknownMemberType]
 
 
