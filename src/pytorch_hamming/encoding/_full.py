@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import typing
 from dataclasses import dataclass
 
@@ -8,14 +9,14 @@ import numpy as np
 import torch
 
 from .._dtype import DnnDtype
-from ..tensor_ops import tensor_list_dtype
+from ..tensor_ops import tensor_list_dtype, tensor_list_fault_injection
 
 
 @dataclass
 class FullEncoding:
-    encoded_bytes: torch.Tensor
-    bits_per_chunk: int
-    bits_count: int
+    _encoded_bytes: torch.Tensor
+    _bits_per_chunk: int
+    _bits_count: int
 
     @classmethod
     def encode_tensor_list(
@@ -62,7 +63,7 @@ class FullEncoding:
 
         element_counts = [t.numel() for t in output_buffer]
         with torch.no_grad():
-            numpy_bytes = self.encoded_bytes.numpy(force=True)
+            numpy_bytes = self._encoded_bytes.numpy(force=True)
             assert numpy_bytes.dtype == np.dtype(np.uint8)
             numpy_bytes = typing.cast(np.typing.NDArray[np.uint8], numpy_bytes)
 
@@ -70,8 +71,8 @@ class FullEncoding:
             case DnnDtype.Float32:
                 decoded, ded_results = hamming_core.decode_full_f32(
                     numpy_bytes,
-                    self.bits_count,
-                    self.bits_per_chunk,
+                    self._bits_count,
+                    self._bits_per_chunk,
                     element_counts,
                 )
                 # HACK: There's nothing we can do about this warning without an upstream fix.
@@ -83,8 +84,8 @@ class FullEncoding:
             case DnnDtype.Float16:
                 decoded, ded_results = hamming_core.decode_full_u16(
                     numpy_bytes,
-                    self.bits_count,
-                    self.bits_per_chunk,
+                    self._bits_count,
+                    self._bits_per_chunk,
                     element_counts,
                 )
                 torch_decoded = [
@@ -102,3 +103,9 @@ class FullEncoding:
         _ = ded_results
 
         return output_buffer
+
+    def clone(self) -> FullEncoding:
+        return copy.deepcopy(self)
+
+    def flip_n_bits(self, n: int):
+        tensor_list_fault_injection([self._encoded_bytes], n)

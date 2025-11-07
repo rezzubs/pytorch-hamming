@@ -2,7 +2,6 @@ import copy
 import logging
 from dataclasses import dataclass
 
-from pytorch_hamming.tensor_ops import tensor_list_fault_injection
 import torch
 from typing_extensions import override
 
@@ -87,11 +86,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
 
     @override
     def system_inject_n_faults(self, data: Encoding, n: int):
-        match data:
-            case FullEncoding():
-                tensor_list_fault_injection([data.encoded_bytes], n)
-            case BitPatternEncoding():
-                data.flip_n_bits(n)
+        data.flip_n_bits(n)
 
     @override
     def system_metadata(self) -> dict[str, str]:
@@ -109,8 +104,4 @@ class EncodedSystem[T](BaseSystem[Encoding]):
 
     @override
     def system_clone_data(self, data: Encoding) -> Encoding:
-        match data:
-            case FullEncoding():
-                return copy.deepcopy(data)
-            case BitPatternEncoding():
-                return data.clone()
+        return data.clone()
