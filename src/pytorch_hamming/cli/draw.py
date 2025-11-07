@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Annotated
 
+from matplotlib import patches
 import matplotlib.pyplot as plt
 import numpy as np
 import typer
@@ -14,25 +15,25 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
-def path_sequence_entries(paths: Iterable[Path]) -> list[Data.Entry]:
-    entries: list[Data.Entry] = []
+def path_sequence_data(paths: Iterable[Path]) -> list[Data]:
+    data: list[Data] = []
 
     for path in paths:
         path = path.expanduser()
 
         if path.is_dir():
-            entries.extend(path_sequence_entries(path.iterdir()))
+            data.extend(path_sequence_data(path.iterdir()))
             continue
 
         try:
-            data = Data.load(path)
+            d = Data.load(path)
         except Exception as e:
             logger.warning(f"Failed to load data from path `{path}` - skipping\n-> {e}")
             continue
 
-        entries.extend(data.entries)
+        data.append(d)
 
-    return entries
+    return data
 
 
 @app.command()
@@ -90,7 +91,8 @@ def scatter(
 
     The z-axis corresponds to the number of faults in each bit for a given accuracy.
     """
-    entries = path_sequence_entries(datasets)
+    data = path_sequence_data(datasets)
+    entries = [e for d in data for e in d.entries]
 
     xs: list[float] = []
     ys: list[int] = []
@@ -171,3 +173,77 @@ def scatter(
 
     fig.tight_layout()
     plt.show()  # pyright: ignore[reportUnknownMemberType]
+
+
+@app.command()
+def mean(
+    datasets: Annotated[
+        list[Path],
+        typer.Argument(
+            help="Paths which store the files where data is recorded.",
+        ),
+    ],
+    stability_threshold: Annotated[
+        float,
+        typer.Option(
+            min=0,
+            max=100,
+            help="The percentage of mean drift that's considered stable",
+        ),
+    ] = 1,
+    stable_within: Annotated[
+        int,
+        typer.Option(
+            min=1,
+        ),
+    ] = 100,
+):
+    """Plot the progression of the mean accuracy value over the number of runs."""
+
+    data = path_sequence_data(datasets)
+
+    for d in data:
+        fig, ax = plt.subplots()  # pyright: ignore[reportUnknownMemberType]
+
+        _ = ax.set_title(  # pyright: ignore[reportUnknownMemberType]
+            "\n".join(
+                [f"{k}={v}" for k, v in d.metadata.items()]
+                + [f"BER={d.faults_count / d.bits_count:.2e}"]
+            )
+        )
+
+        means = d.means()
+
+        _ = ax.plot(means)  # pyright: ignore[reportUnknownMemberType]
+
+        result = d.mean_drift(stable_within)
+        if result is None:
+            plt.show()  # pyright: ignore[reportUnknownMemberType]
+            return
+
+        drift_min, drift_max = result
+
+        num_entries = len(d.entries)
+
+        box_start_x = num_entries - stable_within
+
+        drift = drift_max - drift_min
+
+        edge_color = "green" if drift <= stability_threshold else "red"
+
+        rect = patches.Rectangle(
+            (box_start_x, drift_min),
+            stable_within,
+            drift,
+            facecolor="none",
+            edgecolor=edge_color,
+        )
+
+        _ = ax.add_patch(rect)
+        _ = ax.text(box_start_x, drift_max, f"drift {drift:.2}%")  # pyright: ignore[reportUnknownMemberType]
+
+        _ = ax.set_xlabel("number of runs")  # pyright: ignore[reportUnknownMemberType]
+        _ = ax.set_ylabel("accuracy [%]")  # pyright: ignore[reportUnknownMemberType]
+
+        fig.tight_layout()
+        plt.show()  # pyright: ignore[reportUnknownMemberType]
