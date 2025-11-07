@@ -257,3 +257,6 @@ class BitPatternEncoding:
             else None
         )
         return BitPatternEncoding(self._encoded_data.clone(), copied_tensors)
+
+    def bits_count(self) -> int:
+        return self._encoded_data.bits_count()

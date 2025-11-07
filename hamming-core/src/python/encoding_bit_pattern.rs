@@ -25,6 +25,7 @@ pub struct PyBitPatternEncoding {
     bits_per_chunk: usize,
     pattern_bits: HashSet<usize>,
     pattern_length: usize,
+    total_bits_count: usize,
 }
 
 impl PyBitPatternEncoding {
@@ -72,6 +73,7 @@ impl PyBitPatternEncoding {
     fn from_rust<'py>(py: Python<'py>, encoding: BitPatternEncoding) -> PyResult<Self> {
         let unprotected_bits_count = encoding.data.unprotected.num_bits();
 
+        let total_bits_count = encoding.data.num_bits();
         let protected = encoding
             .data
             .protected
@@ -88,6 +90,7 @@ impl PyBitPatternEncoding {
             bits_per_chunk: encoding.bits_per_chunk,
             pattern_bits: encoding.pattern.mask().clone(),
             pattern_length: encoding.pattern.length(),
+            total_bits_count,
         })
     }
 
@@ -181,7 +184,13 @@ impl PyBitPatternEncoding {
             bits_per_chunk: self.bits_per_chunk,
             pattern_bits: self.pattern_bits.clone(),
             pattern_length: self.pattern_length,
+            total_bits_count: self.total_bits_count,
         }
+    }
+
+    /// Return the number of bits in the encoded buffer
+    pub fn bits_count(&self) -> usize {
+        self.total_bits_count
     }
 }
 

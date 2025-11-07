@@ -109,3 +109,6 @@ class FullEncoding:
 
     def flip_n_bits(self, n: int):
         tensor_list_fault_injection([self._encoded_bytes], n)
+
+    def bits_count(self) -> int:
+        return self._bits_count
