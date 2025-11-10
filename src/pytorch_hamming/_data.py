@@ -268,7 +268,7 @@ Accuracy: {self.accuracy:.2f}%
         logger.debug(
             f"Recording until mean is within {threshold}% in the last {stable_within} cycles"
         )
-        if min_runs is None:
+        if min_runs is None or min_runs < stable_within:
             min_runs = stable_within
 
         if stable_within <= 0:
