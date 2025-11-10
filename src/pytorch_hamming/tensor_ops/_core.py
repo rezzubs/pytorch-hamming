@@ -131,6 +131,10 @@ def tensor_list_compare_bitwise(
             #  A view is like a bitwise transmute. This is
             # necessary because rust's `f16` isn't yet stable. See:
             # https://github.com/rust-lang/rust/issues/116909
-            left_numpy = [t.view(torch.uint16).flatten().numpy() for t in left]
-            right_numpy = [t.view(torch.uint16).flatten().numpy() for t in right]
+            left_numpy = [
+                t.view(torch.uint16).flatten().numpy(force=True) for t in left
+            ]
+            right_numpy = [
+                t.view(torch.uint16).flatten().numpy(force=True) for t in right
+            ]
             return hamming_core.compare_array_list_bitwise_u16(left_numpy, right_numpy)

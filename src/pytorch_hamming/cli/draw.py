@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Annotated
 
 from matplotlib import patches
+from matplotlib.colors import LogNorm
 import matplotlib.pyplot as plt
 import numpy as np
 import typer
@@ -86,6 +87,12 @@ def scatter(
             help="Draw the cases with the lowest number of faults per bit last",
         ),
     ] = False,
+    bins: Annotated[
+        bool,
+        typer.Option(
+            help="Draw hexbins instead of a scatter",
+        ),
+    ] = False,
 ):
     """Draw a scatter plot for all the entries in the given data.
 
@@ -158,9 +165,17 @@ def scatter(
         )
         ax["top"].sharex(ax["bot"])
 
-        scatter_ = ax["bot"].scatter(  # pyright: ignore[reportUnknownMemberType]
-            xs_[order], ys_[order], c=zs_[order], cmap="plasma"
-        )
+        if bins:
+            scatter_ = ax["bot"].hexbin(  # pyright: ignore[reportUnknownMemberType]
+                xs_[order],
+                ys_[order],
+                cmap="plasma",
+                norm=LogNorm(),
+            )
+        else:
+            scatter_ = ax["bot"].scatter(  # pyright: ignore[reportUnknownMemberType]
+                xs_[order], ys_[order], c=zs_[order], cmap="plasma"
+            )
         _ = ax["bot"].set_xlabel("Accuracy [%]")  # pyright: ignore[reportUnknownMemberType]
         _ = ax["bot"].set_ylabel("Bit index")  # pyright: ignore[reportUnknownMemberType]
 
