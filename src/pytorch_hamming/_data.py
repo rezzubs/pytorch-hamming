@@ -301,7 +301,7 @@ Accuracy: {self.accuracy:.2f}%
             drift_min, drift_max = drift
 
             logger.info(
-                f"Recording to achieve stability at {threshold:.3}%, currently at {drift_max - drift_min:.3}%"
+                f"Recording run {len(self.entries)} to achieve stability at {threshold:.3}%, currently at {drift_max - drift_min:.3}%"
             )
 
             _ = self.record_entry(system, summary=summary)
