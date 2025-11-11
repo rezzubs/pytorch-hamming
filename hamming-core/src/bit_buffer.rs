@@ -3,9 +3,12 @@ mod byte_chunked;
 pub mod chunks;
 mod random_picker;
 
+use std::collections::HashSet;
+
 pub use bits::Bits;
 pub use byte_chunked::ByteChunkedBitBuffer;
 use chunks::DynChunks;
+use pyo3::buffer::ReadOnlyCell;
 use random_picker::RandomPicker;
 
 use crate::{
@@ -117,13 +120,33 @@ pub trait BitBuffer {
         // FIXME: return error instead of assert
         assert!(n <= num_bits);
 
-        let mut possible_faults = RandomPicker::new(num_bits, rand::rng());
+        let mut flipped = HashSet::new();
 
-        for _ in 0..n {
-            let fault_target = possible_faults.next().expect(
+        let mut remaining = n;
+        'outer: while remaining > 0 {
+            let mut possible_faults = RandomPicker::new(num_bits, rand::rng());
+
+            for _ in 0..remaining {
+                let fault_target = possible_faults.next().expect(
                 "we confirmed that n <= num_bits so RandomPicker will always have >= n elements",
             );
-            self.flip_bit(fault_target);
+                if fault_target.saturating_sub(30) % 32 == 0 {
+                    println!("skipping bit 30 {fault_target}");
+                    continue 'outer;
+                }
+
+                if flipped.contains(&fault_target) {
+                    println!("skipping bit duplicate {fault_target}");
+                    continue 'outer;
+                }
+
+                flipped.insert(fault_target);
+                self.flip_bit(fault_target);
+
+                remaining -= 1;
+            }
+
+            println!("{remaining} remaining");
         }
     }
 
