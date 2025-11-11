@@ -1,13 +1,14 @@
+import enum
 import logging
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Annotated
 
-from matplotlib import patches
-from matplotlib.colors import LogNorm
 import matplotlib.pyplot as plt
 import numpy as np
 import typer
+from matplotlib import patches
+from matplotlib.colors import LogNorm
 
 from pytorch_hamming import Data
 
@@ -39,7 +40,7 @@ def path_sequence_data(paths: Iterable[Path]) -> list[Data]:
 
 @app.command()
 def scatter(
-    datasets: Annotated[
+    paths: Annotated[
         list[Path],
         typer.Argument(
             help="All the paths that contain data. These paths will be searched recursively."
@@ -98,7 +99,7 @@ def scatter(
 
     The z-axis corresponds to the number of faults in each bit for a given accuracy.
     """
-    data = path_sequence_data(datasets)
+    data = path_sequence_data(paths)
     entries = [e for d in data for e in d.entries]
 
     xs: list[float] = []
@@ -192,7 +193,7 @@ def scatter(
 
 @app.command()
 def mean(
-    datasets: Annotated[
+    paths: Annotated[
         list[Path],
         typer.Argument(
             help="Paths which store the files where data is recorded.",
@@ -215,7 +216,7 @@ def mean(
 ):
     """Plot the progression of the mean accuracy value over the number of runs."""
 
-    data = path_sequence_data(datasets)
+    data = path_sequence_data(paths)
 
     for d in data:
         fig, ax = plt.subplots()  # pyright: ignore[reportUnknownMemberType]
@@ -262,3 +263,155 @@ def mean(
 
         fig.tight_layout()
         plt.show()  # pyright: ignore[reportUnknownMemberType]
+
+
+class CompareMode(enum.StrEnum):
+    Accuracy = "accuracy"
+    Overhead = "overhead"
+
+
+MARKERS = [
+    "o",
+    "v",
+    "^",
+    "<",
+    ">",
+    "s",
+    "p",
+    "P",
+    "*",
+    "h",
+    "+",
+    "X",
+    "D",
+]
+
+
+@app.command()
+def configurations(
+    paths: Annotated[
+        list[Path],
+        typer.Argument(
+            help="Paths which store the files where data is recorded.",
+        ),
+    ],
+    mode: Annotated[
+        CompareMode,
+        typer.Option(help="What to graph."),
+    ] = CompareMode.Accuracy,
+    ignore_key: Annotated[
+        list[str] | None,
+        typer.Option(
+            help="Keys to ignore during printing",
+        ),
+    ] = None,
+    default_label: Annotated[
+        str | None,
+        typer.Option(
+            help="The label to use when all the metadata keys have been ignored.",
+        ),
+    ] = None,
+    logx: Annotated[
+        bool,
+        typer.Option(
+            help="Display the x axis in a log scale.",
+        ),
+    ] = False,
+):
+    """Compare different configurations in the data configurations.
+
+    Entries with the same metadata and bit error rate will be merged.
+    """
+    data = path_sequence_data(paths)
+
+    by_metadata: dict[
+        tuple[tuple[str, str], ...], tuple[dict[float, list[Data.Entry]], float]
+    ] = dict()
+
+    for d in data:
+        overhead_str = d.metadata.get("memory_overhead", None)
+        if overhead_str is not None:
+            overhead_float_part = overhead_str.split("%")[0]
+            overhead_parsed = float(overhead_float_part)
+        else:
+            overhead_parsed = 0
+
+        metadata = list(d.metadata.items())
+        metadata.sort(key=lambda x: x[0])
+        metadata = tuple(metadata)
+
+        by_bit_error_rate, _ = by_metadata.get(metadata, (dict(), 0))
+
+        entries = by_bit_error_rate.get(d.bit_error_rate(), [])
+        entries.extend(d.entries)
+
+        by_bit_error_rate[d.bit_error_rate()] = entries
+        by_metadata[metadata] = (by_bit_error_rate, overhead_parsed)
+
+    fig = plt.figure()  # pyright: ignore[reportUnknownMemberType]
+    fig.set_layout_engine("constrained")  # pyright: ignore[reportUnknownMemberType]
+    ax = fig.add_subplot()
+
+    marker_i = 0
+
+    by_metadata_list = list(by_metadata.items())
+    # sorting by the overhead
+    by_metadata_list.sort(key=lambda x: x[1][1])
+
+    def map_label(metadata: tuple[tuple[str, str], ...]):
+        if ignore_key is not None:
+            label_parts = [
+                f"{key}={val}" for key, val in metadata if key not in ignore_key
+            ]
+        else:
+            label_parts = [f"{key}={val}" for key, val in metadata]
+
+        label = " ".join(label_parts)
+        if label == "" and default_label is not None:
+            label = default_label
+
+        return label
+
+    match mode:
+        case CompareMode.Accuracy:
+            for metadata, (by_bit_error_rate, _) in by_metadata_list:
+                label = map_label(metadata)
+
+                sorted = list(by_bit_error_rate.items())
+                sorted.sort(key=lambda x: x[0])
+
+                xs = [x for x, _ in sorted]
+                means = [
+                    np.mean([e.accuracy for e in entries]) for _, entries in sorted
+                ]
+
+                _ = ax.plot(  # pyright: ignore[reportUnknownMemberType]
+                    xs,
+                    means,
+                    label=label,
+                    marker=MARKERS[marker_i],
+                )
+
+                if (marker_i := marker_i + 1) == len(MARKERS):
+                    marker_i = 0
+
+            if logx:
+                ax.set_xscale("log")  # pyright: ignore[reportUnknownMemberType]
+
+            _ = fig.legend(  # pyright: ignore[reportUnknownMemberType]
+                loc="outside upper left",
+                frameon=False,
+                ncols=2,
+            )
+        case CompareMode.Overhead:
+            labels = [map_label(m) for m, _ in by_metadata_list]
+            heights = [overhead for _, (_, overhead) in by_metadata_list]
+
+            print(labels, heights)
+
+            _ = ax.bar(labels, heights)  # pyright: ignore[reportUnknownMemberType]
+            _ = ax.set_xticklabels(labels, rotation=90)  # pyright: ignore[reportUnknownMemberType]
+
+    _ = ax.grid()  # pyright: ignore[reportUnknownMemberType]
+
+    plt.show()  # pyright: ignore[reportUnknownMemberType]

@@ -1,6 +1,7 @@
 from ._data import (
     Autosave,
     Data,
+    metadata_str,
 )
 from ._dtype import (
     DnnDtype,
@@ -16,4 +17,5 @@ __all__ = [
     "Data",
     "DnnDtype",
     "FiDtype",
+    "metadata_str",
 ]

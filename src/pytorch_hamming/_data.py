@@ -31,12 +31,13 @@ def count_ones(number: int) -> int:
     return number.bit_count()
 
 
-def metadata_str(metadata: dict[str, str], bit_error_rate: float) -> str:
+def metadata_str(metadata: dict[str, str], bit_error_rate: float | None) -> str:
     parts = list(metadata.items())
     parts.sort(key=lambda x: x[0])
 
     parts_strs = ["-".join(p) for p in parts]
-    parts_strs.append(f"ber-{bit_error_rate:.2e}")
+    if bit_error_rate is not None:
+        parts_strs.append(f"ber-{bit_error_rate:.2e}")
 
     return "_".join(parts_strs)
 
@@ -182,6 +183,10 @@ Accuracy: {self.accuracy:.2f}%
                         index_map[i] = 1 + index_map.get(i, 0)
 
             return index_map
+
+    def bit_error_rate(self) -> float:
+        """Get the bit error rate of the given configuration."""
+        return self.faults_count / self.bits_count
 
     def record_entry[T](
         self,
