@@ -89,11 +89,13 @@ def scatter(
         ),
     ] = False,
     bins: Annotated[
-        bool,
+        int | None,
         typer.Option(
-            help="Draw hexbins instead of a scatter",
+            min=1,
+            help="Instead of drawing bits hit for an individual runs, aggregate the results over all runs. \
+This parameter defines the x-axis resolution",
         ),
-    ] = False,
+    ] = None,
 ):
     """Draw a scatter plot for all the entries in the given data.
 
@@ -150,14 +152,14 @@ def scatter(
     if use_3d:
         ax = fig.subplots(subplot_kw=dict(projection="3d"))
 
-        scatter_ = ax.scatter(  # pyright: ignore[reportUnknownMemberType]
+        mappable = ax.scatter(  # pyright: ignore[reportUnknownMemberType]
             xs_[order], ys_[order], zs_[order], c=zs_[order], cmap="plasma"
         )
         _ = ax.set_xlabel("Accuracy [%]")  # pyright: ignore[reportUnknownMemberType]
         _ = ax.set_ylabel("Bit index")  # pyright: ignore[reportUnknownMemberType]
         ax.set_zlabel("Number of faults")  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
 
-        _ = plt.colorbar(scatter_, ax=ax)  # pyright: ignore[reportUnknownMemberType]
+        _ = plt.colorbar(mappable, ax=ax)  # pyright: ignore[reportUnknownMemberType]
     else:
         ax = fig.subplot_mosaic(
             [["top", "cbar"], ["bot", "cbar"]],
@@ -167,14 +169,24 @@ def scatter(
         ax["top"].sharex(ax["bot"])
 
         if bins:
-            scatter_ = ax["bot"].hexbin(  # pyright: ignore[reportUnknownMemberType]
+            y_min = int(ys_.min())  # pyright: ignore[reportAny]
+            y_max = int(ys_.max())  # pyright: ignore[reportAny]
+            x_min = int(xs_.min())  # pyright: ignore[reportAny]
+            x_max = int(xs_.max())  # pyright: ignore[reportAny]
+
+            bit_index_range = y_max - y_min + 1
+            print(bit_index_range)
+
+            mappable = ax["bot"].hist2d(  # pyright: ignore[reportUnknownMemberType]
                 xs_[order],
                 ys_[order],
+                (bins, bit_index_range),
+                range=[[x_min, x_max], [y_min - 0.5, y_max + 0.5]],
                 cmap="plasma",
                 norm=LogNorm(),
-            )
+            )[3]
         else:
-            scatter_ = ax["bot"].scatter(  # pyright: ignore[reportUnknownMemberType]
+            mappable = ax["bot"].scatter(  # pyright: ignore[reportUnknownMemberType]
                 xs_[order], ys_[order], c=zs_[order], cmap="plasma"
             )
         _ = ax["bot"].set_xlabel("Accuracy [%]")  # pyright: ignore[reportUnknownMemberType]
@@ -184,7 +196,7 @@ def scatter(
         _ = ax["top"].set_ylabel("Total faults")  # pyright: ignore[reportUnknownMemberType]
         ax["top"].set_yscale("log")  # pyright: ignore[reportUnknownMemberType]
 
-        _ = fig.colorbar(scatter_, ax["cbar"])  # pyright: ignore[reportUnknownMemberType]
+        _ = fig.colorbar(mappable, ax["cbar"])  # pyright: ignore[reportUnknownMemberType]
         _ = ax["cbar"].set_ylabel("Number of faults per bit index")  # pyright: ignore[reportUnknownMemberType]
 
     fig.tight_layout()
