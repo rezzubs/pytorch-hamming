@@ -41,8 +41,12 @@ def compare_array_list_bitwise_f32(
     b: ListOfArray[np.float32],
 ) -> list[int]: ...
 def compare_array_list_bitwise_u16(
-    a: ListOfArray[np.float32],
-    b: ListOfArray[np.float32],
+    a: ListOfArray[np.uint16],
+    b: ListOfArray[np.uint16],
+) -> list[int]: ...
+def compare_array_list_bitwise_u8(
+    a: ListOfArray[np.uint8],
+    b: ListOfArray[np.uint8],
 ) -> list[int]: ...
 def encode_full_f32(
     input: ListOfArray[np.float32],

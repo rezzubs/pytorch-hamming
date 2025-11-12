@@ -182,6 +182,13 @@ class BitPatternEncoding:
                         pattern_length,
                         bits_per_chunk,
                     )
+            case DnnDtype.Float8E4M3:
+                with torch.no_grad():
+                    rust_input = [
+                        t.view(torch.uint16).numpy(force=True) for t in flattened
+                    ]
+                    # TODO: fill in after rust functions are implemented
+                    raise NotImplementedError
 
         flattened_copy = [t.clone() for t in flattened]
         return cls(data, flattened_copy)
@@ -232,6 +239,9 @@ class BitPatternEncoding:
                     torch.from_numpy(t).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
                     for t in decoded
                 ]
+            case DnnDtype.Float8E4M3:
+                # TODO: fill in after rust functions are implemented
+                raise NotImplementedError
 
         self._decoded_tensors = torch_decoded
         for original, decoded in zip(output_buffer, torch_decoded, strict=True):

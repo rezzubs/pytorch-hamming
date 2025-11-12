@@ -9,6 +9,7 @@ class DnnDtype(enum.Enum):
 
     Float32 = enum.auto()
     Float16 = enum.auto()
+    Float8E4M3 = enum.auto()
 
     def to_torch(self) -> torch.dtype:
         """Convert to an equivalent pytorch data type."""
@@ -17,6 +18,8 @@ class DnnDtype(enum.Enum):
                 return torch.float32
             case DnnDtype.Float16:
                 return torch.float16
+            case DnnDtype.Float8E4M3:
+                return torch.float8_e5m2fnuz
 
     @classmethod
     def from_torch(cls, dtype: torch.dtype) -> DnnDtype:
@@ -31,6 +34,8 @@ class DnnDtype(enum.Enum):
                 return DnnDtype.Float32
             case torch.float16:
                 return DnnDtype.Float16
+            case torch.float8_e5m2:
+                return DnnDtype.Float8E4M3
             case other:
                 raise ValueError(f"Unsupported pytorch data type {other}")
 
@@ -40,6 +45,8 @@ class DnnDtype(enum.Enum):
                 return 32
             case DnnDtype.Float16:
                 return 16
+            case DnnDtype.Float8E4M3:
+                return 8
 
 
 class FiDtype(enum.Enum):
@@ -48,6 +55,7 @@ class FiDtype(enum.Enum):
     Float32 = enum.auto()
     Float16 = enum.auto()
     Uint8 = enum.auto()
+    Float8E4M3 = enum.auto()
 
     def to_torch(self) -> torch.dtype:
         """Convert to an equivalent pytorch data type."""
@@ -58,6 +66,8 @@ class FiDtype(enum.Enum):
                 return torch.float16
             case FiDtype.Uint8:
                 return torch.uint8
+            case FiDtype.Float8E4M3:
+                return torch.float8_e5m2fnuz
 
     @classmethod
     def from_torch(cls, dtype: torch.dtype) -> FiDtype:
@@ -74,5 +84,7 @@ class FiDtype(enum.Enum):
                 return FiDtype.Float16
             case torch.uint8:
                 return FiDtype.Uint8
+            case torch.float8_e5m2fnuz:
+                return FiDtype.Float8E4M3
             case other:
                 raise ValueError(f"Unsupported pytorch data type {other}")

@@ -41,6 +41,13 @@ class FullEncoding:
                     numpy_bytes, encoded_bits_count = hamming_core.encode_full_u16(
                         rust_input, bits_per_chunk
                     )
+            case DnnDtype.Float8E4M3:
+                with torch.no_grad():
+                    rust_input = [
+                        t.flatten().view(torch.uint8).numpy(force=True) for t in ts
+                    ]
+                    # TODO: Fill in after rust functions are implemented
+                    raise NotImplementedError("encoding not yet supported for float8")
 
         # HACK: There's nothing we can do about this warning without an upstream fix.
         torch_bytes = torch.from_numpy(numpy_bytes)  # pyright: ignore[reportUnknownMemberType]
@@ -92,6 +99,8 @@ class FullEncoding:
                     torch.from_numpy(t).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
                     for t in decoded
                 ]
+            case DnnDtype.Float8E4M3:
+                raise NotImplementedError("float8 decoding not yet implemented")
 
         for original, decoded in zip(output_buffer, torch_decoded, strict=True):
             # Discard because it's updated inplace.

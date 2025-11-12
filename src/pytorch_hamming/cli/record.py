@@ -41,6 +41,7 @@ class DtypeChoices(enum.StrEnum):
     Float16 = "float16"
     F32 = "f32"
     Float32 = "float32"
+    Float8 = "float8"
 
     def to_dtype(self) -> DnnDtype:
         match self.value:
@@ -48,6 +49,8 @@ class DtypeChoices(enum.StrEnum):
                 return DnnDtype.Float16
             case "f32" | "float32":
                 return DnnDtype.Float32
+            case "float8":
+                return DnnDtype.Float8E4M3
 
 
 @app.command()

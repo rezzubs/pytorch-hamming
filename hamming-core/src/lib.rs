@@ -21,6 +21,8 @@ mod hamming_core {
     use crate::python::comparison::compare_array_list_bitwise_f32;
     #[pymodule_export]
     use crate::python::comparison::compare_array_list_bitwise_u16;
+    #[pymodule_export]
+    use crate::python::comparison::compare_array_list_bitwise_u8;
 
     #[pymodule_export]
     use crate::python::encoding_full::decode_full_f32;

@@ -85,7 +85,7 @@ def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
                 result = hamming_core.u16_array_list_fi(rust_input, num_faults)
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
-                    torch.from_numpy(t).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
+                    torch.from_numpy(t).view(dtype)  # pyright: ignore[reportUnknownMemberType]
                     for t in result
                 ]
 
@@ -101,6 +101,19 @@ def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
                     torch.from_numpy(t)  # pyright: ignore[reportUnknownMemberType]
                     for t in result
                 ]
+        case FiDtype.Float8E4M3:
+            with torch.no_grad():
+                rust_input = [t.cpu().view(torch.uint8).numpy() for t in flattened]
+
+                result = hamming_core.u8_array_list_fi(rust_input, num_faults)
+                torch_result = [
+                    # HACK: There's nothing we can do about this warning without an upstream fix.
+                    torch.from_numpy(t).view(dtype)  # pyright: ignore[reportUnknownMemberType]
+                    for t in result
+                ]
+
+                for original, updated in zip(flattened, torch_result, strict=True):
+                    _ = original.copy_(updated)
 
     for original, updated in zip(flattened, torch_result, strict=True):
         with torch.no_grad():
@@ -138,3 +151,9 @@ def tensor_list_compare_bitwise(
                 t.view(torch.uint16).flatten().numpy(force=True) for t in right
             ]
             return hamming_core.compare_array_list_bitwise_u16(left_numpy, right_numpy)
+        case DnnDtype.Float8E4M3:
+            left_numpy = [t.view(torch.uint8).flatten().numpy(force=True) for t in left]
+            right_numpy = [
+                t.view(torch.uint8).flatten().numpy(force=True) for t in right
+            ]
+            return hamming_core.compare_array_list_bitwise_u8(left_numpy, right_numpy)

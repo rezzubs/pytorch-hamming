@@ -20,6 +20,15 @@ fn compare_u16_vecs_bitwise(a: Vec<u16>, b: Vec<u16>) -> Vec<u16> {
         .collect::<Vec<u16>>()
 }
 
+#[inline]
+fn compare_u8_vecs_bitwise(a: Vec<u8>, b: Vec<u8>) -> Vec<u8> {
+    a.into_par_iter()
+        .zip(b)
+        .map(|(a_item, b_item)| a_item ^ b_item)
+        .filter(|x| *x > 0)
+        .collect::<Vec<u8>>()
+}
+
 /// Computes bit masks for non-matching bits for all items.
 #[pyfunction]
 pub fn compare_array_list_bitwise_f32<'py>(
@@ -70,6 +79,30 @@ pub fn compare_array_list_bitwise_u16<'py>(
     Ok(compare_u16_vecs_bitwise(a, b))
 }
 
+#[pyfunction]
+pub fn compare_array_list_bitwise_u8<'py>(
+    _py: Python<'py>,
+    a: Vec<InputArr<u8>>,
+    b: Vec<InputArr<u8>>,
+) -> PyResult<Vec<u8>> {
+    let a = a
+        .into_iter()
+        .flat_map(|x| x.as_array().into_iter().copied().collect::<Vec<u8>>())
+        .collect::<Vec<_>>();
+    let b = b
+        .into_iter()
+        .flat_map(|x| x.as_array().into_iter().copied().collect::<Vec<u8>>())
+        .collect::<Vec<_>>();
+
+    if a.len() != b.len() {
+        return Err(PyValueError::new_err(
+            "The number of items in `a` and `b` don't match",
+        ));
+    }
+
+    Ok(compare_u8_vecs_bitwise(a, b))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,5 +131,15 @@ mod tests {
         let expected = vec![0b00010001u16, 0b10000000u16];
 
         assert_eq!(compare_u16_vecs_bitwise(a, b), expected);
+    }
+
+    #[test]
+    fn compare_u8_vec() {
+        let a = vec![0b10001101u8, 0b10000001u8];
+        let b = vec![0b10011100u8, 0b00000001u8];
+
+        let expected = vec![0b00010001u8, 0b10000000u8];
+
+        assert_eq!(compare_u8_vecs_bitwise(a, b), expected);
     }
 }

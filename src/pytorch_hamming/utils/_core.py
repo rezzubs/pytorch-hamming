@@ -11,7 +11,7 @@ def dtype_num_bits(dtype: torch.dtype) -> int:
             return 32
         case torch.float16 | torch.uint16 | torch.int16:
             return 16
-        case torch.uint8 | torch.int8:
+        case torch.uint8 | torch.int8 | torch.float8_e5m2fnuz:
             return 8
         case _:
             raise ValueError(f"Unsupported datatype {dtype}")
