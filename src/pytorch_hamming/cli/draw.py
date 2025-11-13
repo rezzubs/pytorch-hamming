@@ -394,14 +394,17 @@ def configurations(
 
                 xs = [x for x, _ in sorted]
                 if mode == CompareMode.MeanAccuracy:
+                    _ = ax.set_ylabel("Mean Acuraccy")  # pyright: ignore[reportUnknownMemberType]
                     ys = [
                         np.mean([e.accuracy for e in entries]) for _, entries in sorted
                     ]
                 elif mode == CompareMode.MedianAccuracy:
+                    _ = ax.set_ylabel("Median Acuraccy")  # pyright: ignore[reportUnknownMemberType]
                     ys = [
                         np.median([e.accuracy for e in entries])
                         for _, entries in sorted
                     ]
+                _ = ax.set_xlabel("Bit Error Rate")  # pyright: ignore[reportUnknownMemberType]
 
                 _ = ax.plot(  # pyright: ignore[reportUnknownMemberType]
                     xs,
