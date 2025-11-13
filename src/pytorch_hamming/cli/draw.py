@@ -175,7 +175,6 @@ This parameter defines the x-axis resolution",
             x_max = int(xs_.max())  # pyright: ignore[reportAny]
 
             bit_index_range = y_max - y_min + 1
-            print(bit_index_range)
 
             mappable = ax["bot"].hist2d(  # pyright: ignore[reportUnknownMemberType]
                 xs_[order],
@@ -278,7 +277,8 @@ def mean(
 
 
 class CompareMode(enum.StrEnum):
-    Accuracy = "accuracy"
+    MeanAccuracy = "mean-accuracy"
+    MedianAccuracy = "median-accuracy"
     Overhead = "overhead"
 
 
@@ -310,7 +310,7 @@ def configurations(
     mode: Annotated[
         CompareMode,
         typer.Option(help="What to graph."),
-    ] = CompareMode.Accuracy,
+    ] = CompareMode.MeanAccuracy,
     ignore_key: Annotated[
         list[str] | None,
         typer.Option(
@@ -385,7 +385,7 @@ def configurations(
         return label
 
     match mode:
-        case CompareMode.Accuracy:
+        case CompareMode.MeanAccuracy | CompareMode.MedianAccuracy:
             for metadata, (by_bit_error_rate, _) in by_metadata_list:
                 label = map_label(metadata)
 
@@ -393,13 +393,19 @@ def configurations(
                 sorted.sort(key=lambda x: x[0])
 
                 xs = [x for x, _ in sorted]
-                means = [
-                    np.mean([e.accuracy for e in entries]) for _, entries in sorted
-                ]
+                if mode == CompareMode.MeanAccuracy:
+                    ys = [
+                        np.mean([e.accuracy for e in entries]) for _, entries in sorted
+                    ]
+                elif mode == CompareMode.MedianAccuracy:
+                    ys = [
+                        np.median([e.accuracy for e in entries])
+                        for _, entries in sorted
+                    ]
 
                 _ = ax.plot(  # pyright: ignore[reportUnknownMemberType]
                     xs,
-                    means,
+                    ys,
                     label=label,
                     marker=MARKERS[marker_i],
                 )
@@ -418,8 +424,6 @@ def configurations(
         case CompareMode.Overhead:
             labels = [map_label(m) for m, _ in by_metadata_list]
             heights = [overhead for _, (_, overhead) in by_metadata_list]
-
-            print(labels, heights)
 
             _ = ax.bar(labels, heights)  # pyright: ignore[reportUnknownMemberType]
             _ = ax.set_xticklabels(labels, rotation=90)  # pyright: ignore[reportUnknownMemberType]
