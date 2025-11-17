@@ -12,19 +12,19 @@ from typing import (
 import torch
 import typer
 
-from pytorch_hamming import (
-    Autosave,
-    BaseSystem,
-    Data,
-    DnnDtype,
-)
 from pytorch_hamming.cli.utils import setup_logging
-from pytorch_hamming.encoding import (
-    BitPattern,
-    EncodedSystem,
-    EncodingFormatFull,
-    EncodingFormatBitPattern,
+from pytorch_hamming.data import (
+    Autosave,
+    Data,
 )
+from pytorch_hamming.dtype import DnnDtype
+from pytorch_hamming.encoding.bit_pattern import BitPattern
+from pytorch_hamming.encoding.system import (
+    EncodedSystem,
+    EncodingFormatBitPattern,
+    EncodingFormatFull,
+)
+from pytorch_hamming.system import BaseSystem
 from pytorch_hamming.systems import (
     CachedDataset,
     CachedModel,

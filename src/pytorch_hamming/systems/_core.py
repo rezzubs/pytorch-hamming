@@ -1,16 +1,14 @@
 import logging
-from pathlib import Path
 import typing
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 from torch import nn
 from typing_extensions import override
 
-from pytorch_hamming import (
-    BaseSystem,
-    DnnDtype,
-)
+from pytorch_hamming.dtype import DnnDtype
+from pytorch_hamming.system import BaseSystem
 
 from ._dataset import CachedDataset
 from ._model import CachedModel

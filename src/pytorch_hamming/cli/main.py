@@ -1,8 +1,6 @@
 import typer
 
-from . import record
-from . import draw
-
+from . import draw, record
 from .utils import setup_logging
 
 app = typer.Typer()

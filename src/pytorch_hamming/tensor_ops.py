@@ -5,14 +5,14 @@ import torch
 
 from pytorch_hamming.utils import dtype_num_bits
 
-from .._dtype import DnnDtype, FiDtype
+from .dtype import DnnDtype, FiDtype
 
 
 class DtypeError(Exception):
     """An error related to tensor data types."""
 
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 def tensor_list_dtype(ts: list[torch.Tensor]) -> torch.dtype | None:
@@ -61,7 +61,7 @@ def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
     dtype = tensor_list_dtype(ts)
 
     if dtype is None:
-        logger.warning("Skipping fault injection because the input buffer is empty")
+        _logger.warning("Skipping fault injection because the input buffer is empty")
         return
 
     flattened = [t.flatten() for t in ts]
@@ -119,7 +119,7 @@ def tensor_list_compare_bitwise(
         )
 
     if left_dtype is None:
-        logger.warning("compared empty tensor lists the result will be empty")
+        _logger.warning("compared empty tensor lists the result will be empty")
         return []
 
     match DnnDtype.from_torch(left_dtype):

@@ -1,6 +1,7 @@
 import logging
 import os
 from typing import override
+
 from rich.console import Console
 
 _console = Console()

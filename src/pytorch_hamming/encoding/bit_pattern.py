@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
-import logging
 
 import hamming_core
 import torch
 from typing_extensions import override
 
-from pytorch_hamming import DnnDtype
+from pytorch_hamming.dtype import DnnDtype
 from pytorch_hamming.tensor_ops import tensor_list_dtype
 
 logger = logging.getLogger(__name__)

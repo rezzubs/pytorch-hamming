@@ -1,4 +1,3 @@
-from typing import NoReturn
 import torch
 
 
@@ -15,7 +14,3 @@ def dtype_num_bits(dtype: torch.dtype) -> int:
             return 8
         case _:
             raise ValueError(f"Unsupported datatype {dtype}")
-
-
-def unreachable(*args: object) -> NoReturn:
-    raise RuntimeError("Unreachable", args)

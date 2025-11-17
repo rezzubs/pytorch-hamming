@@ -10,19 +10,19 @@ import numpy as np
 from pydantic import BaseModel
 from typing_extensions import override
 
-from ._system import BaseSystem
+from .system import BaseSystem
 from .tensor_ops import (
     tensor_list_compare_bitwise,
 )
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 class MetaDataError(Exception):
     """The metadata didn't match"""
 
 
-def count_ones(number: int) -> int:
+def _count_ones(number: int) -> int:
     """Count the number of bits set to one for an integer"""
     # NOTE: `bit_count` counts ones for the absolute value. The values for this
     # are returned from rust as usize which are not expected to be negative but
@@ -42,19 +42,19 @@ def metadata_str(metadata: dict[str, str], bit_error_rate: float | None) -> str:
     return "_".join(parts_strs)
 
 
-def get_path(
+def _get_path(
     root: Path, bit_error_rate: float, metadata: dict[str, str], metadata_name: bool
 ) -> Path:
     if (not root.exists()) and metadata_name:
-        logger.info(f"Creating a new output directory at {root}")
+        _logger.info(f"Creating a new output directory at {root}")
         root.mkdir()
 
     if root.is_dir():
         if metadata_name:
-            logger.debug("generating file name from metadata")
+            _logger.debug("generating file name from metadata")
             root = root.joinpath(metadata_str(metadata, bit_error_rate) + ".json")
         else:
-            logger.debug("metadata_name not set, defaulting to data.json")
+            _logger.debug("metadata_name not set, defaulting to data.json")
             root = root.joinpath("data.json")
     elif metadata_name:
         raise ValueError(
@@ -154,7 +154,7 @@ Accuracy: {self.accuracy:.2f}%
             )
 
             for faulty in self.faulty_parameters:
-                num_invalid_bits = count_ones(faulty)
+                num_invalid_bits = _count_ones(faulty)
                 try:
                     out.n_bit_error_counts[num_invalid_bits] += 1
                 except KeyError:
@@ -196,7 +196,7 @@ Accuracy: {self.accuracy:.2f}%
     ) -> Data.Entry:
         """Record a new data entry for the given `system`"""
 
-        logger.debug("Recording new data entry")
+        _logger.debug("Recording new data entry")
 
         if system.system_metadata() != self.metadata:
             raise MetaDataError(
@@ -211,21 +211,21 @@ Accuracy: {self.accuracy:.2f}%
         original_tensors = copy.deepcopy(system.system_data_tensors(data))
 
         if self.faults_count > 0:
-            logger.debug("Running fault injection")
+            _logger.debug("Running fault injection")
             system.system_inject_n_faults(data, self.faults_count)
-            logger.debug("Fault injection finished")
+            _logger.debug("Fault injection finished")
         else:
-            logger.debug("Skipping fault injection")
+            _logger.debug("Skipping fault injection")
 
-        logger.debug("Recording accuracy")
+        _logger.debug("Recording accuracy")
         accuracy = system.system_accuracy(data)
-        logger.debug("Finished recording accuracy")
+        _logger.debug("Finished recording accuracy")
 
-        logger.debug("Comparing outputs")
+        _logger.debug("Comparing outputs")
         faulty_parameters = tensor_list_compare_bitwise(
             original_tensors, system.system_data_tensors(data)
         )
-        logger.debug("Finished comparing outputs")
+        _logger.debug("Finished comparing outputs")
 
         entry = Data.Entry(
             accuracy=accuracy,
@@ -247,13 +247,13 @@ Accuracy: {self.accuracy:.2f}%
         summary: bool = False,
         autosave: Autosave | None = None,
     ):
-        logger.debug(f"Recording {n} runs")
+        _logger.debug(f"Recording {n} runs")
         if n <= 0:
             raise ValueError("Expected `n` to be a positive nonzero integer")
 
         for i in range(n):
             i += 1
-            logger.info(f"recording entry {i}/{n}")
+            _logger.info(f"recording entry {i}/{n}")
 
             _ = self.record_entry(system, summary=summary)
 
@@ -270,7 +270,7 @@ Accuracy: {self.accuracy:.2f}%
         summary: bool = False,
         autosave: Autosave | None = None,
     ):
-        logger.debug(
+        _logger.debug(
             f"Recording until mean is within {threshold}% in the last {stable_within} cycles"
         )
         if min_runs is None or min_runs < stable_within:
@@ -282,20 +282,20 @@ Accuracy: {self.accuracy:.2f}%
         autosave_counter = 0
         while len(self.entries) < min_runs:
             autosave_counter += 1
-            logger.info(f"Recording run {len(self.entries) + 1}/{min_runs}min")
+            _logger.info(f"Recording run {len(self.entries) + 1}/{min_runs}min")
 
             _ = self.record_entry(system, summary=summary)
 
             if autosave is not None:
                 rem = autosave_counter % autosave.interval
                 if rem == 0:
-                    logger.debug("autosave triggered")
+                    _logger.debug("autosave triggered")
                     self.save(autosave.path, autosave.metadata_name)
                 else:
                     remaining = autosave.interval - rem
-                    logger.debug(f"{remaining} runs until autosave")
+                    _logger.debug(f"{remaining} runs until autosave")
 
-        logger.info(f"Passed the minimum number of runs ({min_runs})")
+        _logger.info(f"Passed the minimum number of runs ({min_runs})")
 
         while not self.is_stable(stable_within, threshold):
             autosave_counter += 1
@@ -305,7 +305,7 @@ Accuracy: {self.accuracy:.2f}%
             )
             drift_min, drift_max = drift
 
-            logger.info(
+            _logger.info(
                 f"Recording run {len(self.entries)} to achieve stability at {threshold:.3}%, currently at {drift_max - drift_min:.3}%"
             )
 
@@ -314,13 +314,13 @@ Accuracy: {self.accuracy:.2f}%
             if autosave is not None:
                 rem = autosave_counter % autosave.interval
                 if rem == 0:
-                    logger.debug("autosave triggered")
+                    _logger.debug("autosave triggered")
                     self.save(autosave.path, autosave.metadata_name)
                 else:
                     remaining = autosave.interval - rem
-                    logger.debug(f"{remaining} runs until autosave")
+                    _logger.debug(f"{remaining} runs until autosave")
 
-        logger.info("Data mean is stable")
+        _logger.info("Data mean is stable")
 
     def save(self, data_path: Path, metadata_name: bool = False) -> None:
         """Save the data to the given file path in json format.
@@ -336,14 +336,14 @@ Accuracy: {self.accuracy:.2f}%
         case.
         """
 
-        data_path = get_path(
+        data_path = _get_path(
             data_path, self.faults_count / self.bits_count, self.metadata, metadata_name
         )
 
         if data_path.exists():
-            logger.info(f'Saving data to "{data_path}"')
+            _logger.info(f'Saving data to "{data_path}"')
         else:
-            logger.info(f'Saving data to a new file at "{data_path}"')
+            _logger.info(f'Saving data to a new file at "{data_path}"')
 
         with open(data_path, "w") as f:
             _ = f.write(self.model_dump_json())
@@ -381,20 +381,20 @@ Accuracy: {self.accuracy:.2f}%
             )
 
         if data_path is None:
-            logger.debug("Creating new data")
+            _logger.debug("Creating new data")
             return create()
 
-        data_path = get_path(
+        data_path = _get_path(
             data_path, faults_count / bits_count, metadata, metadata_name
         )
 
         if not data_path.exists():
-            logger.warning(
+            _logger.warning(
                 f'Didn\'t find existing data at "{data_path}", creating a new instance'
             )
             return create()
 
-        logger.info('Loading existing data from "{path}"')
+        _logger.info('Loading existing data from "{path}"')
 
         return cls.load(
             data_path,
@@ -444,7 +444,7 @@ Accuracy: {self.accuracy:.2f}%
         drift: tuple[float, float] | None = self.mean_drift(within)
 
         if drift is None:
-            logger.debug(
+            _logger.debug(
                 f"Not stable, not enough runs passed to compute mean drift ({within} required)"
             )
             return False
@@ -455,8 +455,8 @@ Accuracy: {self.accuracy:.2f}%
 
         is_stable = drift_amount <= threshold
         if is_stable:
-            logger.debug("Achieved stability")
+            _logger.debug("Achieved stability")
         else:
-            logger.debug(f"Not stable, {drift_amount}>{threshold}")
+            _logger.debug(f"Not stable, {drift_amount}>{threshold}")
 
         return is_stable

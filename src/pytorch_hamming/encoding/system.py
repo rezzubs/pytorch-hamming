@@ -5,12 +5,12 @@ from typing import override
 
 import torch
 
-from .._system import BaseSystem
-from ._full import FullEncoding
-from ._bit_pattern import (
+from pytorch_hamming.encoding.bit_pattern import (
     BitPattern,
     BitPatternEncoding,
 )
+from pytorch_hamming.encoding.full import FullEncoding
+from pytorch_hamming.system import BaseSystem
 
 logger = logging.getLogger(__name__)
 

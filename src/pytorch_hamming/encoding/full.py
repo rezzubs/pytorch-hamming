@@ -8,8 +8,8 @@ import hamming_core
 import numpy as np
 import torch
 
-from .._dtype import DnnDtype
-from ..tensor_ops import tensor_list_dtype, tensor_list_fault_injection
+from pytorch_hamming.dtype import DnnDtype
+from pytorch_hamming.tensor_ops import tensor_list_dtype, tensor_list_fault_injection
 
 
 @dataclass
