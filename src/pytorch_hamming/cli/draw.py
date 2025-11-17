@@ -329,6 +329,18 @@ def configurations(
             help="Display the x axis in a log scale.",
         ),
     ] = False,
+    custom_legend: Annotated[
+        list[str] | None,
+        typer.Option(
+            help='Use a custom label for a given entry. The format is "existing_label;new_label"',
+        ),
+    ] = None,
+    print_legend: Annotated[
+        bool,
+        typer.Option(
+            help="Print each legend entry. Exists to help with the usage of --custom-legend."
+        ),
+    ] = False,
 ):
     """Compare different configurations in the data configurations.
 
@@ -370,6 +382,17 @@ def configurations(
     # sorting by the overhead
     by_metadata_list.sort(key=lambda x: x[1][1])
 
+    custom_label_map: dict[str, str] = dict()
+    for mapping in custom_legend or []:
+        try:
+            [k, v] = mapping.split(";")
+        except Exception as e:
+            print(
+                f"--custom-legend should be a string split by a single `;`, got `{mapping}`\n-> {e}"
+            )
+            raise typer.Abort()
+        custom_label_map[k] = v
+
     def map_label(metadata: tuple[tuple[str, str], ...]):
         if ignore_key is not None:
             label_parts = [
@@ -381,6 +404,12 @@ def configurations(
         label = " ".join(label_parts)
         if label == "" and default_label is not None:
             label = default_label
+
+        if label in custom_label_map:
+            label = custom_label_map[label]
+
+        if print_legend:
+            print(label)
 
         return label
 
