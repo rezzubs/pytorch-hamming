@@ -234,4 +234,22 @@ mod tests {
 
         assert_eq!(a, a_true);
     }
+
+    #[test]
+    fn flip_bit() {
+        let mut buf = NonUniformSequence(vec![vec![0u8, 0], vec![1], vec![0b10]]);
+
+        assert_eq!(buf.0[0][0], 0);
+        buf.flip_bit(0);
+        assert_eq!(buf.0[0][0], 1);
+
+        assert_eq!(buf.0[1][0], 1);
+        buf.flip_bit(16);
+        assert_eq!(buf.0[1][0], 0);
+
+        assert_eq!(buf.0[2][0], 2);
+        // Second bit of the last element
+        buf.flip_bit(25);
+        assert_eq!(buf.0[2][0], 0);
+    }
 }
