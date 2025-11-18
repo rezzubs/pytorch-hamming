@@ -534,6 +534,13 @@ mod tests {
             buf.flip_by_ber(1.);
             assert_eq!(buf.num_1_bits(), 8);
         }
+
+        #[test]
+        fn bit_string() {
+            let bits = 0b01010101u8;
+
+            assert_eq!("0b01010101", bits.bit_string());
+        }
     }
 
     mod i32 {
@@ -641,5 +648,65 @@ mod tests {
 
         let result = source.copy_into(&mut dest);
         assert_eq!(result, CopyIntoResult::done(0));
+    }
+
+    mod default_flip_bit {
+        use super::*;
+
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        struct CustomU8(u8);
+
+        impl BitBuffer for CustomU8 {
+            fn num_bits(&self) -> usize {
+                self.0.num_bits()
+            }
+
+            fn set_1(&mut self, bit_index: usize) {
+                self.0.set_1(bit_index);
+            }
+
+            fn set_0(&mut self, bit_index: usize) {
+                self.0.set_0(bit_index);
+            }
+
+            fn is_1(&self, bit_index: usize) -> bool {
+                self.0.is_1(bit_index)
+            }
+        }
+
+        #[test]
+        fn default_impl() {
+            let value = CustomU8(0);
+
+            assert_eq!(value.num_bits(), 8);
+
+            for i in 0..8 {
+                let mut copy = value.clone();
+                copy.flip_bit(i);
+                assert_eq!(copy.0, 1 << i);
+                copy.flip_bit(i);
+                assert_eq!(value, copy);
+            }
+        }
+    }
+
+    #[test]
+    fn num_bits() {
+        assert_eq!(0f32.num_bits(), 32);
+        assert_eq!(0f64.num_bits(), 64);
+        assert_eq!(0u8.num_bits(), 8);
+        assert_eq!(0u16.num_bits(), 16);
+    }
+
+    #[test]
+    fn array_flip_bit() {
+        let mut arr = [0u8; 2];
+
+        arr.flip_bit(0);
+        assert_eq!(arr, [1u8, 0u8]);
+        arr.flip_bit(8);
+        assert_eq!(arr, [1u8, 1u8]);
+        arr.flip_bit(8);
+        assert_eq!(arr, [1u8, 0u8]);
     }
 }
