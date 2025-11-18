@@ -35,10 +35,6 @@ where
     T: BitBuffer,
 {
     /// Create a new limited bit buffer.
-    ///
-    /// # Panics
-    ///
-    /// if `num_bits` > `buffer.num_bits()`.
     pub fn new(buffer: T, num_bits: usize) -> Option<Self> {
         (num_bits <= buffer.num_bits()).then_some(Self { buffer, num_bits })
     }
