@@ -1,3 +1,4 @@
+use crate::bit_buffer::OutOfBounds;
 use crate::prelude::*;
 
 /// Gives a [`BitBuffer`] implementation to sequences where the items cannot satisfy
@@ -17,17 +18,17 @@ where
     T: BitBuffer,
 {
     /// Return a pair of the index of the item + the index of the bit inside the item.
-    fn inner_bit_index(&self, index: usize) -> (usize, usize) {
+    fn inner_bit_index(&self, index: usize) -> Result<(usize, usize), OutOfBounds> {
         let mut start_of_current = 0;
         for (i, buffer) in self.0.into_iter().enumerate() {
             let start_of_next = start_of_current + buffer.num_bits();
             if index < start_of_next {
-                return (i, index - start_of_current);
+                return Ok((i, index - start_of_current));
             }
             start_of_current = start_of_next
         }
 
-        panic!("out of bounds");
+        Err(OutOfBounds)
     }
 }
 
@@ -37,17 +38,17 @@ where
     T: ByteChunkedBitBuffer,
 {
     /// Return a pair of the index of the item + the index of the byte inside the item.
-    fn inner_byte_index(&self, index: usize) -> (usize, usize) {
+    fn inner_byte_index(&self, index: usize) -> Result<(usize, usize), OutOfBounds> {
         let mut start_of_current = 0;
         for (i, buffer) in self.0.into_iter().enumerate() {
             let start_of_next = start_of_current + buffer.num_bytes();
             if index < start_of_next {
-                return (i, index - start_of_current);
+                return Ok((i, index - start_of_current));
             }
             start_of_current = start_of_next
         }
 
-        panic!("out of bounds");
+        Err(OutOfBounds)
     }
 }
 
@@ -62,22 +63,22 @@ where
     }
 
     fn set_1(&mut self, bit_index: usize) {
-        let (outer, inner) = self.inner_bit_index(bit_index);
+        let (outer, inner) = self.inner_bit_index(bit_index).expect("out of bounds");
         self.0[outer].set_1(inner);
     }
 
     fn set_0(&mut self, bit_index: usize) {
-        let (outer, inner) = self.inner_bit_index(bit_index);
+        let (outer, inner) = self.inner_bit_index(bit_index).expect("out of bounds");
         self.0[outer].set_0(inner);
     }
 
     fn is_1(&self, bit_index: usize) -> bool {
-        let (outer, inner) = self.inner_bit_index(bit_index);
+        let (outer, inner) = self.inner_bit_index(bit_index).expect("out of bounds");
         self.0[outer].is_1(inner)
     }
 
     fn flip_bit(&mut self, bit_index: usize) {
-        let (outer, inner) = self.inner_bit_index(bit_index);
+        let (outer, inner) = self.inner_bit_index(bit_index).expect("out of bounds");
         self.0[outer].flip_bit(inner)
     }
 }
@@ -93,12 +94,12 @@ where
     }
 
     fn get_byte(&self, n: usize) -> u8 {
-        let (outer, inner) = self.inner_byte_index(n);
+        let (outer, inner) = self.inner_byte_index(n).expect("out of bounds");
         self.0[outer].get_byte(inner)
     }
 
     fn set_byte(&mut self, n: usize, value: u8) {
-        let (outer, inner) = self.inner_byte_index(n);
+        let (outer, inner) = self.inner_byte_index(n).expect("out of bounds");
         self.0[outer].set_byte(inner, value)
     }
 }
@@ -140,6 +141,16 @@ mod tests {
         }
 
         assert!(buffer.is_1(39))
+    }
+
+    #[test]
+    fn bounds() {
+        let buffer = NonUniformSequence(vec![0u16; 9]);
+
+        assert!(buffer.inner_bit_index(buffer.num_bits()).is_err());
+        assert!(buffer.inner_bit_index(buffer.num_bits() - 1).is_ok());
+        assert!(buffer.inner_byte_index(buffer.num_bytes()).is_err());
+        assert!(buffer.inner_byte_index(buffer.num_bytes() - 1).is_ok());
     }
 
     #[test]
