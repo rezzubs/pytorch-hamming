@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+import copy
 import enum
+import logging
 
-from ._dataset import CachedDataset
 import torch
 from torch import nn
-import copy
-import logging
+
+from pytorch_hamming.cifar_models.dataset import CachedDataset
 
 logger = logging.getLogger(__name__)
 
-ROOT_MODULE_CACHE: dict[CachedModel, nn.Module] = dict()
+_ROOT_MODULE_CACHE: dict[CachedModel, nn.Module] = dict()
 
 
 class CachedModel(enum.Enum):
@@ -18,7 +19,7 @@ class CachedModel(enum.Enum):
     VGG11 = "vgg11_bn"
 
     def root_module(self, dataset: CachedDataset) -> nn.Module:
-        model = ROOT_MODULE_CACHE.get(self)
+        model = _ROOT_MODULE_CACHE.get(self)
 
         if model is None:
             model = torch.hub.load(  # pyright: ignore[reportUnknownMemberType]
@@ -27,6 +28,6 @@ class CachedModel(enum.Enum):
                 pretrained=True,
             )
             assert isinstance(model, nn.Module)
-            ROOT_MODULE_CACHE[self] = model
+            _ROOT_MODULE_CACHE[self] = model
 
         return copy.deepcopy(model)

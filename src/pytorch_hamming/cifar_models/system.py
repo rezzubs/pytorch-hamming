@@ -7,16 +7,15 @@ import torch
 from torch import nn
 from typing_extensions import override
 
+from pytorch_hamming.cifar_models.dataset import CachedDataset
+from pytorch_hamming.cifar_models.model import CachedModel
 from pytorch_hamming.dtype import DnnDtype
 from pytorch_hamming.system import BaseSystem
-
-from ._dataset import CachedDataset
-from ._model import CachedModel
 
 logger = logging.getLogger(__name__)
 
 
-def append_parameter(module: nn.Module, tensors: list[torch.Tensor], name: str):
+def _append_parameter(module: nn.Module, tensors: list[torch.Tensor], name: str):
     param = getattr(module, name, None)
 
     if param is None:
@@ -30,12 +29,13 @@ def append_parameter(module: nn.Module, tensors: list[torch.Tensor], name: str):
 
 
 def map_layer(module: nn.Module) -> list[torch.Tensor]:
+    """Extract the parameter tensors from a layer"""
     tensors: list[torch.Tensor] = []
 
-    append_parameter(module, tensors, "weight")
-    append_parameter(module, tensors, "bias")
-    append_parameter(module, tensors, "running_mean")
-    append_parameter(module, tensors, "running_var")
+    _append_parameter(module, tensors, "weight")
+    _append_parameter(module, tensors, "bias")
+    _append_parameter(module, tensors, "running_mean")
+    _append_parameter(module, tensors, "running_var")
 
     return tensors
 

@@ -1,26 +1,25 @@
 from __future__ import annotations
-from dataclasses import dataclass
-import functools
 
-from collections.abc import Iterator
 import enum
+import functools
 import logging
-from pathlib import Path
 import typing
+from collections.abc import Iterator
+from dataclasses import dataclass
+from pathlib import Path
 
-from torch.utils.data import DataLoader
 import torch
+from torch.utils.data import DataLoader
 
 # NOTE: pytorch maintainers said they aren't interested in adding type stubs
 # https://github.com/pytorch/vision/issues/2025#issuecomment-2296026610
 from torchvision import datasets, transforms  # pyright: ignore[reportMissingTypeStubs]
 
-
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 Dataset = datasets.CIFAR10 | datasets.CIFAR100
 
-CACHE: dict[CachedDataset.Kind, Dataset] = dict()
+_CACHE: dict[CachedDataset.Kind, Dataset] = dict()
 
 
 @dataclass(frozen=True)
@@ -33,7 +32,7 @@ class CachedDataset:
         CIFAR100 = "cifar100"
 
     def load_data(self) -> Dataset:
-        logger.info(f"Loading dataset `{self.kind.name}`")
+        _logger.info(f"Loading dataset `{self.kind.name}`")
         try:
             match self.kind:
                 case CachedDataset.Kind.CIFAR10:
@@ -68,17 +67,17 @@ class CachedDataset:
                         transform=transform,
                     )
         finally:
-            logger.debug("Dataset loading finished")
+            _logger.debug("Dataset loading finished")
 
     def dataset(self) -> Dataset:
-        dataset = CACHE.get(self.kind)
+        dataset = _CACHE.get(self.kind)
 
         if dataset is None:
-            logger.debug(f"Dataset {self.kind.name} not yet loaded")
+            _logger.debug(f"Dataset {self.kind.name} not yet loaded")
             dataset = self.load_data()
-            CACHE[self.kind] = dataset
+            _CACHE[self.kind] = dataset
         else:
-            logger.debug(f"Got dataset {self.kind.name} from in memory cache")
+            _logger.debug(f"Got dataset {self.kind.name} from in memory cache")
 
         return dataset
 

@@ -25,11 +25,9 @@ from pytorch_hamming.encoding.system import (
     EncodingFormatFull,
 )
 from pytorch_hamming.system import BaseSystem
-from pytorch_hamming.systems import (
-    CachedDataset,
-    CachedModel,
-    System,
-)
+from pytorch_hamming.cifar_models.system import System as CifarSystem
+from pytorch_hamming.cifar_models.model import CachedModel as CifarModel
+from pytorch_hamming.cifar_models.dataset import CachedDataset as Cifar
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +51,7 @@ class DtypeChoices(enum.StrEnum):
 @app.command()
 def record(
     model: Annotated[
-        CachedModel,
+        CifarModel,
         typer.Option(
             "--model",
             "-m",
@@ -63,7 +61,7 @@ def record(
         ),
     ],
     dataset: Annotated[
-        CachedDataset.Kind,
+        Cifar.Kind,
         typer.Option(
             "--dataset",
             "-d",
@@ -225,8 +223,8 @@ The default is to only save at the very end",
         print(f"Dataset cache ({dataset_cache}) must be a directory")
         raise typer.Exit()
 
-    system = System(
-        dataset=CachedDataset(dataset, dataset_cache),
+    system = CifarSystem(
+        dataset=Cifar(dataset, dataset_cache),
         model=model,
         dtype=dtype,
         device=device,
