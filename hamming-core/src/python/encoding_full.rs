@@ -93,7 +93,9 @@ where
         )));
     };
 
-    let bits_per_encoded_chunk = num_encoded_bits(bits_per_chunk);
+    let bits_per_encoded_chunk = num_encoded_bits(bits_per_chunk)
+        .ok_or(PyValueError::new_err("Cannot encode an empty buffer"))?;
+
     let input_chunks = DynChunks::from_buffer(&input_buffer, bits_per_encoded_chunk);
 
     if input_chunks.num_bits() != input_buffer.num_bits() {
@@ -101,7 +103,15 @@ where
 This means one of the input parameters is incorrect but there's no way to tell which one."));
     }
 
-    let (output_chunks, decoding_results) = input_chunks.decode_chunks(bits_per_chunk);
+    let (output_chunks, decoding_results) =
+        input_chunks
+            .decode_chunks(bits_per_chunk)
+            .map_err(|err| match err {
+                crate::bit_buffer::chunks::DecodeError::InvalidDataBitsCount(_) => {
+                    PyValueError::new_err(err.to_string())
+                }
+            })?;
+
     let bits_copied = match output_chunks {
         Chunks::Byte(byte_chunks) => {
             byte_chunks

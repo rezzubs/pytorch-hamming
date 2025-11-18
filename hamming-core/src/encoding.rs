@@ -13,10 +13,12 @@ pub fn is_par_i(i: usize) -> bool {
 
 /// Get corresponding number of bits required for error correction for a buffer with length
 /// `source_length`.
+///
+/// Returns None if `num_data_bits` is 0.
 #[must_use]
-pub fn num_error_correction_bits(num_data_bits: usize) -> usize {
+pub fn num_error_correction_bits(num_data_bits: usize) -> Option<usize> {
     if num_data_bits == 0 {
-        panic!("Need to have at least 1 data bit");
+        return None;
     }
 
     // NOTE: 2 is the minimum possible number of parity bits.
@@ -24,17 +26,19 @@ pub fn num_error_correction_bits(num_data_bits: usize) -> usize {
     loop {
         let max_data_bits_per_parity_bits = (2u32.pow(parity_bits) - parity_bits - 1) as usize;
         if num_data_bits <= max_data_bits_per_parity_bits {
-            return parity_bits as usize;
+            return Some(parity_bits as usize);
         }
         parity_bits += 1
     }
 }
 
 /// Get the number of total bits that are required to encode a buffer with length `source_length`.
+///
+/// Returns None if `num_data_bits` is 0.
 #[must_use]
-pub fn num_encoded_bits(num_data_bits: usize) -> usize {
+pub fn num_encoded_bits(num_data_bits: usize) -> Option<usize> {
     // +1 for the 0th double error detection bit.
-    num_data_bits + num_error_correction_bits(num_data_bits) + 1
+    Some(num_data_bits + num_error_correction_bits(num_data_bits)? + 1)
 }
 
 /// Get the index of a flipped bit in an encoded buffer in case of a single bit flip.
@@ -92,20 +96,39 @@ where
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EncodeError {
+    #[error("The source cannot be empty")]
+    SourceEmpty,
+    #[error(
+        "The destination buffer should have {expected} bits based on the source, got {actual}"
+    )]
+    LengthMismatch { expected: usize, actual: usize },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("Expected the destination buffer to have {expected} bytes, got {actual}")]
+pub struct LengthMismatch {
+    pub expected: usize,
+    pub actual: usize,
+}
+
 /// Encode the `source` buffer as a hamming code inside the `dest` buffer.
-///
-/// # Panics
-///
-/// If the number of bits in `dest` doesn't match encoded `source`. Use [`num_encoded_bits`] to
-/// verify the length.
-pub fn encode_into<S, D>(source: &S, dest: &mut D)
+pub fn encode_into<S, D>(source: &S, dest: &mut D) -> Result<(), EncodeError>
 where
     S: BitBuffer,
     D: BitBuffer,
 {
-    let num_error_correction_bits = num_error_correction_bits(source.num_bits());
-    let num_encoded_bits = num_encoded_bits(source.num_bits());
-    assert_eq!(dest.num_bits(), num_encoded_bits);
+    let num_error_correction_bits =
+        num_error_correction_bits(source.num_bits()).ok_or(EncodeError::SourceEmpty)?;
+    let num_encoded_bits = num_encoded_bits(source.num_bits()).expect("already checked");
+
+    if dest.num_bits() != num_encoded_bits {
+        return Err(EncodeError::LengthMismatch {
+            expected: num_encoded_bits,
+            actual: dest.num_bits(),
+        });
+    }
 
     let mut input_index = 0;
     // NOTE: starting from 3 because 0, 1, 2 are all reserved for parity.
@@ -136,25 +159,40 @@ where
     if !dest.total_parity_is_even() {
         dest.set_1(0);
     }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum DecodeError {
+    #[error("The destination buffer cannot be empty")]
+    DestEmpty,
+    #[error(
+        "The encoded buffer should have {expected} bits based on the destination, got {actual}"
+    )]
+    LengthMismatch { expected: usize, actual: usize },
 }
 
 /// Decode an encoded buffer to the original representation.
 ///
 /// The decoding process tries to correct single-bit-errors which modifies the `source` buffer.
 ///
-/// # Panics
-///
-/// If `dest` doesn't have enough space for the decoded `source`.
-#[must_use]
-pub fn decode_into<S, D>(source: &mut S, dest: &mut D) -> bool
+/// Returns `false` if two-or-more-bit errors were detected.
+pub fn decode_into<S, D>(source: &mut S, dest: &mut D) -> Result<bool, DecodeError>
 where
     S: BitBuffer + std::fmt::Debug,
     D: BitBuffer,
 {
     let success = correct_error(source);
 
-    let num_encoded_bits = num_encoded_bits(dest.num_bits());
-    assert_eq!(source.num_bits(), num_encoded_bits);
+    let num_encoded_bits = num_encoded_bits(dest.num_bits()).ok_or(DecodeError::DestEmpty)?;
+
+    if source.num_bits() != num_encoded_bits {
+        return Err(DecodeError::LengthMismatch {
+            expected: num_encoded_bits,
+            actual: source.num_bits(),
+        });
+    }
 
     let mut output_index = 0;
     for input_index in 3..num_encoded_bits {
@@ -171,7 +209,7 @@ where
         output_index += 1;
     }
 
-    success
+    Ok(success)
 }
 
 #[cfg(test)]
@@ -201,39 +239,39 @@ mod tests {
 
     #[test]
     fn num_bits() {
-        assert_eq!(num_error_correction_bits(1), 2);
+        assert_eq!(num_error_correction_bits(1).unwrap(), 2);
         for i in 3..=4 {
-            assert_eq!(num_error_correction_bits(i), 3);
+            assert_eq!(num_error_correction_bits(i).unwrap(), 3);
         }
         for i in 5..=11 {
-            assert_eq!(num_error_correction_bits(i), 4);
+            assert_eq!(num_error_correction_bits(i).unwrap(), 4);
         }
         for i in 12..=26 {
-            assert_eq!(num_error_correction_bits(i), 5);
+            assert_eq!(num_error_correction_bits(i).unwrap(), 5);
         }
         for i in 27..=57 {
-            assert_eq!(num_error_correction_bits(i), 6);
+            assert_eq!(num_error_correction_bits(i).unwrap(), 6);
         }
         for i in 58..=120 {
-            assert_eq!(num_error_correction_bits(i), 7);
+            assert_eq!(num_error_correction_bits(i).unwrap(), 7);
         }
         for i in 121..=247 {
-            assert_eq!(num_error_correction_bits(i), 8);
+            assert_eq!(num_error_correction_bits(i).unwrap(), 8);
         }
         for i in 248..=502 {
-            assert_eq!(num_error_correction_bits(i), 9);
+            assert_eq!(num_error_correction_bits(i).unwrap(), 9);
         }
-        assert_eq!(num_error_correction_bits(512), 10);
+        assert_eq!(num_error_correction_bits(512).unwrap(), 10);
     }
 
     #[test]
     fn no_faults() {
         let buf: [f32; 4] = [123.123, 34.0, 0.0234, std::f32::consts::PI];
-        let mut encoded = buf.encode();
+        let mut encoded = buf.encode().unwrap();
         // 128 data + 8 SEC + 1 DED.
         assert_eq!(encoded.num_bits(), 137);
         let mut decoded = [0f32; 4];
-        let success = decode_into(&mut encoded, &mut decoded);
+        let success = decode_into(&mut encoded, &mut decoded).unwrap();
         assert!(success);
         assert_eq!(buf, decoded);
     }
@@ -241,7 +279,7 @@ mod tests {
     #[test]
     fn single_fault() {
         let buf: [f32; 4] = [123.123, 34.0, 0.0234, std::f32::consts::PI];
-        let mut encoded = buf.encode();
+        let mut encoded = buf.encode().unwrap();
 
         for i in 1..buf.num_bits() {
             let mut faulty = encoded.clone();
@@ -249,14 +287,14 @@ mod tests {
             assert_ne!(faulty, encoded);
 
             let mut decoded = [0f32; 4];
-            let success = decode_into(&mut faulty, &mut decoded);
+            let success = decode_into(&mut faulty, &mut decoded).unwrap();
             assert!(success);
             assert_eq!(buf, decoded);
         }
 
         encoded.flip_bit(0);
         let mut decoded = [0f32; 4];
-        let success = decode_into(&mut encoded, &mut decoded);
+        let success = decode_into(&mut encoded, &mut decoded).unwrap();
         assert!(!success);
         assert_eq!(buf, decoded);
     }
@@ -264,7 +302,7 @@ mod tests {
     #[test]
     fn two_faults() {
         let buf: [f32; 4] = [123.123, 34.0, 0.0234, std::f32::consts::PI];
-        let encoded = buf.encode();
+        let encoded = buf.encode().unwrap();
 
         for first in 0..buf.num_bits() {
             for second in (first + 1)..buf.num_bits() {
@@ -275,7 +313,7 @@ mod tests {
                 assert_ne!(faulty, encoded);
 
                 let mut decoded = [0f32; 4];
-                let success = decode_into(&mut faulty, &mut decoded);
+                let success = decode_into(&mut faulty, &mut decoded).unwrap();
                 assert!(!success);
 
                 // If only parity bits were hit then the original data is safe. The decoding
@@ -296,8 +334,8 @@ mod tests {
             let initial = vec![0u8; bytes];
             let mut decoded = vec![255u8; bytes];
 
-            let mut encoded = initial.encode();
-            let success = decode_into(&mut encoded, &mut decoded);
+            let mut encoded = initial.encode().unwrap();
+            let success = decode_into(&mut encoded, &mut decoded).unwrap();
             assert!(success);
 
             assert_eq!(initial, decoded);

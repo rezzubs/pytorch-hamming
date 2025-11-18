@@ -22,6 +22,12 @@ pub fn num_chunks(buffer_size: usize, chunk_size: usize) -> usize {
         }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum DecodeError {
+    #[error("The data bits count must be invalid because a length mismatch was detected during decoding: {0}")]
+    InvalidDataBitsCount(#[source] crate::encoding::DecodeError),
+}
+
 /// A [`BitBuffer`] that's chunked into chunks that are multiples of 8 bits.
 ///
 /// Should be prefered over [`DynChunks`] (if possible) due to performance reasons.
@@ -68,7 +74,11 @@ impl ByteChunks {
             .0
             .inner()
             .par_iter()
-            .map(|chunk| chunk.encode())
+            .map(|chunk| {
+                chunk.encode().unwrap_or_else(|err| match err {
+                    super::EncodeError::Empty => unreachable!("Chunks can never be empty"),
+                })
+            })
             .collect::<Vec<_>>();
 
         DynChunks(UniformSequence::new(output_buffer).unwrap_or_else(|err| {
@@ -140,7 +150,11 @@ impl DynChunks {
             .0
             .inner()
             .par_iter()
-            .map(|chunk| chunk.encode())
+            .map(|chunk| {
+                chunk.encode().unwrap_or_else(|err| match err {
+                    super::EncodeError::Empty => unreachable!("Chunks can never be empty"),
+                })
+            })
             .collect::<Vec<_>>();
 
         DynChunks(UniformSequence::new(output_buffer).unwrap_or_else(|err| {
@@ -160,9 +174,12 @@ same unless they have been tampered with after creation. Got error {err}",
     /// See also:
     /// - [`DynChunks::decode_chunks_byte`]
     /// - [`DynChunks::decode_chunks`]
-    #[must_use]
-    pub fn decode_chunks_dyn(self, num_chunk_data_bits: usize) -> (DynChunks, Vec<bool>) {
+    pub fn decode_chunks_dyn(
+        self,
+        num_chunk_data_bits: usize,
+    ) -> Result<(DynChunks, Vec<bool>), DecodeError> {
         let num_chunks = self.num_chunks();
+
         let output_buffer = vec![Limited::bytes(num_chunk_data_bits); num_chunks];
         let (decoded_output, ded_results) = self
             .0
@@ -170,19 +187,27 @@ same unless they have been tampered with after creation. Got error {err}",
             .into_par_iter()
             .zip(output_buffer)
             .map(|(mut source, mut dest)| {
-                let result = decode_into(&mut source, &mut dest);
-                (dest, result)
-            })
-            .collect::<(Vec<_>, Vec<_>)>();
+                let result = decode_into(&mut source, &mut dest).map_err(|err| match err {
+                    crate::encoding::DecodeError::DestEmpty => {
+                        unreachable!("There is always at least one chunk")
+                    }
+                    crate::encoding::DecodeError::LengthMismatch { .. } => {
+                        DecodeError::InvalidDataBitsCount(err)
+                    }
+                })?;
 
-        (
+                Ok((dest, result))
+            })
+            .collect::<Result<(Vec<_>, Vec<_>), DecodeError>>()?;
+
+        Ok((
             DynChunks(UniformSequence::new_unchecked(
                 decoded_output,
                 num_chunk_data_bits,
                 num_chunks,
             )),
             ded_results,
-        )
+        ))
     }
 
     /// Decode the chunks in parallel.
@@ -194,7 +219,10 @@ same unless they have been tampered with after creation. Got error {err}",
     /// See also:
     /// - [`DynChunks::decode_chunks_dyn`]
     /// - [`DynChunks::decode_chunks`]
-    fn decode_chunks_byte(self, num_chunk_data_bytes: usize) -> (ByteChunks, Vec<bool>) {
+    fn decode_chunks_byte(
+        self,
+        num_chunk_data_bytes: usize,
+    ) -> Result<(ByteChunks, Vec<bool>), DecodeError> {
         let num_chunks = self.num_chunks();
         let output_buffer = vec![vec![0u8; num_chunk_data_bytes]; num_chunks];
         let (decoded_output, results) = self
@@ -203,19 +231,27 @@ same unless they have been tampered with after creation. Got error {err}",
             .into_par_iter()
             .zip(output_buffer)
             .map(|(mut source, mut dest)| {
-                let result = decode_into(&mut source, &mut dest);
-                (dest, result)
-            })
-            .collect::<(Vec<_>, Vec<_>)>();
+                let result = decode_into(&mut source, &mut dest).map_err(|err| match err {
+                    crate::encoding::DecodeError::DestEmpty => {
+                        unreachable!("There is always at least one chunk")
+                    }
+                    crate::encoding::DecodeError::LengthMismatch { .. } => {
+                        DecodeError::InvalidDataBitsCount(err)
+                    }
+                })?;
 
-        (
+                Ok((dest, result))
+            })
+            .collect::<Result<(Vec<_>, Vec<_>), DecodeError>>()?;
+
+        Ok((
             ByteChunks(UniformSequence::new_unchecked(
                 decoded_output,
                 num_chunk_data_bytes * 8,
                 num_chunks,
             )),
             results,
-        )
+        ))
     }
 
     /// Decode all chunks in parallel.
@@ -230,22 +266,26 @@ same unless they have been tampered with after creation. Got error {err}",
     /// bits. There is no straightforward way to compute the number of data bits from the number
     /// of encoded bits. Approximations or a brute force method will need to be used. That's why
     /// `data_bits` is given again instead.
-    #[must_use]
-    pub fn decode_chunks(self, num_chunk_data_bits: usize) -> (Chunks, Vec<bool>) {
-        if num_chunk_data_bits.is_multiple_of(8) {
+    pub fn decode_chunks(
+        self,
+        num_chunk_data_bits: usize,
+    ) -> Result<(Chunks, Vec<bool>), DecodeError> {
+        Ok(if num_chunk_data_bits.is_multiple_of(8) {
             let num_data_bytes = num_chunk_data_bits / 8;
-            let (chunks, ded_results) = self.decode_chunks_byte(num_data_bytes);
+            let (chunks, ded_results) = self.decode_chunks_byte(num_data_bytes)?;
             (Chunks::Byte(chunks), ded_results)
         } else {
-            let (chunks, ded_results) = self.decode_chunks_dyn(num_chunk_data_bits);
+            let (chunks, ded_results) = self.decode_chunks_dyn(num_chunk_data_bits)?;
             (Chunks::Dyn(chunks), ded_results)
-        }
+        })
     }
 
     /// Get the number of chunks.
     #[must_use]
     pub fn num_chunks(&self) -> usize {
-        self.0.num_items()
+        let chunks = self.0.num_items();
+        assert!(chunks > 0);
+        chunks
     }
 
     /// Get the number of bits per chunk.
@@ -552,7 +592,7 @@ mod tests {
 
         {
             let non_faulty = encoded.clone();
-            let (raw_decoded, ded_results) = non_faulty.decode_chunks(chunk_size);
+            let (raw_decoded, ded_results) = non_faulty.decode_chunks(chunk_size).unwrap();
 
             for success in ded_results {
                 assert!(success);
@@ -577,7 +617,7 @@ mod tests {
             }
             assert_ne!(encoded, faulty);
 
-            let (raw_decoded, ded_results) = faulty.decode_chunks(chunk_size);
+            let (raw_decoded, ded_results) = faulty.decode_chunks(chunk_size).unwrap();
 
             let raw_decoded = match raw_decoded {
                 Chunks::Byte(byte_chunks) => byte_chunks,
@@ -620,7 +660,7 @@ mod tests {
 
             {
                 let non_faulty = encoded.clone();
-                let (raw_decoded, ded_results) = non_faulty.decode_chunks(chunk_size);
+                let (raw_decoded, ded_results) = non_faulty.decode_chunks(chunk_size).unwrap();
 
                 for success in ded_results {
                     assert!(success);
@@ -648,7 +688,7 @@ mod tests {
                 }
                 assert_ne!(encoded, faulty);
 
-                let (raw_decoded, ded_results) = faulty.decode_chunks(chunk_size);
+                let (raw_decoded, ded_results) = faulty.decode_chunks(chunk_size).unwrap();
 
                 let raw_decoded = match raw_decoded {
                     Chunks::Byte(byte_chunks) => {

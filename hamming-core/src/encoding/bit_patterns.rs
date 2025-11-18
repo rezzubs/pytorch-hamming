@@ -215,11 +215,16 @@ impl BitBuffer for BitPatternEncodingData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BitPatternEncoding {
     pub(crate) data: BitPatternEncodingData,
-    pub(crate) bits_per_chunk: usize,
     pub(crate) pattern: BitPattern,
+    pub bits_per_chunk: usize,
 }
 
 impl BitPatternEncoding {
+    #[must_use]
+    pub fn bits_per_chunk(&self) -> usize {
+        self.bits_per_chunk
+    }
+
     pub fn decode_into<B>(self, buffer: &mut B) -> Vec<bool>
     where
         B: BitBuffer,
@@ -240,7 +245,14 @@ impl BitPatternEncoding {
 
         assert_eq!(params.num_unprotected_bits(), unprotected.num_bits());
 
-        let (protected, ded_results) = protected.decode_chunks(bits_per_chunk);
+        let (protected, ded_results) =
+            protected
+                .decode_chunks(bits_per_chunk)
+                .unwrap_or_else(|err| match err {
+                    chunks::DecodeError::InvalidDataBitsCount(_) => unreachable!(
+                        "bits_per_chunk cannot be incorrect because the encoding was successful and it cannot be altered after"
+                    ),
+                });
 
         {
             let expected_num_chunks = chunks::num_chunks(params.num_protected_bits, bits_per_chunk);

@@ -21,7 +21,7 @@ fuzz_target!(|input: Input| -> Corpus {
     }
 
     let mut decoded = vec![0u8; source.len()];
-    let mut encoded = source.encode();
+    let mut encoded = source.encode().unwrap();
 
     let mut hit = HashSet::new();
     for &fault in &faults {
@@ -32,7 +32,7 @@ fuzz_target!(|input: Input| -> Corpus {
         encoded.flip_bit(fault);
     }
 
-    let success = decode_into(&mut encoded, &mut decoded);
+    let success = decode_into(&mut encoded, &mut decoded).unwrap();
 
     if faults.len() <= 1 {
         if faults.iter().all(|fault| *fault != 0) {

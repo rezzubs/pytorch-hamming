@@ -36,7 +36,13 @@ impl PyBitPatternEncoding {
             panic!("`unprotected_bits_count` ({}) cannot be larger than the number bits in of `unprotected` ({})", self.unprotected_bits_count, unprotected_bits_count_actual);
         });
 
-        let encoded_bits_per_chunk = num_encoded_bits(self.bits_per_chunk);
+        let encoded_bits_per_chunk = num_encoded_bits(self.bits_per_chunk).expect("PyBitPatternEncoding is the result of a successful encoding, therefore this cannot fail.")
+
+
+
+        
+        ;
+
         let protected =
             self.protected
                 .bind(py)

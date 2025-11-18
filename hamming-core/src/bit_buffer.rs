@@ -52,6 +52,12 @@ impl CopyIntoResult {
 #[error("Out of bounds")]
 pub struct OutOfBounds;
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EncodeError {
+    #[error("Cannot encode an empty buffer")]
+    Empty,
+}
+
 pub trait BitBuffer {
     /// Number of bits stored by this buffer.
     fn num_bits(&self) -> usize;
@@ -225,16 +231,24 @@ pub trait BitBuffer {
     /// Encode the buffer as a hamming code.
     ///
     /// See [`encode_into`] for usage with custom output buffers.
-    fn encode(&self) -> Limited<Vec<u8>>
+    fn encode(&self) -> Result<Limited<Vec<u8>>, EncodeError>
     where
         Self: std::marker::Sized,
     {
-        let num_encoded_bits = num_encoded_bits(self.num_bits());
+        let num_encoded_bits = num_encoded_bits(self.num_bits()).ok_or(EncodeError::Empty)?;
+
         let mut dest = Limited::bytes(num_encoded_bits);
 
-        encode_into(self, &mut dest);
+        if let Err(err) = encode_into(self, &mut dest) {
+            match err {
+                crate::encoding::EncodeError::SourceEmpty => unreachable!("Already checked"),
+                crate::encoding::EncodeError::LengthMismatch { .. } => {
+                    unreachable!("Using the given buffer must be correct")
+                }
+            }
+        };
 
-        dest
+        Ok(dest)
     }
 }
 
