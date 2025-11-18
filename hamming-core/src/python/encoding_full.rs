@@ -15,11 +15,21 @@ fn encode_full_generic<'py, B>(
     py: Python<'py>,
     buffer: B,
     bits_per_chunk: usize,
-) -> (OutputArr<'py, u8>, usize)
+) -> PyResult<(OutputArr<'py, u8>, usize)>
 where
     B: ByteChunkedBitBuffer,
 {
-    let encoded_chunks = buffer.to_chunks(bits_per_chunk).encode_chunks();
+    let encoded_chunks = buffer
+        .to_chunks(bits_per_chunk)
+        .map_err(|err| match err {
+            crate::bit_buffer::chunks::InvalidChunks::Empty => {
+                PyValueError::new_err(err.to_string())
+            }
+            crate::bit_buffer::chunks::InvalidChunks::ZeroChunksize => {
+                PyValueError::new_err(err.to_string())
+            }
+        })?
+        .encode_chunks();
 
     let encoded_bits_count = encoded_chunks.num_bits();
     let mut output_buffer = Limited::bytes(encoded_bits_count);
@@ -31,10 +41,10 @@ where
         "Copying failed"
     );
 
-    (
+    Ok((
         PyArray1::from_vec(py, output_buffer.into_inner()),
         encoded_bits_count,
-    )
+    ))
 }
 
 /// Encode a all bits of a buffer of 32 bit floats.
@@ -49,7 +59,7 @@ pub fn encode_full_f32<'py>(
     py: Python<'py>,
     input: Vec<InputArr<f32>>,
     bits_per_chunk: usize,
-) -> (OutputArr<'py, u8>, usize) {
+) -> PyResult<(OutputArr<'py, u8>, usize)> {
     let buffer = prep_input_array_list(input);
 
     encode_full_generic(py, buffer, bits_per_chunk)
@@ -67,7 +77,7 @@ pub fn encode_full_u16<'py>(
     py: Python<'py>,
     input: Vec<InputArr<u16>>,
     bits_per_chunk: usize,
-) -> (OutputArr<'py, u8>, usize) {
+) -> PyResult<(OutputArr<'py, u8>, usize)> {
     let buffer = prep_input_array_list(input);
 
     encode_full_generic(py, buffer, bits_per_chunk)
@@ -96,7 +106,8 @@ where
     let bits_per_encoded_chunk = num_encoded_bits(bits_per_chunk)
         .ok_or(PyValueError::new_err("Cannot encode an empty buffer"))?;
 
-    let input_chunks = DynChunks::from_buffer(&input_buffer, bits_per_encoded_chunk);
+    let input_chunks = DynChunks::from_buffer(&input_buffer, bits_per_encoded_chunk)
+        .map_err(|err| PyValueError::new_err(err.to_string()))?;
 
     if input_chunks.num_bits() != input_buffer.num_bits() {
         return Err(PyValueError::new_err("The number of bits in the limited input buffer and chunked input doesn't match (extra padding was added). \

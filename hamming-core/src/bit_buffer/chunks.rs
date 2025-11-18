@@ -10,16 +10,32 @@ use crate::{
 pub type ByteChunk = Vec<u8>;
 pub type DynChunk = Limited<Vec<u8>>;
 
+/// The given configuration would result in invalid chunks.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum InvalidChunks {
+    #[error("Cannot chunk an empty buffer")]
+    Empty,
+    #[error("The chunk size has to be non-zero")]
+    ZeroChunksize,
+}
+
 /// How many chunks are required to store a buffer with `chunk_size` bits per chunk.
 #[inline]
-#[must_use]
-pub fn num_chunks(buffer_size: usize, chunk_size: usize) -> usize {
-    buffer_size / chunk_size
+pub fn num_chunks(buffer_size: usize, chunk_size: usize) -> Result<usize, InvalidChunks> {
+    if buffer_size == 0 {
+        return Err(InvalidChunks::Empty);
+    }
+
+    if chunk_size == 0 {
+        return Err(InvalidChunks::ZeroChunksize);
+    }
+
+    Ok(buffer_size / chunk_size
         + if buffer_size.is_multiple_of(chunk_size) {
             0
         } else {
             1
-        }
+        })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -36,17 +52,16 @@ pub struct ByteChunks(UniformSequence<Vec<ByteChunk>>);
 
 impl ByteChunks {
     /// Create new chunks with all bits initialized to zero.
-    #[must_use]
-    pub fn zero(num_bytes: usize, bytes_per_chunk: usize) -> Self {
-        assert!(bytes_per_chunk > 0);
+    ///
+    /// Returns [`None`] if `num_bytes` is 0.
+    pub fn zero(num_bytes: usize, bytes_per_chunk: usize) -> Result<Self, InvalidChunks> {
+        let num_chunks = num_chunks(num_bytes, bytes_per_chunk)?;
 
-        let num_chunks = num_chunks(num_bytes, bytes_per_chunk);
-
-        Self(UniformSequence::new_unchecked(
+        Ok(Self(UniformSequence::new_unchecked(
             vec![vec![0u8; bytes_per_chunk]; num_chunks],
             bytes_per_chunk * 8,
             num_chunks,
-        ))
+        )))
     }
 
     /// Create chunks from the `buffer`.
@@ -54,17 +69,19 @@ impl ByteChunks {
     /// If the number of bytes in the buffer isn't a multiple of the number of bytes per chunk then
     /// it will result in a number of bytes of (essentially useless) padding at the end of the final
     /// chunk.
-    pub fn from_buffer<T>(buffer: &T, bytes_per_chunk: usize) -> Self
+    ///
+    /// Returns [`None`] for empty buffers.
+    pub fn from_buffer<T>(buffer: &T, bytes_per_chunk: usize) -> Result<Self, InvalidChunks>
     where
         T: ByteChunkedBitBuffer,
     {
         let num_bytes = buffer.num_bytes();
-        let mut output_buffer = Self::zero(num_bytes, bytes_per_chunk);
+        let mut output_buffer = Self::zero(num_bytes, bytes_per_chunk)?;
 
         let result = buffer.copy_into_chunked(&mut output_buffer);
         assert_eq!(result.units_copied, num_bytes);
 
-        output_buffer
+        Ok(output_buffer)
     }
 
     /// Encode all chunks in parallel.
@@ -114,33 +131,30 @@ same unless they have been tampered with after creation. Got error {err}",
 pub struct DynChunks(UniformSequence<Vec<DynChunk>>);
 
 impl DynChunks {
-    #[must_use]
-    pub fn zero(num_bits: usize, bits_per_chunk: usize) -> Self {
-        assert!(bits_per_chunk > 0);
+    pub fn zero(num_bits: usize, bits_per_chunk: usize) -> Result<Self, InvalidChunks> {
+        let num_chunks = num_chunks(num_bits, bits_per_chunk)?;
 
-        let num_chunks = num_chunks(num_bits, bits_per_chunk);
-
-        Self(UniformSequence::new_unchecked(
+        Ok(Self(UniformSequence::new_unchecked(
             vec![Limited::bytes(bits_per_chunk); num_chunks],
             bits_per_chunk,
             num_chunks,
-        ))
+        )))
     }
     /// Create new dynamic chunks from the `buffer`.
     ///
     /// If the number of bits in the buffer isn't a multiple of the number of bits per chunk then
     /// it will result in a number of bits of (essentially useless) padding at the end of the final
     /// chunk.
-    pub fn from_buffer<T>(buffer: &T, bits_per_chunk: usize) -> Self
+    pub fn from_buffer<T>(buffer: &T, bits_per_chunk: usize) -> Result<Self, InvalidChunks>
     where
         T: BitBuffer,
     {
         let input_size = buffer.num_bits();
-        let mut output_buffer = Self::zero(input_size, bits_per_chunk);
+        let mut output_buffer = Self::zero(input_size, bits_per_chunk)?;
         let result = buffer.copy_into(&mut output_buffer);
         assert_eq!(result.units_copied, input_size);
 
-        output_buffer
+        Ok(output_buffer)
     }
 
     /// Encode all chunks in parallel.
@@ -330,25 +344,28 @@ impl Chunks {
     /// If the number of bits in the buffer isn't a multiple of the number of bits per chunk then
     /// it will result in a number of bits of (essentially useless) padding at the end of the final
     /// chunk.
-    pub fn from_buffer<T>(buffer: &T, bits_per_chunk: usize) -> Self
+    pub fn from_buffer<T>(buffer: &T, bits_per_chunk: usize) -> Result<Self, InvalidChunks>
     where
         T: ByteChunkedBitBuffer,
     {
-        if bits_per_chunk.is_multiple_of(8) {
-            Chunks::Byte(buffer.to_byte_chunks(bits_per_chunk / 8))
+        Ok(if bits_per_chunk.is_multiple_of(8) {
+            Chunks::Byte(buffer.to_byte_chunks(bits_per_chunk / 8)?)
         } else {
-            Chunks::Dyn(buffer.to_dyn_chunks(bits_per_chunk))
-        }
+            Chunks::Dyn(buffer.to_dyn_chunks(bits_per_chunk)?)
+        })
     }
 
     /// Create new chunks with all bits initialized to zero.
-    #[must_use]
-    pub fn zero(num_bits: usize, bits_per_chunk: usize) -> Self {
-        if bits_per_chunk.is_multiple_of(8) && num_bits.is_multiple_of(8) {
-            Chunks::Byte(ByteChunks::zero(num_bits / 8, bits_per_chunk / 8))
-        } else {
-            Chunks::Dyn(DynChunks::zero(num_bits, bits_per_chunk))
-        }
+    ///
+    /// Returns [`None`] if `num_bits` is 0.
+    pub fn zero(num_bits: usize, bits_per_chunk: usize) -> Result<Self, InvalidChunks> {
+        Ok(
+            if bits_per_chunk.is_multiple_of(8) && num_bits.is_multiple_of(8) {
+                Chunks::Byte(ByteChunks::zero(num_bits / 8, bits_per_chunk / 8)?)
+            } else {
+                Chunks::Dyn(DynChunks::zero(num_bits, bits_per_chunk)?)
+            },
+        )
     }
 
     /// Get the number of chunks.
@@ -473,7 +490,7 @@ mod tests {
     #[test]
     fn dyn_chunks_creation_and_restore() {
         let source = [0xffffu16; 3];
-        let chunks = source.to_dyn_chunks(7);
+        let chunks = source.to_dyn_chunks(7).unwrap();
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 7 bits.
         // We need 7 chunks -> 49 (7*7) bits to store the original data.
@@ -502,7 +519,7 @@ mod tests {
         );
         assert!(chunks.bits().skip(result.units_copied).all(|is_1| !is_1));
 
-        let chunks = source.to_dyn_chunks(9);
+        let chunks = source.to_dyn_chunks(9).unwrap();
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 9 bits.
         // We need 6 bytes -> 54 (9*6) bits to store the original data.
@@ -527,7 +544,7 @@ mod tests {
     #[test]
     fn byte_chunks_creation_and_restore() {
         let source = [0xffffu16; 3];
-        let chunks = source.to_byte_chunks(1);
+        let chunks = source.to_byte_chunks(1).unwrap();
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 1 byte.
         // 6 chunks are used to store the data.
@@ -545,7 +562,7 @@ mod tests {
         let result = chunks.copy_into(&mut restored);
         assert_eq!(result, CopyIntoResult::done(restored.num_bits()));
 
-        let chunks = source.to_byte_chunks(2);
+        let chunks = source.to_byte_chunks(2).unwrap();
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 2 bytes.
         // 3 chunks are used to store the data.
@@ -573,7 +590,7 @@ mod tests {
         let chunk_size = 16;
         let expected_num_chunks = 8;
         let expected_bytes_per_chunk = chunk_size / expected_num_chunks;
-        let chunks = source.to_chunks(chunk_size);
+        let chunks = source.to_chunks(chunk_size).unwrap();
 
         match chunks {
             Chunks::Byte(ref byte_chunks) => {
@@ -643,7 +660,7 @@ mod tests {
         fn test_dyn(chunk_size: usize) {
             let source = [123.123f32, std::f32::consts::PI, 0.001, 10000.123];
 
-            let chunks = source.to_chunks(chunk_size);
+            let chunks = source.to_chunks(chunk_size).unwrap();
 
             match chunks {
                 Chunks::Byte(byte_chunks) => {
@@ -724,30 +741,36 @@ mod tests {
     }
 
     #[test]
-    fn empty() {
-        let buf: Vec<u8> = vec![];
-
-        let chunks = buf.clone().to_chunks(7);
-
-        assert_eq!(chunks.num_bits(), buf.num_bits());
-    }
-
-    #[test]
     fn zero() {
         let zero_buffer = [0u32; 4];
 
         for i in 1..=16 {
             assert_eq!(
-                zero_buffer.to_chunks(i),
-                Chunks::zero(zero_buffer.num_bits(), i)
+                zero_buffer.to_chunks(i).unwrap(),
+                Chunks::zero(zero_buffer.num_bits(), i).unwrap()
             );
         }
     }
 
     #[test]
+    fn invalid() {
+        let buffer: UniformSequence<Vec<u8>> = UniformSequence::new(vec![]).unwrap();
+
+        for size in 0..16 {
+            assert_eq!(buffer.to_chunks(size), Err(InvalidChunks::Empty));
+        }
+
+        let buffer = 0u64;
+
+        assert_eq!(buffer.to_chunks(0), Err(InvalidChunks::ZeroChunksize));
+        assert_eq!(buffer.to_dyn_chunks(0), Err(InvalidChunks::ZeroChunksize));
+        assert_eq!(buffer.to_byte_chunks(0), Err(InvalidChunks::ZeroChunksize));
+    }
+
+    #[test]
     fn bits_per_chunk() {
         for i in 1..=64 {
-            let chunks = [0u8; 14].to_chunks(i);
+            let chunks = [0u8; 14].to_chunks(i).unwrap();
             assert_eq!(chunks.bits_per_chunk(), i);
         }
     }

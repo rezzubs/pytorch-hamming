@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    bit_buffer::chunks::{self, Chunks, DynChunks},
+    bit_buffer::chunks::{self, Chunks, DynChunks, InvalidChunks},
     buffers::Limited,
     prelude::*,
 };
@@ -18,6 +18,15 @@ pub struct BitPattern {
 /// The length of the buffer isn't a multiple of the [`BitPattern`].
 #[error("The length of the buffer isn't a multiple of the bit pattern")]
 pub struct LengthMismatch;
+
+/// Error cases for [`BitPattern::partition`].
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum PartitionError {
+    #[error(transparent)]
+    LengthMisMatch(#[from] LengthMismatch),
+    #[error("Failed to chunk the buffer\n-> {0}")]
+    InvalidChunks(#[from] InvalidChunks),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
 pub enum CreationError {
@@ -109,13 +118,13 @@ impl BitPattern {
         &self,
         buffer: &B,
         bits_per_chunk: usize,
-    ) -> Result<(Limited<Vec<u8>>, Chunks), LengthMismatch>
+    ) -> Result<(Limited<Vec<u8>>, Chunks), PartitionError>
     where
         B: BitBuffer,
     {
         let params = self.buffer_params(buffer)?;
 
-        let mut protected = Chunks::zero(params.num_protected_bits, bits_per_chunk);
+        let mut protected = Chunks::zero(params.num_protected_bits, bits_per_chunk)?;
         let mut unprotected = Limited::bytes(params.num_unprotected_bits());
 
         let mut protected_i = 0;
@@ -143,7 +152,7 @@ impl BitPattern {
         &self,
         buffer: &B,
         bits_per_chunk: usize,
-    ) -> Result<BitPatternEncoding, LengthMismatch>
+    ) -> Result<BitPatternEncoding, PartitionError>
     where
         B: BitBuffer,
     {
@@ -255,7 +264,7 @@ impl BitPatternEncoding {
                 });
 
         {
-            let expected_num_chunks = chunks::num_chunks(params.num_protected_bits, bits_per_chunk);
+            let expected_num_chunks = chunks::num_chunks(params.num_protected_bits, bits_per_chunk).expect("It should be possible to decode using the same parameters that were used to encode.");
             // these values are the values from before encoding.
             let expected_num_protected_bits_in_chunks = expected_num_chunks * bits_per_chunk;
             assert_eq!(expected_num_protected_bits_in_chunks, protected.num_bits());
@@ -347,7 +356,10 @@ mod tests {
         let data = 0u16;
         let pattern = BitPattern::new([0], 7).unwrap();
 
-        assert_eq!(pattern.partition(&data, 2), Err(LengthMismatch));
+        assert_eq!(
+            pattern.partition(&data, 2),
+            Err(PartitionError::LengthMisMatch(LengthMismatch))
+        );
     }
 
     #[test]
