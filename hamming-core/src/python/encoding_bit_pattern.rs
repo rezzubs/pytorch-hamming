@@ -122,7 +122,12 @@ impl PyBitPatternEncoding {
     fn flip_n_bits<'py>(&mut self, py: Python<'py>, n: usize) -> PyResult<()> {
         let mut encoding = self.to_rust(py);
 
-        encoding.data.flip_n_bits(n);
+        encoding.data.flip_n_bits(n).map_err(|_| {
+            PyValueError::new_err(format!(
+                "invalid number of bits {n}, only 0 <= {} is possible",
+                encoding.data.num_bits()
+            ))
+        })?;
 
         *self = PyBitPatternEncoding::from_rust(py, encoding)?;
 

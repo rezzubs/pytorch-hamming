@@ -47,6 +47,11 @@ impl CopyIntoResult {
     }
 }
 
+/// An error for cases where a bit buffer operations goes out of bounds.
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[error("Out of bounds")]
+pub struct OutOfBounds;
+
 pub trait BitBuffer {
     /// Number of bits stored by this buffer.
     fn num_bits(&self) -> usize;
@@ -108,14 +113,12 @@ pub trait BitBuffer {
     /// Flip exactly n bits randomly in the buffer.
     ///
     /// All bit flips will be unique.
-    ///
-    /// # Panics
-    ///
-    /// - If `n > self.num_bits()`
-    fn flip_n_bits(&mut self, n: usize) {
+    fn flip_n_bits(&mut self, n: usize) -> Result<(), OutOfBounds> {
         let num_bits = self.num_bits();
-        // FIXME: return error instead of assert
-        assert!(n <= num_bits);
+
+        if n > num_bits {
+            return Err(OutOfBounds);
+        }
 
         let mut possible_faults = RandomPicker::new(num_bits, rand::rng());
 
@@ -125,6 +128,8 @@ pub trait BitBuffer {
             );
             self.flip_bit(fault_target);
         }
+
+        Ok(())
     }
 
     /// Flip a number of bits by the given bit error rate.
@@ -133,17 +138,21 @@ pub trait BitBuffer {
     ///
     /// Returns the number of bits flipped
     ///
-    /// # Panics
+    /// # Arguments
     ///
-    /// - if `ber` does not fit within `0..=1`.
-    fn flip_by_ber(&mut self, ber: f64) -> usize {
-        assert!((0f64..=1f64).contains(&ber));
+    /// * `ber` - A bit error rate `0..=1`.
+    fn flip_by_ber(&mut self, ber: f64) -> Result<usize, OutOfBounds> {
+        if !(0f64..=1f64).contains(&ber) {
+            return Err(OutOfBounds);
+        }
 
         let num_flips = (self.num_bits() as f64 * ber) as usize;
 
-        self.flip_n_bits(num_flips);
+        self.flip_n_bits(num_flips).unwrap_or_else(|_| {
+            unreachable!("We checked the range of `ber` so `num_flips` cannot be out of bounds.")
+        });
 
-        num_flips
+        Ok(num_flips)
     }
 
     /// [`BitBuffer::copy_into`] with start offsets for `self` and `dest`.
@@ -515,24 +524,33 @@ mod tests {
         #[test]
         fn fault_injection() {
             let mut buf = 0u8;
-            buf.flip_n_bits(1);
+            buf.flip_n_bits(1).unwrap();
             assert_eq!(buf.num_1_bits(), 1);
 
             let mut buf = 0u8;
-            buf.flip_n_bits(2);
+            buf.flip_n_bits(2).unwrap();
             assert_eq!(buf.num_1_bits(), 2);
 
             let mut buf = 0u8;
-            buf.flip_n_bits(3);
+            buf.flip_n_bits(3).unwrap();
             assert_eq!(buf.num_1_bits(), 3);
 
             let mut buf = 0u8;
-            buf.flip_n_bits(4);
+            buf.flip_n_bits(4).unwrap();
             assert_eq!(buf.num_1_bits(), 4);
 
             let mut buf = 0u8;
-            buf.flip_by_ber(1.);
+            buf.flip_by_ber(1.).unwrap();
             assert_eq!(buf.num_1_bits(), 8);
+        }
+
+        #[test]
+        fn invalid_flips() {
+            let mut buf = 0u8;
+
+            assert_eq!(buf.flip_n_bits(9), Err(OutOfBounds));
+            assert_eq!(buf.flip_by_ber(-f64::EPSILON), Err(OutOfBounds));
+            assert_eq!(buf.flip_by_ber(1. + f64::EPSILON), Err(OutOfBounds));
         }
 
         #[test]
