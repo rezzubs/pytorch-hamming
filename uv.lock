@@ -563,15 +563,20 @@ version = "0.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "hamming-core" },
-    { name = "matplotlib" },
     { name = "numpy" },
     { name = "pydantic" },
     { name = "torch" },
-    { name = "torchvision" },
     { name = "typer" },
 ]
 
 [package.dev-dependencies]
+cifar = [
+    { name = "torchvision" },
+]
+cli = [
+    { name = "matplotlib" },
+    { name = "torchvision" },
+]
 dev = [
     { name = "basedpyright" },
     { name = "ruff" },
@@ -580,15 +585,18 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "hamming-core", editable = "hamming-core" },
-    { name = "matplotlib", specifier = ">=3.10.5" },
     { name = "numpy", specifier = ">=2.3.1" },
     { name = "pydantic", specifier = ">=2.12.3" },
     { name = "torch", specifier = ">=2.7.1" },
-    { name = "torchvision", specifier = ">=0.22.1" },
     { name = "typer", specifier = ">=0.20.0" },
 ]
 
 [package.metadata.requires-dev]
+cifar = [{ name = "torchvision", specifier = ">=0.22.1" }]
+cli = [
+    { name = "matplotlib", specifier = ">=3.10.5" },
+    { name = "torchvision", specifier = ">=0.22.1" },
+]
 dev = [
     { name = "basedpyright", specifier = ">=1.32.1" },
     { name = "ruff", specifier = ">=0.12.4" },

@@ -8,10 +8,8 @@ authors = [
 requires-python = ">=3.14"
 dependencies = [
     "hamming-core",
-    "matplotlib>=3.10.5",
     "numpy>=2.3.1",
     "pydantic>=2.12.3",
-    "torchvision>=0.22.1",
     "torch>=2.7.1",
     "typer>=0.20.0",
 ]
@@ -20,6 +18,13 @@ dependencies = [
 dev = [
     "basedpyright>=1.32.1",
     "ruff>=0.12.4",
+]
+cifar = [
+    "torchvision>=0.22.1",
+]
+cli = [
+    "matplotlib>=3.10.5",
+    { include-group = "cifar"}
 ]
 
 [tool.uv.sources]
