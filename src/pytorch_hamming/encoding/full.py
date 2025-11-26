@@ -48,15 +48,7 @@ class FullEncoding:
 
         return cls(torch_bytes, bits_per_chunk, encoded_bits_count)
 
-    def decode_tensor_list(
-        self, output_buffer: list[torch.Tensor]
-    ) -> list[torch.Tensor]:
-        """Decode into the output buffer.
-
-        `output_buffer` should have the same structure as the original data.
-
-        Returns a reference to the same output buffer.
-        """
+    def decode_tensor_list(self, output_buffer: list[torch.Tensor]) -> None:
         dtype = tensor_list_dtype(output_buffer)
         if dtype is None:
             raise ValueError("Cannot decode into an empty buffer")
@@ -101,8 +93,6 @@ class FullEncoding:
         # TODO: we discard the double error detection results for now but may
         # want to do something with them in the future.
         _ = ded_results
-
-        return output_buffer
 
     def clone(self) -> FullEncoding:
         return copy.deepcopy(self)

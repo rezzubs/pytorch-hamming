@@ -186,15 +186,7 @@ class BitPatternEncoding:
         flattened_copy = [t.clone() for t in flattened]
         return cls(data, flattened_copy)
 
-    def decode_tensor_list(
-        self, output_buffer: list[torch.Tensor]
-    ) -> list[torch.Tensor]:
-        """Decode into the output buffer.
-
-        `output_buffer` should have the same structure as the original data.
-
-        Returns a reference to the same output buffer.
-        """
+    def decode_tensor_list(self, output_buffer: list[torch.Tensor]) -> None:
         if self._decoded_tensors is not None:
             logger.debug("Using existing value for decoded tensors")
             for original, decoded in zip(
@@ -203,7 +195,6 @@ class BitPatternEncoding:
                 with torch.no_grad():
                     # Discard because it's updated inplace.
                     _ = original.flatten().copy_(decoded)
-            return output_buffer
 
         logger.debug("Recomputing decoded tensors")
 
@@ -242,8 +233,6 @@ class BitPatternEncoding:
         # TODO: we discard the double error detection results for now but may
         # want to do something with them in the future.
         _ = ded_results
-
-        return output_buffer
 
     def flip_n_bits(self, n: int):
         logger.debug("Invalidating decoded tensor cached due to fault injection.")

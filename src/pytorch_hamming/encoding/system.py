@@ -1,9 +1,9 @@
 import copy
 import logging
 from dataclasses import dataclass
-from typing import override
+from typing import Protocol, Self, override
 
-import torch
+from torch import Tensor
 
 from pytorch_hamming.encoding.bit_pattern import (
     BitPattern,
@@ -15,9 +15,49 @@ from pytorch_hamming.system import BaseSystem
 logger = logging.getLogger(__name__)
 
 
+class Encoding(Protocol):
+    def decode_tensor_list(self, output_buffer: list[Tensor]) -> None:
+        """Decode into the given list.
+
+        The list is expected to have the same shape as the original unencoded
+        data
+        """
+        ...
+
+    def clone(self) -> Self:
+        """Return a full clone of self.
+
+        Modifying the clone should not modify the original in any way.
+        """
+        ...
+
+    def flip_n_bits(self, n: int) -> None:
+        """Flip a number of bits in the encoded data."""
+        ...
+
+    def bits_count(self) -> int:
+        """Return the number of bits used for the encoded data."""
+        ...
+
+
+class EncodingFormat(Protocol):
+    def encode_system[T](self, system: BaseSystem[T]) -> Encoding:
+        """Encode the given system"""
+        ...
+
+    def extra_metadata[T](self, metadata: dict[str, str]) -> None: ...
+
+
 @dataclass
 class EncodingFormatFull:
     bits_per_chunk: int
+
+    def encode_system[T](self, base: BaseSystem[T]) -> Encoding:
+        data_tensors = base.system_data_tensors(base.system_data())
+        return FullEncoding.encode_tensor_list(data_tensors, self.bits_per_chunk)
+
+    def extra_metadata(self, metadata: dict[str, str]) -> None:
+        metadata["chunk_size"] = str(self.bits_per_chunk)
 
 
 @dataclass
@@ -26,10 +66,18 @@ class EncodingFormatBitPattern:
     pattern_length: int
     bits_per_chunk: int
 
+    def encode_system[T](self, base: BaseSystem[T]) -> Encoding:
+        data_tensors = base.system_data_tensors(base.system_data())
+        return BitPatternEncoding.encode_tensor_list(
+            ts=data_tensors,
+            pattern=self.pattern,
+            pattern_length=self.pattern_length,
+            bits_per_chunk=self.bits_per_chunk,
+        )
 
-type EncodingFormat = EncodingFormatFull | EncodingFormatBitPattern
-
-type Encoding = FullEncoding | BitPatternEncoding
+    def extra_metadata(self, metadata: dict[str, str]) -> None:
+        metadata["bit_pattern"] = f"{self.pattern}({self.pattern_length})"
+        metadata["chunk_size"] = str(self.bits_per_chunk)
 
 
 class EncodedSystem[T](BaseSystem[Encoding]):
@@ -44,18 +92,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
 
     def encode_base(self) -> Encoding:
         logger.debug("Encoding data tensors")
-        match self.format:
-            case EncodingFormatFull(bits_per_chunk):
-                data_tensors = self.base.system_data_tensors(self.base.system_data())
-                return FullEncoding.encode_tensor_list(data_tensors, bits_per_chunk)
-            case EncodingFormatBitPattern(pattern, pattern_length, bits_per_chunk):
-                data_tensors = self.base.system_data_tensors(self.base.system_data())
-                return BitPatternEncoding.encode_tensor_list(
-                    ts=data_tensors,
-                    pattern=pattern,
-                    pattern_length=pattern_length,
-                    bits_per_chunk=bits_per_chunk,
-                )
+        return self.format.encode_system(self.base)
 
     def decoded_data(self, data: Encoding) -> T:
         # NOTE: It's fine that we're modifying the original tensors directly,
@@ -81,7 +118,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
         return self.base.system_accuracy(self.decoded_data(data))
 
     @override
-    def system_data_tensors(self, data: Encoding) -> list[torch.Tensor]:
+    def system_data_tensors(self, data: Encoding) -> list[Tensor]:
         return self.base.system_data_tensors(self.decoded_data(data))
 
     @override
@@ -92,12 +129,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
     def system_metadata(self) -> dict[str, str]:
         metadata = copy.deepcopy(self.base.system_metadata())
 
-        match self.format:
-            case EncodingFormatFull(chunk_size):
-                metadata["chunk_size"] = str(chunk_size)
-            case EncodingFormatBitPattern(pattern, pattern_length, bits_per_chunk):
-                metadata["bit_pattern"] = f"{pattern}({pattern_length})"
-                metadata["chunk_size"] = str(bits_per_chunk)
+        self.format.extra_metadata(metadata)
 
         overhead = (
             self.system_total_num_bits() / self.base.system_total_num_bits() - 1
