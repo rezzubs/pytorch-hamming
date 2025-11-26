@@ -2,7 +2,7 @@ import enum
 import logging
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -147,7 +147,11 @@ This parameter defines the x-axis resolution",
 
     plt.style.use("dark_background")
 
-    fig = plt.figure()  # pyright: ignore[reportUnknownMemberType]
+    fig = plt.figure()
+
+    test: Any = "test"
+
+    print(test)
 
     if use_3d:
         ax = fig.subplots(subplot_kw=dict(projection="3d"))
