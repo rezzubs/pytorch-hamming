@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import abc
+import copy
 
 import torch
-import copy
 
 from .tensor_ops import (
     tensor_list_fault_injection,

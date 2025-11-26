@@ -3,7 +3,7 @@ import logging
 import hamming_core
 import torch
 
-from pytorch_hamming.utils import dtype_num_bits
+from pytorch_hamming.utils import dtype_bits_count
 
 from .dtype import DnnDtype, FiDtype
 
@@ -43,7 +43,7 @@ def tensor_list_num_bits(ts: list[torch.Tensor]) -> int:
     total = 0
 
     for t in ts:
-        total += dtype_num_bits(t.dtype) * t.numel()
+        total += dtype_bits_count(t.dtype) * t.numel()
 
     return total
 

@@ -1,7 +1,7 @@
 import torch
 
 
-def dtype_num_bits(dtype: torch.dtype) -> int:
+def dtype_bits_count(dtype: torch.dtype) -> int:
     """Return the number of bits for a PyTorch data type."""
     match dtype:
         case torch.float64 | torch.uint64 | torch.int64:

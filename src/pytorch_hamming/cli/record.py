@@ -12,6 +12,9 @@ from typing import (
 import torch
 import typer
 
+from pytorch_hamming.cifar_models.dataset import CachedDataset as Cifar
+from pytorch_hamming.cifar_models.model import CachedModel as CifarModel
+from pytorch_hamming.cifar_models.system import System as CifarSystem
 from pytorch_hamming.cli.utils import setup_logging
 from pytorch_hamming.data import (
     Autosave,
@@ -23,11 +26,9 @@ from pytorch_hamming.encoding.system import (
     EncodedSystem,
     EncodingFormatBitPattern,
     EncodingFormatFull,
+    EncodingFormatMsb,
 )
 from pytorch_hamming.system import BaseSystem
-from pytorch_hamming.cifar_models.system import System as CifarSystem
-from pytorch_hamming.cifar_models.model import CachedModel as CifarModel
-from pytorch_hamming.cifar_models.dataset import CachedDataset as Cifar
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,13 @@ a chunk size of 64 should be used.",
             rich_help_panel="Encoding settings",
         ),
     ] = 64,
+    duplicate_msb: Annotated[
+        bool,
+        typer.Option(
+            help="Duplicate the most significant bit inside two lowest ones.",
+            rich_help_panel="Encoding settings",
+        ),
+    ] = False,
     device: Annotated[  # pyright: ignore[reportRedeclaration]
         str,
         typer.Option(
@@ -223,14 +231,20 @@ The default is to only save at the very end",
         print(f"Dataset cache ({dataset_cache}) must be a directory")
         raise typer.Exit()
 
-    system = CifarSystem(
-        dataset=Cifar(dataset, dataset_cache),
-        model=model,
-        dtype=dtype,
-        device=device,
-        batch_size=batch_size,
-        dataset_cache=dataset_cache,
+    system = cast(
+        BaseSystem[Any],
+        CifarSystem(
+            dataset=Cifar(dataset, dataset_cache),
+            model=model,
+            dtype=dtype,
+            device=device,
+            batch_size=batch_size,
+            dataset_cache=dataset_cache,
+        ),
     )
+
+    if duplicate_msb:
+        system = cast(BaseSystem[Any], EncodedSystem(system, EncodingFormatMsb()))
 
     match (protected, bit_pattern):
         case (_, BitPattern()):
@@ -276,7 +290,7 @@ The default is to only save at the very end",
     match (runs, until_stable):
         case (None, None):
             _ = data.record_entry(
-                cast(BaseSystem[Any], system),  # pyright: ignore[reportExplicitAny]
+                cast(BaseSystem[Any], system),
                 summary=summary,
             )
         case (_, None):
@@ -286,7 +300,7 @@ The default is to only save at the very end",
                 save_config = None
 
             data.record_entries(
-                cast(BaseSystem[Any], system),  # pyright: ignore[reportExplicitAny]
+                cast(BaseSystem[Any], system),
                 runs,
                 summary=summary,
                 autosave=save_config,
@@ -298,7 +312,7 @@ The default is to only save at the very end",
                 save_config = None
 
             _ = data.record_until_stable(
-                cast(BaseSystem[Any], system),  # pyright: ignore[reportExplicitAny]
+                cast(BaseSystem[Any], system),
                 threshold=stability_threshold,
                 stable_within=until_stable,
                 min_runs=runs,

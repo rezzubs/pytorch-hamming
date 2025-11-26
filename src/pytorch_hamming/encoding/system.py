@@ -10,6 +10,7 @@ from pytorch_hamming.encoding.bit_pattern import (
     BitPatternEncoding,
 )
 from pytorch_hamming.encoding.full import FullEncoding
+from pytorch_hamming.encoding.msb import MsbEncoding
 from pytorch_hamming.system import BaseSystem
 
 logger = logging.getLogger(__name__)
@@ -52,8 +53,8 @@ class EncodingFormat(Protocol):
 class EncodingFormatFull:
     bits_per_chunk: int
 
-    def encode_system[T](self, base: BaseSystem[T]) -> Encoding:
-        data_tensors = base.system_data_tensors(base.system_data())
+    def encode_system[T](self, system: BaseSystem[T]) -> Encoding:
+        data_tensors = system.system_data_tensors(system.system_data())
         return FullEncoding.encode_tensor_list(data_tensors, self.bits_per_chunk)
 
     def extra_metadata(self, metadata: dict[str, str]) -> None:
@@ -66,8 +67,8 @@ class EncodingFormatBitPattern:
     pattern_length: int
     bits_per_chunk: int
 
-    def encode_system[T](self, base: BaseSystem[T]) -> Encoding:
-        data_tensors = base.system_data_tensors(base.system_data())
+    def encode_system[T](self, system: BaseSystem[T]) -> Encoding:
+        data_tensors = system.system_data_tensors(system.system_data())
         return BitPatternEncoding.encode_tensor_list(
             ts=data_tensors,
             pattern=self.pattern,
@@ -78,6 +79,15 @@ class EncodingFormatBitPattern:
     def extra_metadata(self, metadata: dict[str, str]) -> None:
         metadata["bit_pattern"] = f"{self.pattern}({self.pattern_length})"
         metadata["chunk_size"] = str(self.bits_per_chunk)
+
+
+class EncodingFormatMsb:
+    def encode_system[T](self, system: BaseSystem[T]) -> Encoding:
+        data_tensors = system.system_data_tensors(system.system_data())
+        return MsbEncoding.encode_tensor_list(data_tensors)
+
+    def extra_metadata(self, metadata: dict[str, str]) -> None:
+        metadata["duplicated_bits"] = "30-to-0-1"
 
 
 class EncodedSystem[T](BaseSystem[Encoding]):
@@ -119,6 +129,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
 
     @override
     def system_data_tensors(self, data: Encoding) -> list[Tensor]:
+        print(data.__class__)
         return self.base.system_data_tensors(self.decoded_data(data))
 
     @override
