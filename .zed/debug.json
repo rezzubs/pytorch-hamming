@@ -1,0 +1,24 @@
+[
+  {
+    "label": "Debug record.py",
+    "adapter": "Debugpy",
+    "request": "launch",
+    "module": "pytorch_hamming",
+    "args": [
+      "record",
+      "--model",
+      "resnet20",
+      "--dataset",
+      "cifar10",
+      "--bit-error-rate=1.0e-4",
+      "--runs",
+      "10",
+      "--summary",
+      "--encoded",
+      "--chunk-size=64",
+      "--duplicate-msb"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "justMyCode": true
+  }
+]
