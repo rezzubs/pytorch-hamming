@@ -65,7 +65,6 @@ class EncodedSystem[T](BaseSystem[Encoding]):
 
     @override
     def system_data_tensors(self, data: Encoding) -> list[Tensor]:
-        print(data.__class__)
         return self.base.system_data_tensors(self.decoded_data(data))
 
     @override
