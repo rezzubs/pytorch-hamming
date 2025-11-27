@@ -12,7 +12,7 @@ from pytorch_hamming.dtype import DnnDtype
 from pytorch_hamming.encoding.encoding import Encoder, Encoding
 from pytorch_hamming.tensor_ops import tensor_list_dtype
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -179,8 +179,9 @@ class BitPatternEncoder(Encoder):
                         self.bits_per_chunk,
                     )
 
-        flattened_copy = [t.clone() for t in flattened]
-        return BitPatternEncoding(data, flattened_copy)
+        # These will be decoded into.
+        decoded_tensors = [t.clone() for t in ts]
+        return BitPatternEncoding(data, decoded_tensors, dtype)
 
     @override
     def add_metadata(self, metadata: dict[str, str]) -> None:
@@ -191,27 +192,19 @@ class BitPatternEncoder(Encoder):
 @dataclass
 class BitPatternEncoding(Encoding):
     _encoded_data: hamming_core.BitPatternEncoding
-    _decoded_tensors: list[torch.Tensor] | None
+    _decoded_tensors: list[torch.Tensor]
+    _dtype: torch.dtype
+    _needs_recompute: bool = False
 
     @override
-    def decode_tensor_list(self, output_buffer: list[torch.Tensor]) -> None:
-        if self._decoded_tensors is not None:
-            logger.debug("Using existing value for decoded tensors")
-            for original, decoded in zip(
-                output_buffer, self._decoded_tensors, strict=True
-            ):
-                with torch.no_grad():
-                    # Discard because it's updated inplace.
-                    _ = original.flatten().copy_(decoded)
+    def decode_tensor_list(self) -> list[torch.Tensor]:
+        if not self._needs_recompute:
+            _logger.debug("Using cached decoded tensors")
+            return self._decoded_tensors
+        _logger.debug("Recomputing decoded tensors")
 
-        logger.debug("Recomputing decoded tensors")
-
-        dtype = tensor_list_dtype(output_buffer)
-        if dtype is None:
-            raise ValueError("Cannot decode into an empty buffer")
-
-        element_counts = [t.numel() for t in output_buffer]
-        match DnnDtype.from_torch(dtype):
+        element_counts = [t.numel() for t in self._decoded_tensors]
+        match DnnDtype.from_torch(self._dtype):
             case DnnDtype.Float32:
                 decoded, ded_results = self._encoded_data.decode_bit_pattern_f32(
                     element_counts
@@ -232,30 +225,33 @@ class BitPatternEncoding(Encoding):
                     for t in decoded
                 ]
 
-        self._decoded_tensors = torch_decoded
-        for original, decoded in zip(output_buffer, torch_decoded, strict=True):
+        # Update cached decoded tensors in-place
+        for output, decoded in zip(self._decoded_tensors, torch_decoded, strict=True):
             with torch.no_grad():
-                # Discard because it's updated inplace.
-                _ = original.flatten().copy_(decoded)
+                _ = output.flatten().copy_(decoded)
 
         # TODO: we discard the double error detection results for now but may
         # want to do something with them in the future.
         _ = ded_results
 
+        self._needs_recompute = False
+        return self._decoded_tensors
+
     @override
     def flip_n_bits(self, n: int):
-        logger.debug("Invalidating decoded tensor cached due to fault injection.")
-        self._decoded_tensors = None
+        _logger.debug("Invalidating decoded tensor cached due to fault injection.")
+        self._needs_recompute = True
         self._encoded_data.flip_n_bits(n)
 
     @override
     def clone(self) -> BitPatternEncoding:
-        copied_tensors = (
-            [t.clone() for t in self._decoded_tensors]
-            if self._decoded_tensors is not None
-            else None
+        copied_tensors = [t.clone() for t in self._decoded_tensors]
+        return BitPatternEncoding(
+            self._encoded_data.clone(),
+            copied_tensors,
+            self._dtype,
+            self._needs_recompute,
         )
-        return BitPatternEncoding(self._encoded_data.clone(), copied_tensors)
 
     @override
     def bits_count(self) -> int:

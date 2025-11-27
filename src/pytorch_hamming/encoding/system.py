@@ -2,6 +2,7 @@ import copy
 import logging
 from typing import override
 
+import torch
 from torch import Tensor
 
 from pytorch_hamming.encoding.encoding import Encoder, Encoding
@@ -11,6 +12,18 @@ logger = logging.getLogger(__name__)
 
 
 class EncodedSystem[T](BaseSystem[Encoding]):
+    """Apply an `Encoding` on top of the data tensors.
+
+    `EncodedSystem` expects its `base` to be a system where:
+    - The tensors returned by `system_data_tensors()` are the actual source of truth
+    - Modifying those tensors directly changes the system state and by
+    extension, fault injection into those tensors affects system behavior
+
+    This is unlike EncodedSystem itself where the source of truth is more
+    abstract and depends on the specific encoding used. For this reason,
+    EncodedSystem cannot be used as a `base` of another `EncodedSystem`.
+    """
+
     def __init__(
         self,
         base: BaseSystem[T],
@@ -26,14 +39,16 @@ class EncodedSystem[T](BaseSystem[Encoding]):
         return self.encoder.encode_tensor_list(data_tensors)
 
     def decoded_data(self, data: Encoding) -> T:
-        # NOTE: It's fine that we're modifying the original tensors directly,
-        # not through a copy, because we're using the original only for the
-        # shape and the data will be overwritten anyway
+        decoded_tensors = data.decode_tensor_list()
 
+        # Create a T structure and populate its tensors with decoded values
+        # This is necessary because we need to return T (e.g., nn.Module), not just tensors
         inner_data = self.base.system_data()
         inner_data_tensors = self.base.system_data_tensors(inner_data)
 
-        _ = data.decode_tensor_list(inner_data_tensors)
+        for target, decoded in zip(inner_data_tensors, decoded_tensors, strict=True):
+            with torch.no_grad():
+                _ = target.copy_(decoded)
 
         return inner_data
 

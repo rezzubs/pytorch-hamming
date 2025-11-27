@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Self, override
@@ -13,6 +14,8 @@ from torch import Tensor
 from pytorch_hamming.encoding.encoding import Encoder, Encoding
 from pytorch_hamming.tensor_ops import tensor_list_dtype, tensor_list_fault_injection
 from pytorch_hamming.utils import dtype_bits_count
+
+_logger = logging.getLogger(__name__)
 
 
 class MsbEncoder(Encoder):
@@ -30,6 +33,9 @@ class MsbEncoder(Encoder):
                     f"Cannot encode dtype={dtype} tensors. Only float32 is supported at this point"
                 )
 
+        # Store decoded tensor copies
+        decoded_tensors = [t.clone() for t in ts]
+
         bits_count = 0
         data: list[Tensor] = []
         item_bits_count = dtype_bits_count(dtype)
@@ -42,7 +48,7 @@ class MsbEncoder(Encoder):
             t_encoded = torch.from_numpy(t_np)  # pyright: ignore[reportUnknownMemberType]
             data.append(t_encoded)
 
-        return MsbEncoding(data, bits_count)
+        return MsbEncoding(data, bits_count, decoded_tensors, dtype)
 
     @override
     def add_metadata(self, metadata: dict[str, str]) -> None:
@@ -58,17 +64,28 @@ class MsbEncoding(Encoding):
     will be used to recover from single-bit errors.
     """
 
-    _data: list[Tensor]
+    _encoded_data: list[Tensor]
     _bits_count: int
+    _decoded_tensors: list[Tensor]
+    _dtype: torch.dtype
+    _needs_recompute: bool = False
 
     @override
-    def decode_tensor_list(self, output_buffer: list[Tensor]) -> None:
-        for original, encoded in zip(output_buffer, self._data, strict=True):
+    def decode_tensor_list(self) -> list[Tensor]:
+        if not self._needs_recompute:
+            return self._decoded_tensors
+
+        for output, encoded in zip(
+            self._decoded_tensors, self._encoded_data, strict=True
+        ):
             with torch.no_grad():
                 encoded_np = encoded.numpy(force=True)
                 hamming_core.bit30_decode_f32(encoded_np)
                 decoded = torch.from_numpy(encoded_np)  # pyright: ignore[reportUnknownMemberType]
-                _ = original.copy_(decoded)
+                _ = output.copy_(decoded)
+
+        self._needs_recompute = False
+        return self._decoded_tensors
 
     @override
     def clone(self) -> Self:
@@ -76,7 +93,9 @@ class MsbEncoding(Encoding):
 
     @override
     def flip_n_bits(self, n: int) -> None:
-        tensor_list_fault_injection(self._data, n)
+        _logger.debug("Invalidating decoded tensors due to fault injection")
+        self._needs_recompute = True
+        tensor_list_fault_injection(self._encoded_data, n)
 
     @override
     def bits_count(self) -> int:

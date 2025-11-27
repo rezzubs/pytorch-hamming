@@ -17,11 +17,10 @@ class Encoder(abc.ABC):
 
 class Encoding(abc.ABC):
     @abc.abstractmethod
-    def decode_tensor_list(self, output_buffer: list[Tensor]) -> None:
-        """Decode into the given list.
+    def decode_tensor_list(self) -> list[Tensor]:
+        """Decode and return the list of tensors.
 
-        The list is expected to have the same shape as the original unencoded
-        data
+        Returns the tensors with the same shape as the original unencoded data.
         """
         ...
 
