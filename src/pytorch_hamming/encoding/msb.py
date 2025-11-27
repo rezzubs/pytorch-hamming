@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import logging
-from copy import deepcopy
 from dataclasses import dataclass
-from typing import Self, override
+from typing import override
 
 import hamming_core
 import torch
@@ -88,8 +87,16 @@ class MsbEncoding(Encoding):
         return self._decoded_tensors
 
     @override
-    def clone(self) -> Self:
-        return deepcopy(self)
+    def clone(self) -> MsbEncoding:
+        copied_data = [t.clone() for t in self._encoded_data]
+        copied_decoded = [t.clone() for t in self._decoded_tensors]
+        return MsbEncoding(
+            copied_data,
+            self._bits_count,
+            copied_decoded,
+            self._dtype,
+            self._needs_recompute,
+        )
 
     @override
     def flip_n_bits(self, n: int) -> None:

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import copy
 import logging
 import typing
 from dataclasses import dataclass
-from typing import Self, override
+from typing import override
 
 import hamming_core
 import numpy as np
@@ -124,8 +123,16 @@ class FullEncoding(Encoding):
         return self._decoded_tensors
 
     @override
-    def clone(self) -> Self:
-        return copy.deepcopy(self)
+    def clone(self) -> FullEncoding:
+        copied_tensors = [t.clone() for t in self._decoded_tensors]
+        return FullEncoding(
+            self._encoded_bytes.clone(),
+            self._bits_per_chunk,
+            self._bits_count,
+            copied_tensors,
+            self._dtype,
+            self._needs_recompute,
+        )
 
     @override
     def flip_n_bits(self, n: int):
