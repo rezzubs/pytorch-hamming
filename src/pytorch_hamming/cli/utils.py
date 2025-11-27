@@ -63,7 +63,7 @@ class LogFormatter(logging.Formatter):
 
     @override
     def format(self, record: logging.LogRecord) -> str:
-        dim_color = "bright_black"
+        dim_color = "dim white"
         default_color = "white"
 
         match record.levelno:
