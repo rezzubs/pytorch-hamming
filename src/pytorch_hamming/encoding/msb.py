@@ -107,3 +107,44 @@ class MsbEncoding(Encoding):
     @override
     def bits_count(self) -> int:
         return self._bits_count
+
+
+@dataclass
+class MsbMixedEncoder(Encoder):
+    """Apply another encoding on top of `MsbEncoding`"""
+
+    encoder: Encoder
+
+    @override
+    def encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
+        msb_encoded = MsbEncoder().encode_tensor_list(ts)
+        assert isinstance(msb_encoded, MsbEncoding)
+        encoded_data = self.encoder.encode_tensor_list(
+            # It's safe to use `_data` because it's read-only.
+            msb_encoded._data  # pyright: ignore[reportPrivateUsage]
+        )
+        return MsbMixedEncoding(encoded_data, msb_encoded.bits_count())
+
+
+@dataclass
+class MsbMixedEncoding(Encoding):
+    _encoded_data: Encoding
+    _bits_count: int
+
+    @override
+    def decode_tensor_list(self, output_buffer: list[Tensor]) -> None:
+        self._encoded_data.decode_tensor_list(output_buffer)
+
+        MsbEncoding(output_buffer, self._bits_count).decode_tensor_list(output_buffer)
+
+    @override
+    def clone(self) -> MsbMixedEncoding:
+        return MsbMixedEncoding(self._encoded_data.clone(), self._bits_count)
+
+    @override
+    def flip_n_bits(self, n: int) -> None:
+        self._encoded_data.flip_n_bits(n)
+
+    @override
+    def bits_count(self) -> int:
+        return self._encoded_data.bits_count()
