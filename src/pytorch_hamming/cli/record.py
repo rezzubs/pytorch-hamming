@@ -21,13 +21,10 @@ from pytorch_hamming.data import (
     Data,
 )
 from pytorch_hamming.dtype import DnnDtype
-from pytorch_hamming.encoding.bit_pattern import BitPattern
-from pytorch_hamming.encoding.system import (
-    EncodedSystem,
-    EncodingFormatBitPattern,
-    EncodingFormatFull,
-    EncodingFormatMsb,
-)
+from pytorch_hamming.encoding.bit_pattern import BitPattern, BitPatternEncoder
+from pytorch_hamming.encoding.full import FullEncoder
+from pytorch_hamming.encoding.msb import MsbEncoder
+from pytorch_hamming.encoding.system import EncodedSystem
 from pytorch_hamming.system import BaseSystem
 
 logger = logging.getLogger(__name__)
@@ -244,20 +241,20 @@ The default is to only save at the very end",
     )
 
     if duplicate_msb:
-        system = cast(BaseSystem[Any], EncodedSystem(system, EncodingFormatMsb()))
+        system = cast(BaseSystem[Any], EncodedSystem(system, MsbEncoder()))
 
     match (protected, bit_pattern):
         case (_, BitPattern()):
             system = EncodedSystem(
                 system,
-                EncodingFormatBitPattern(
+                BitPatternEncoder(
                     pattern=bit_pattern,
                     pattern_length=dtype.bits_count(),
                     bits_per_chunk=bits_per_chunk,
                 ),
             )
         case (True, None):
-            system = EncodedSystem(system, EncodingFormatFull(bits_per_chunk))
+            system = EncodedSystem(system, FullEncoder(bits_per_chunk))
         case _:
             pass
 

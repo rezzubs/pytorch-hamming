@@ -9,6 +9,7 @@ import torch
 from typing_extensions import override
 
 from pytorch_hamming.dtype import DnnDtype
+from pytorch_hamming.encoding.encoding import Encoder, Encoding
 from pytorch_hamming.tensor_ops import tensor_list_dtype
 
 logger = logging.getLogger(__name__)
@@ -143,18 +144,13 @@ class BitPattern:
 
 
 @dataclass
-class BitPatternEncoding:
-    _encoded_data: hamming_core.BitPatternEncoding
-    _decoded_tensors: list[torch.Tensor] | None
+class BitPatternEncoder(Encoder):
+    pattern: BitPattern
+    pattern_length: int
+    bits_per_chunk: int
 
-    @classmethod
-    def encode_tensor_list(
-        cls,
-        ts: list[torch.Tensor],
-        pattern: BitPattern,
-        pattern_length: int,
-        bits_per_chunk: int,
-    ) -> BitPatternEncoding:
+    @override
+    def encode_tensor_list(self, ts: list[torch.Tensor]) -> Encoding:
         dtype = tensor_list_dtype(ts)
         if dtype is None:
             raise ValueError("Cannot encode an empty buffer")
@@ -167,9 +163,9 @@ class BitPatternEncoding:
                     rust_input = [t.numpy(force=True) for t in flattened]
                     data = hamming_core.encode_bit_pattern_f32(
                         rust_input,
-                        pattern.bits,
-                        pattern_length,
-                        bits_per_chunk,
+                        self.pattern.bits,
+                        self.pattern_length,
+                        self.bits_per_chunk,
                     )
             case DnnDtype.Float16:
                 with torch.no_grad():
@@ -178,14 +174,26 @@ class BitPatternEncoding:
                     ]
                     data = hamming_core.encode_bit_pattern_u16(
                         rust_input,
-                        pattern.bits,
-                        pattern_length,
-                        bits_per_chunk,
+                        self.pattern.bits,
+                        self.pattern_length,
+                        self.bits_per_chunk,
                     )
 
         flattened_copy = [t.clone() for t in flattened]
-        return cls(data, flattened_copy)
+        return BitPatternEncoding(data, flattened_copy)
 
+    @override
+    def add_metadata(self, metadata: dict[str, str]) -> None:
+        metadata["bit_pattern"] = f"{self.pattern}({self.pattern_length})"
+        metadata["chunk_size"] = str(self.bits_per_chunk)
+
+
+@dataclass
+class BitPatternEncoding(Encoding):
+    _encoded_data: hamming_core.BitPatternEncoding
+    _decoded_tensors: list[torch.Tensor] | None
+
+    @override
     def decode_tensor_list(self, output_buffer: list[torch.Tensor]) -> None:
         if self._decoded_tensors is not None:
             logger.debug("Using existing value for decoded tensors")
@@ -234,11 +242,13 @@ class BitPatternEncoding:
         # want to do something with them in the future.
         _ = ded_results
 
+    @override
     def flip_n_bits(self, n: int):
         logger.debug("Invalidating decoded tensor cached due to fault injection.")
         self._decoded_tensors = None
         self._encoded_data.flip_n_bits(n)
 
+    @override
     def clone(self) -> BitPatternEncoding:
         copied_tensors = (
             [t.clone() for t in self._decoded_tensors]
@@ -247,5 +257,6 @@ class BitPatternEncoding:
         )
         return BitPatternEncoding(self._encoded_data.clone(), copied_tensors)
 
+    @override
     def bits_count(self) -> int:
         return self._encoded_data.bits_count()
