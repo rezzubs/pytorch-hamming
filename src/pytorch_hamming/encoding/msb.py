@@ -120,31 +120,31 @@ class MsbMixedEncoder(Encoder):
         msb_encoded = MsbEncoder().encode_tensor_list(ts)
         assert isinstance(msb_encoded, MsbEncoding)
         encoded_data = self.encoder.encode_tensor_list(
-            # It's safe to use `_data` because it's read-only.
-            msb_encoded._data  # pyright: ignore[reportPrivateUsage]
+            msb_encoded._encoded_data  # pyright: ignore[reportPrivateUsage]
         )
-        return MsbMixedEncoding(encoded_data, msb_encoded.bits_count())
+        return MsbMixedEncoding(encoded_data, msb_encoded)
 
 
 @dataclass
 class MsbMixedEncoding(Encoding):
-    _encoded_data: Encoding
-    _bits_count: int
+    _overlay: Encoding
+    _base_data: MsbEncoding
 
     @override
-    def decode_tensor_list(self, output_buffer: list[Tensor]) -> None:
-        self._encoded_data.decode_tensor_list(output_buffer)
-
-        MsbEncoding(output_buffer, self._bits_count).decode_tensor_list(output_buffer)
+    def decode_tensor_list(self) -> list[Tensor]:
+        msb_data = self._overlay.decode_tensor_list()
+        self._base_data._encoded_data = msb_data  # pyright: ignore[reportPrivateUsage]
+        return self._base_data.decode_tensor_list()
 
     @override
     def clone(self) -> MsbMixedEncoding:
-        return MsbMixedEncoding(self._encoded_data.clone(), self._bits_count)
+        return MsbMixedEncoding(self._overlay.clone(), self._base_data.clone())
 
     @override
     def flip_n_bits(self, n: int) -> None:
-        self._encoded_data.flip_n_bits(n)
+        self._base_data._needs_recompute = True  # pyright: ignore[reportPrivateUsage]
+        self._overlay.flip_n_bits(n)
 
     @override
     def bits_count(self) -> int:
-        return self._encoded_data.bits_count()
+        return self._overlay.bits_count()

@@ -23,7 +23,7 @@ from pytorch_hamming.data import (
 from pytorch_hamming.dtype import DnnDtype
 from pytorch_hamming.encoding.bit_pattern import BitPattern, BitPatternEncoder
 from pytorch_hamming.encoding.full import FullEncoder
-from pytorch_hamming.encoding.msb import MsbEncoder
+from pytorch_hamming.encoding.msb import MsbEncoder, MsbMixedEncoder
 from pytorch_hamming.encoding.system import EncodedSystem
 from pytorch_hamming.system import BaseSystem
 
@@ -240,23 +240,31 @@ The default is to only save at the very end",
         ),
     )
 
-    if duplicate_msb:
-        system = cast(BaseSystem[Any], EncodedSystem(system, MsbEncoder()))
-
     match (protected, bit_pattern):
         case (_, BitPattern()):
-            system = EncodedSystem(
-                system,
-                BitPatternEncoder(
-                    pattern=bit_pattern,
-                    pattern_length=dtype.bits_count(),
-                    bits_per_chunk=bits_per_chunk,
-                ),
+            logger.debug("Using BitPatternEncoder")
+            encoder = BitPatternEncoder(
+                pattern=bit_pattern,
+                pattern_length=dtype.bits_count(),
+                bits_per_chunk=bits_per_chunk,
             )
         case (True, None):
-            system = EncodedSystem(system, FullEncoder(bits_per_chunk))
+            logger.debug("Using FullEncoder")
+            encoder = FullEncoder(bits_per_chunk)
         case _:
-            pass
+            encoder = None
+
+    if duplicate_msb:
+        if encoder is None:
+            logger.debug("Using MsbEncoder")
+            encoder = MsbEncoder()
+        else:
+            logger.debug("Wrapping previous encoder with MsbEncoder")
+            encoder = MsbMixedEncoder(encoder)
+
+    if encoder is not None:
+        logger.debug("Preparing the system to be encoded")
+        system = EncodedSystem(system, encoder)
 
     total_num_bits = system.system_total_num_bits()
 
