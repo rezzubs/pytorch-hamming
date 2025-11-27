@@ -18,6 +18,9 @@
       "--chunk-size=64",
       "--duplicate-msb"
     ],
+    "env": {
+      "LOG_LEVEL": "debug"
+    },
     "cwd": "$ZED_WORKTREE_ROOT",
     "justMyCode": true
   }
