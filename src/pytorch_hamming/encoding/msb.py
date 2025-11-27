@@ -17,6 +17,10 @@ from pytorch_hamming.utils import dtype_bits_count
 _logger = logging.getLogger(__name__)
 
 
+def _add_metadata(metadata: dict[str, str]) -> None:
+    metadata["msb_duplicated"] = "true"
+
+
 class MsbEncoder(Encoder):
     @override
     def encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
@@ -51,7 +55,7 @@ class MsbEncoder(Encoder):
 
     @override
     def add_metadata(self, metadata: dict[str, str]) -> None:
-        metadata["msb_duplicated"] = "true"
+        _add_metadata(metadata)
 
 
 @dataclass
@@ -123,6 +127,11 @@ class MsbMixedEncoder(Encoder):
             msb_encoded._encoded_data  # pyright: ignore[reportPrivateUsage]
         )
         return MsbMixedEncoding(encoded_data, msb_encoded)
+
+    @override
+    def add_metadata(self, metadata: dict[str, str]) -> None:
+        _add_metadata(metadata)
+        self.encoder.add_metadata(metadata)
 
 
 @dataclass
