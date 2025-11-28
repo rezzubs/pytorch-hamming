@@ -1,4 +1,3 @@
-import logging
 import typing
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,33 +10,9 @@ from pytorch_hamming.cifar_models.dataset import CachedDataset
 from pytorch_hamming.cifar_models.model import CachedModel
 from pytorch_hamming.dtype import DnnDtype
 from pytorch_hamming.system import BaseSystem
+from pytorch_hamming.utils import build_map_layer, map_layer_recursive
 
-logger = logging.getLogger(__name__)
-
-
-def _append_parameter(module: nn.Module, tensors: list[torch.Tensor], name: str):
-    param = getattr(module, name, None)
-
-    if param is None:
-        return
-
-    if not isinstance(param, torch.Tensor):
-        logger.warning(f"Skipping parameter `{name}` because ({type(param)}!=Tensor)")  # pyright: ignore[reportAny]
-        return
-
-    tensors.append(param)
-
-
-def map_layer(module: nn.Module) -> list[torch.Tensor]:
-    """Extract the parameter tensors from a layer"""
-    tensors: list[torch.Tensor] = []
-
-    _append_parameter(module, tensors, "weight")
-    _append_parameter(module, tensors, "bias")
-    _append_parameter(module, tensors, "running_mean")
-    _append_parameter(module, tensors, "running_var")
-
-    return tensors
+_map_layer = build_map_layer("weight", "bias", "running_mean", "running_var")
 
 
 @dataclass
@@ -85,13 +60,7 @@ class System(BaseSystem[nn.Module]):
 
     @override
     def system_data_tensors(self, data: nn.Module) -> list[torch.Tensor]:
-        tensors = map_layer(data)
-
-        for child in data.children():
-            child_tensors = self.system_data_tensors(child)
-            tensors.extend(child_tensors)
-
-        return tensors
+        return map_layer_recursive(_map_layer, data)
 
     @override
     def system_metadata(self) -> dict[str, str]:
