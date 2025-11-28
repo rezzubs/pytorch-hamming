@@ -32,20 +32,6 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
-class DtypeChoices(enum.StrEnum):
-    F16 = "f16"
-    Float16 = "float16"
-    F32 = "f32"
-    Float32 = "float32"
-
-    def to_dtype(self) -> DnnDtype:
-        match self.value:
-            case "f16" | "float16":
-                return DnnDtype.Float16
-            case "f32" | "float32":
-                return DnnDtype.Float32
-
-
 @app.command()
 def record(
     model: Annotated[
@@ -77,12 +63,12 @@ def record(
         ),
     ] = None,
     dtype: Annotated[  # pyright: ignore[reportRedeclaration]
-        DtypeChoices,
+        DnnDtype,
         typer.Option(
             help="The data type to use for the model.",
             rich_help_panel="Model setup",
         ),
-    ] = DtypeChoices.F32,
+    ] = DnnDtype.Float32,
     batch_size: Annotated[
         int,
         typer.Option(
