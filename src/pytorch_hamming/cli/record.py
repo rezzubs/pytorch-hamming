@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import enum
 import logging
 from pathlib import Path
 from typing import (
@@ -25,6 +24,9 @@ from pytorch_hamming.encoding.bit_pattern import BitPattern, BitPatternEncoder
 from pytorch_hamming.encoding.full import FullEncoder
 from pytorch_hamming.encoding.msb import MsbEncoder, MsbMixedEncoder
 from pytorch_hamming.encoding.system import EncodedSystem
+from pytorch_hamming.imagenet.dataset import ImageNet
+from pytorch_hamming.imagenet.model import Model as ImagenetModel
+from pytorch_hamming.imagenet.system import System as ImagenetSystem
 from pytorch_hamming.system import BaseSystem
 
 logger = logging.getLogger(__name__)
@@ -34,35 +36,56 @@ app = typer.Typer()
 
 @app.command()
 def record(
-    model: Annotated[
-        CifarModel,
+    imagenet_model: Annotated[
+        ImagenetModel | None,
         typer.Option(
-            "--model",
-            "-m",
-            prompt=True,
-            help="The model to experiment on.",
+            help="The model to run ImageNet on. \
+See --cifar-kind to specify the exact dataset. \
+Incompatible with --cifar-model.",
             rich_help_panel="Model setup",
         ),
-    ],
-    dataset: Annotated[
+    ] = None,
+    cifar_model: Annotated[
+        CifarModel | None,
+        typer.Option(
+            help="Choose an an model to run CIFAR on. \
+See --cifar-kind to specify the exact dataset. \
+",
+            rich_help_panel="Model setup",
+        ),
+    ] = None,
+    imagenet_path: Annotated[
+        Path | None,
+        typer.Option(
+            help="The path that stores the ImageNet data.",
+            rich_help_panel="Model setup",
+        ),
+    ] = None,
+    imagenet_limit: Annotated[
+        int | None,
+        typer.Option(
+            help="Only use the first n images from --imagenet-path.",
+            rich_help_panel="Model setup",
+        ),
+    ] = None,
+    cifar_kind: Annotated[
         Cifar.Kind,
         typer.Option(
             "--dataset",
             "-d",
-            prompt=True,
-            help="The dataset to use for evaluation.",
+            help="The dataset to use for evaluating a --cifar-model.",
             rich_help_panel="Model setup",
         ),
-    ],
-    dataset_cache: Annotated[
+    ] = Cifar.Kind.CIFAR10,
+    cifar_cache: Annotated[
         Path | None,
         typer.Option(
-            "--dataset-cache",
-            help="The path to use for caching the dataset. `./dataset-cache` by default.",
+            help="The path to use for storing the automatically downloaded CIFAR datasets. \
+`./cifar-cache` by default.",
             rich_help_panel="Model setup",
         ),
     ] = None,
-    dtype: Annotated[  # pyright: ignore[reportRedeclaration]
+    dtype: Annotated[
         DnnDtype,
         typer.Option(
             help="The data type to use for the model.",
@@ -200,31 +223,50 @@ The default is to only save at the very end",
     """Record data entries for a model and dataset."""
     device: torch.device = torch.device(device)
 
-    dtype: DnnDtype = dtype.to_dtype()
+    if cifar_cache is None:
+        cifar_cache = Path("./dataset-cache")
+    cifar_cache = cifar_cache.expanduser()
 
-    if dataset_cache is None:
-        dataset_cache = Path("./dataset-cache")
-    dataset_cache = dataset_cache.expanduser()
+    if not cifar_cache.exists():
+        logger.info(f"Creating a new cache directory at `{cifar_cache}`")
+        cifar_cache.mkdir(parents=True)
 
-    if not dataset_cache.exists():
-        logger.info(f"Creating a new cache directory at `{dataset_cache}`")
-        dataset_cache.mkdir(parents=True)
-
-    if not dataset_cache.is_dir():
-        print(f"Dataset cache ({dataset_cache}) must be a directory")
+    if not cifar_cache.is_dir():
+        print(f"Dataset cache ({cifar_cache}) must be a directory")
         raise typer.Exit()
 
-    system = cast(
-        BaseSystem[Any],
-        CifarSystem(
-            dataset=Cifar(dataset, dataset_cache),
-            model=model,
-            dtype=dtype,
-            device=device,
-            batch_size=batch_size,
-            dataset_cache=dataset_cache,
-        ),
-    )
+    match (cifar_model, imagenet_model):
+        case (None, None):
+            print("No model provided")
+            raise typer.Abort()
+        case (_, None):
+            system = (
+                CifarSystem(
+                    dataset=Cifar(cifar_kind, cifar_cache),
+                    model=cifar_model,
+                    dtype=dtype,
+                    device=device,
+                    batch_size=batch_size,
+                    dataset_cache=cifar_cache,
+                ),
+            )
+        case (None, _):
+            if imagenet_path is None:
+                print("ImageNet path must be provided")
+                raise typer.Abort()
+
+            system = ImagenetSystem(
+                batch_size=batch_size,
+                device=device,
+                dtype=dtype,
+                model=imagenet_model,
+                dataset=ImageNet(imagenet_path.expanduser(), limit=imagenet_limit),
+            )
+        case (_, _):
+            print("Only one model can be used at once")
+            raise typer.Exit()
+
+    system = cast(BaseSystem[Any], system)
 
     match (protected, bit_pattern):
         case (_, BitPattern()):
