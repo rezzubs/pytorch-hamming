@@ -193,6 +193,7 @@ Accuracy: {self.accuracy:.2f}%
         system: BaseSystem[T],
         *,
         summary: bool = False,
+        skip_comparison: bool = False,
     ) -> Data.Entry:
         """Record a new data entry for the given `system`"""
 
@@ -221,11 +222,14 @@ Accuracy: {self.accuracy:.2f}%
         accuracy = system.system_accuracy(data)
         _logger.debug("Finished recording accuracy")
 
-        _logger.debug("Comparing outputs")
-        faulty_parameters = tensor_list_compare_bitwise(
-            original_tensors, system.system_data_tensors(data)
-        )
-        _logger.debug("Finished comparing outputs")
+        if not skip_comparison:
+            _logger.debug("Comparing outputs")
+            faulty_parameters = tensor_list_compare_bitwise(
+                original_tensors, system.system_data_tensors(data)
+            )
+            _logger.debug("Finished comparing outputs")
+        else:
+            faulty_parameters = []
 
         entry = Data.Entry(
             accuracy=accuracy,
@@ -245,6 +249,7 @@ Accuracy: {self.accuracy:.2f}%
         n: int,
         *,
         summary: bool = False,
+        skip_comparison: bool = False,
         autosave: Autosave | None = None,
     ):
         _logger.debug(f"Recording {n} runs")
@@ -255,7 +260,9 @@ Accuracy: {self.accuracy:.2f}%
             i += 1
             _logger.info(f"recording entry {i}/{n}")
 
-            _ = self.record_entry(system, summary=summary)
+            _ = self.record_entry(
+                system, summary=summary, skip_comparison=skip_comparison
+            )
 
             if autosave is not None and i % autosave.interval == 0:
                 self.save(autosave.path, autosave.metadata_name)
@@ -268,6 +275,7 @@ Accuracy: {self.accuracy:.2f}%
         stable_within: int,
         min_runs: int | None = None,
         summary: bool = False,
+        skip_comparison: bool = False,
         autosave: Autosave | None = None,
     ):
         _logger.debug(
@@ -284,7 +292,9 @@ Accuracy: {self.accuracy:.2f}%
             autosave_counter += 1
             _logger.info(f"Recording run {len(self.entries) + 1}/{min_runs}min")
 
-            _ = self.record_entry(system, summary=summary)
+            _ = self.record_entry(
+                system, summary=summary, skip_comparison=skip_comparison
+            )
 
             if autosave is not None:
                 rem = autosave_counter % autosave.interval
@@ -309,7 +319,9 @@ Accuracy: {self.accuracy:.2f}%
                 f"Recording run {len(self.entries)} to achieve stability at {threshold:.3}%, currently at {drift_max - drift_min:.3}%"
             )
 
-            _ = self.record_entry(system, summary=summary)
+            _ = self.record_entry(
+                system, summary=summary, skip_comparison=skip_comparison
+            )
 
             if autosave is not None:
                 rem = autosave_counter % autosave.interval

@@ -219,6 +219,15 @@ The default is to only save at the very end",
             rich_help_panel="Recording settings",
         ),
     ] = False,
+    skip_comparison: Annotated[
+        bool,
+        typer.Option(
+            help="Skip the bitwise comparison of tensors after fault injection. \
+This can speed up recording when only accuracy is needed. \
+This also greatly reduces the output file size for large numbers of faults.",
+            rich_help_panel="Recording settings",
+        ),
+    ] = False,
 ):
     """Record data entries for a model and dataset."""
     device: torch.device = torch.device(device)
@@ -329,6 +338,7 @@ The default is to only save at the very end",
             _ = data.record_entry(
                 cast(BaseSystem[Any], system),
                 summary=summary,
+                skip_comparison=skip_comparison,
             )
         case (_, None):
             if autosave is not None and output_path is not None:
@@ -340,6 +350,7 @@ The default is to only save at the very end",
                 cast(BaseSystem[Any], system),
                 runs,
                 summary=summary,
+                skip_comparison=skip_comparison,
                 autosave=save_config,
             )
         case _:
@@ -353,6 +364,7 @@ The default is to only save at the very end",
                 threshold=stability_threshold,
                 stable_within=until_stable,
                 min_runs=runs,
+                skip_comparison=skip_comparison,
                 autosave=save_config,
             )
 
