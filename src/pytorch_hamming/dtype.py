@@ -8,8 +8,8 @@ import torch
 class DnnDtype(enum.Enum):
     """Supported data types for DNN evaluation."""
 
-    Float32 = enum.auto()
-    Float16 = enum.auto()
+    Float32 = "float32"
+    Float16 = "float16"
 
     def to_torch(self) -> torch.dtype:
         """Convert to an equivalent pytorch data type."""
