@@ -249,15 +249,13 @@ This also greatly reduces the output file size for large numbers of faults.",
             print("No model provided")
             raise typer.Abort()
         case (_, None):
-            system = (
-                CifarSystem(
-                    dataset=Cifar(cifar_kind, cifar_cache),
-                    model=cifar_model,
-                    dtype=dtype,
-                    device=device,
-                    batch_size=batch_size,
-                    dataset_cache=cifar_cache,
-                ),
+            system = CifarSystem(
+                dataset=Cifar(cifar_kind, cifar_cache),
+                model=cifar_model,
+                dtype=dtype,
+                device=device,
+                batch_size=batch_size,
+                dataset_cache=cifar_cache,
             )
         case (None, _):
             if imagenet_path is None:
