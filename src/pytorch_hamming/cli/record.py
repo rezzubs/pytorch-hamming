@@ -260,7 +260,11 @@ The default is to only save at the very end",
                 device=device,
                 dtype=dtype,
                 model=imagenet_model,
-                dataset=ImageNet(imagenet_path.expanduser(), limit=imagenet_limit),
+                dataset=ImageNet(
+                    imagenet_path.expanduser(),
+                    transform=imagenet_model.get_transform(),
+                    limit=imagenet_limit,
+                ),
             )
         case (_, _):
             print("Only one model can be used at once")

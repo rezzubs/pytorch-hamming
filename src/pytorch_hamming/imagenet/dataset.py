@@ -10,25 +10,9 @@ from PIL import Image
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
-# NOTE: pytorch maintainers said they aren't interested in adding type stubs
-# https://github.com/pytorch/vision/issues/2025#issuecomment-2296026610
-from torchvision import transforms  # pyright: ignore[reportMissingTypeStubs]
-
 _logger = logging.getLogger(__name__)
 
-type _Transform = Callable[[Image.Image], Tensor]
-
-_default_transform = cast(
-    _Transform,
-    transforms.Compose(
-        [
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    ),
-)
+type Transform = Callable[[Image.Image], Tensor]
 
 
 def _load_name_to_id(dataset_root: Path) -> dict[str, int]:
@@ -67,9 +51,9 @@ class ImageNet(Dataset[tuple[Tensor, int]]):
     def __init__(
         self,
         data_path: Path,
+        transform: Transform,
         *,
         limit: int | None = None,
-        transform: _Transform | None = None,
     ) -> None:
         _logger.info("Loading ImageNet from disk")
 
@@ -78,9 +62,6 @@ class ImageNet(Dataset[tuple[Tensor, int]]):
 
         if not data_path.is_dir():
             raise NotADirectoryError(f"{data_path} is not a directory.")
-
-        if transform is None:
-            transform = _default_transform
 
         name_to_id = _load_name_to_id(data_path)
 
