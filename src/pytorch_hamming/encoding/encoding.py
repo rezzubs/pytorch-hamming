@@ -12,6 +12,7 @@ class Encoder(abc.ABC):
 
     def add_metadata(self, metadata: dict[str, str]) -> None:
         """Add metadata related to the encoding."""
+        _ = metadata
         pass
 
 
