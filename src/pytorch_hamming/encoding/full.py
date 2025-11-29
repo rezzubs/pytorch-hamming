@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import logging
-import typing
 from dataclasses import dataclass
 from typing import override
 
 import hamming_core
-import numpy as np
 import torch
 
 from pytorch_hamming.dtype import DnnDtype
 from pytorch_hamming.encoding.encoding import Encoder, Encoding
-from pytorch_hamming.tensor_ops import tensor_list_dtype, tensor_list_fault_injection
+from pytorch_hamming.tensor_ops import tensor_list_dtype
 
 _logger = logging.getLogger(__name__)
 
@@ -33,7 +31,7 @@ class FullEncoder(Encoder):
             case DnnDtype.Float32:
                 with torch.no_grad():
                     rust_input = [t.flatten().numpy(force=True) for t in ts]
-                    numpy_bytes, encoded_bits_count = hamming_core.encode_full_f32(
+                    encoded_data = hamming_core.encode_full_f32(
                         rust_input, self.bits_per_chunk
                     )
             case DnnDtype.Float16:
@@ -41,18 +39,12 @@ class FullEncoder(Encoder):
                     rust_input = [
                         t.flatten().view(torch.uint16).numpy(force=True) for t in ts
                     ]
-                    numpy_bytes, encoded_bits_count = hamming_core.encode_full_u16(
+                    encoded_data = hamming_core.encode_full_u16(
                         rust_input, self.bits_per_chunk
                     )
 
-        # HACK: There's nothing we can do about this warning without an upstream fix.
-        torch_bytes = torch.from_numpy(numpy_bytes)  # pyright: ignore[reportUnknownMemberType]
-        assert torch_bytes.dtype == torch.uint8
-
         return FullEncoding(
-            torch_bytes,
-            self.bits_per_chunk,
-            encoded_bits_count,
+            encoded_data,
             decoded_tensors,
             dtype,
         )
@@ -64,9 +56,7 @@ class FullEncoder(Encoder):
 
 @dataclass
 class FullEncoding(Encoding):
-    _encoded_bytes: torch.Tensor
-    _bits_per_chunk: int
-    _bits_count: int
+    _encoded_data: hamming_core.FullEncoding
     _decoded_tensors: list[torch.Tensor]
     _dtype: torch.dtype
     _needs_recompute: bool = False
@@ -78,20 +68,9 @@ class FullEncoding(Encoding):
             return self._decoded_tensors
         _logger.debug("Recomputing decoded tensors")
 
-        element_counts = [t.numel() for t in self._decoded_tensors]
-        with torch.no_grad():
-            numpy_bytes = self._encoded_bytes.numpy(force=True)
-            assert numpy_bytes.dtype == np.dtype(np.uint8)
-            numpy_bytes = typing.cast(np.typing.NDArray[np.uint8], numpy_bytes)
-
         match DnnDtype.from_torch(self._dtype):
             case DnnDtype.Float32:
-                decoded, ded_results = hamming_core.decode_full_f32(
-                    numpy_bytes,
-                    self._bits_count,
-                    self._bits_per_chunk,
-                    element_counts,
-                )
+                decoded, ded_results = self._encoded_data.decode_full_f32()
                 # HACK: There's nothing we can do about this warning without an upstream fix.
                 torch_decoded = [
                     torch.from_numpy(t)  # pyright: ignore[reportUnknownMemberType]
@@ -99,12 +78,7 @@ class FullEncoding(Encoding):
                 ]
 
             case DnnDtype.Float16:
-                decoded, ded_results = hamming_core.decode_full_u16(
-                    numpy_bytes,
-                    self._bits_count,
-                    self._bits_per_chunk,
-                    element_counts,
-                )
+                decoded, ded_results = self._encoded_data.decode_full_u16()
                 torch_decoded = [
                     torch.from_numpy(t).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
                     for t in decoded
@@ -124,12 +98,9 @@ class FullEncoding(Encoding):
 
     @override
     def clone(self) -> FullEncoding:
-        copied_tensors = [t.clone() for t in self._decoded_tensors]
         return FullEncoding(
-            self._encoded_bytes.clone(),
-            self._bits_per_chunk,
-            self._bits_count,
-            copied_tensors,
+            self._encoded_data.clone(),
+            self._decoded_tensors,
             self._dtype,
             self._needs_recompute,
         )
@@ -138,8 +109,8 @@ class FullEncoding(Encoding):
     def flip_n_bits(self, n: int):
         _logger.debug("Invalidating decoded tensor cache due to fault injection.")
         self._needs_recompute = True
-        tensor_list_fault_injection([self._encoded_bytes], n)
+        self._encoded_data.flip_n_bits(n)
 
     @override
     def bits_count(self) -> int:
-        return self._bits_count
+        return self._encoded_data.bits_count()
