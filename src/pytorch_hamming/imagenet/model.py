@@ -12,6 +12,7 @@ _root_module_cache: dict[str, nn.Module] = dict()
 
 class Model(enum.Enum):
     VitTiny = "vit_tiny_patch16_224"
+    VitBase = "vit_base_patch16_224"
 
     def load_root_module(self) -> nn.Module:
         _logger.info(f"Loading model {self.value}")
