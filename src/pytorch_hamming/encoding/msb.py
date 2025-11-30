@@ -30,11 +30,21 @@ class MsbEncoder(Encoder):
             case None:
                 raise ValueError("Cannot encode an empty list")
             case torch.float32:
-                pass
+
+                def encode(t: Tensor) -> Tensor:
+                    with torch.no_grad():
+                        t_np = t.numpy(force=True)
+                    hamming_core.bit30_encode_f32(t_np)
+                    return torch.from_numpy(t_np)  # pyright: ignore[reportUnknownMemberType]
+            case torch.float16:
+
+                def encode(t: Tensor) -> Tensor:
+                    with torch.no_grad():
+                        t_np = t.view(torch.uint16).numpy(force=True)
+                    hamming_core.bit14_encode_u16(t_np)
+                    return torch.from_numpy(t_np).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
             case _:
-                raise ValueError(
-                    f"Cannot encode dtype={dtype} tensors. Only float32 is supported at this point"
-                )
+                raise ValueError(f"Cannot encode dtype={dtype} tensors.")
 
         # Store decoded tensor copies
         decoded_tensors = [t.clone() for t in ts]
@@ -45,11 +55,7 @@ class MsbEncoder(Encoder):
 
         for t in ts:
             bits_count += t.numel() * item_bits_count
-            with torch.no_grad():
-                t_np = t.numpy(force=True)
-            hamming_core.bit30_encode_f32(t_np)
-            t_encoded = torch.from_numpy(t_np)  # pyright: ignore[reportUnknownMemberType]
-            data.append(t_encoded)
+            data.append(encode(t))
 
         return MsbEncoding(data, bits_count, decoded_tensors, dtype)
 
@@ -78,13 +84,28 @@ class MsbEncoding(Encoding):
         if not self._needs_recompute:
             return self._decoded_tensors
 
+        match self._dtype:
+            case torch.float16:
+
+                def decode(t: Tensor) -> Tensor:
+                    encoded_np = t.view(torch.uint16).numpy(force=True)
+                    hamming_core.bit14_decode_u16(encoded_np)
+                    return torch.from_numpy(encoded_np).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
+
+            case torch.float32:
+
+                def decode(t: Tensor) -> Tensor:
+                    encoded_np = t.numpy(force=True)
+                    hamming_core.bit30_decode_f32(encoded_np)
+                    return torch.from_numpy(encoded_np)  # pyright: ignore[reportUnknownMemberType]
+            case _:
+                raise RuntimeError(f"Unsupported dtype: {self._dtype}")
+
         for output, encoded in zip(
             self._decoded_tensors, self._encoded_data, strict=True
         ):
             with torch.no_grad():
-                encoded_np = encoded.numpy(force=True)
-                hamming_core.bit30_decode_f32(encoded_np)
-                decoded = torch.from_numpy(encoded_np)  # pyright: ignore[reportUnknownMemberType]
+                decoded = decode(encoded)
                 _ = output.copy_(decoded)
 
         self._needs_recompute = False

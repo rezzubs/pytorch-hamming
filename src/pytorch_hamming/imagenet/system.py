@@ -1,3 +1,4 @@
+from asyncio.unix_events import SelectorEventLoop
 from dataclasses import dataclass
 from typing import override
 
@@ -23,7 +24,7 @@ class System(BaseSystem[nn.Module]):
 
     @override
     def system_data(self) -> nn.Module:
-        return self.model.get_root_module()
+        return self.model.get_root_module().to(self.dtype.to_torch())
 
     @override
     def system_accuracy(self, data: nn.Module) -> float:

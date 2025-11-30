@@ -24,11 +24,11 @@ mod hamming_core {
     use crate::python::comparison::compare_array_list_bitwise_u16;
 
     #[pymodule_export]
-    use crate::python::encoding_full::PyFullEncoding;
-    #[pymodule_export]
     use crate::python::encoding_full::encode_full_f32;
     #[pymodule_export]
     use crate::python::encoding_full::encode_full_u16;
+    #[pymodule_export]
+    use crate::python::encoding_full::PyFullEncoding;
 
     #[pymodule_export]
     use crate::python::encoding_bit_pattern::encode_bit_pattern_f32;
@@ -37,6 +37,10 @@ mod hamming_core {
     #[pymodule_export]
     use crate::python::encoding_bit_pattern::PyBitPatternEncoding;
 
+    #[pymodule_export]
+    use crate::python::single_bit_encoding::bit14_decode_u16;
+    #[pymodule_export]
+    use crate::python::single_bit_encoding::bit14_encode_u16;
     #[pymodule_export]
     use crate::python::single_bit_encoding::bit30_decode_f32;
     #[pymodule_export]
