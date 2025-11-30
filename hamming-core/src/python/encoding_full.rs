@@ -190,7 +190,9 @@ impl PyFullEncoding {
     }
 
     pub fn bits_count<'py>(&self, py: Python<'py>) -> usize {
-        self.encoded_chunks.bind(py).len() * self.data_bits_count
+        self.encoded_chunks.bind(py).len()
+            * num_encoded_bits(self.data_bits_count)
+                .expect("the data bits count must be checked during initialization")
     }
 }
 
