@@ -233,16 +233,8 @@ This also greatly reduces the output file size for large numbers of faults.",
     device: torch.device = torch.device(device)
 
     if cifar_cache is None:
-        cifar_cache = Path("./dataset-cache")
+        cifar_cache = Path("./cifar-cache")
     cifar_cache = cifar_cache.expanduser()
-
-    if not cifar_cache.exists():
-        logger.info(f"Creating a new cache directory at `{cifar_cache}`")
-        cifar_cache.mkdir(parents=True)
-
-    if not cifar_cache.is_dir():
-        print(f"Dataset cache ({cifar_cache}) must be a directory")
-        raise typer.Exit()
 
     match (cifar_model, imagenet_model):
         case (None, None):
