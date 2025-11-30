@@ -14,10 +14,12 @@
       "1000",
       "--batch-size",
       "64",
-      // "--bit-error-rate",
-      // "1e-6",
+      "--bit-error-rate",
+      "1e-6",
       "--runs",
       "10",
+      "--duplicate-msb",
+      "--encoded",
       "--summary"
     ],
     "env": {
