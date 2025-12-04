@@ -1,4 +1,3 @@
-from asyncio.unix_events import SelectorEventLoop
 from dataclasses import dataclass
 from typing import override
 
