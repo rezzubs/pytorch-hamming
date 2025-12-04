@@ -39,6 +39,7 @@ def _get_tim_transform(model: nn.Module) -> Transform:
 class Model(enum.Enum):
     # Hugging Face models
     DeitTiny = "deit_tiny_patch16_224"
+    DeitBase = "deit_base_patch16_224"
     SwinTiny = "swin_tiny_patch4_window7_224"
     VitBase = "vit_base_patch16_224"
     VitTiny = "vit_tiny_patch16_224"
@@ -58,7 +59,13 @@ class Model(enum.Enum):
         _logger.debug("Loading root module.")
 
         match self:
-            case Model.DeitTiny | Model.SwinTiny | Model.VitBase | Model.VitTiny:
+            case (
+                Model.DeitTiny
+                | Model.DeitBase
+                | Model.SwinTiny
+                | Model.VitBase
+                | Model.VitTiny
+            ):
                 root_module = timm.create_model(self.value, pretrained=True)
             case Model.InceptionV3:
                 root_module = torchvision.models.inception_v3(
@@ -87,7 +94,13 @@ class Model(enum.Enum):
         """Get the proper preprocessing transform for this model."""
 
         match self:
-            case Model.DeitTiny | Model.SwinTiny | Model.VitBase | Model.VitTiny:
+            case (
+                Model.DeitTiny
+                | Model.DeitBase
+                | Model.SwinTiny
+                | Model.VitBase
+                | Model.VitTiny
+            ):
                 return _get_tim_transform(self._get_root_module())
             case Model.InceptionV3:
                 weights = torchvision.models.Inception_V3_Weights.IMAGENET1K_V1
