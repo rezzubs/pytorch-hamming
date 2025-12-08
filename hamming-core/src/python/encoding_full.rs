@@ -1,7 +1,7 @@
 use crate::{
     bit_buffer::chunks::{Chunks, DynChunks},
     buffers::{Limited, NonUniformSequence},
-    encoding::num_encoded_bits,
+    encoding::secded::num_encoded_bits,
     prelude::*,
     python::common::*,
 };

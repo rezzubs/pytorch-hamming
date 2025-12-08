@@ -1,7 +1,7 @@
 use rayon::prelude::*;
 
 use crate::buffers::uniform::NonMatchingIndex;
-use crate::encoding::decode_into;
+use crate::encoding::secded::decode_into;
 use crate::{
     buffers::{Limited, UniformSequence},
     prelude::*,
@@ -41,7 +41,7 @@ pub fn num_chunks(buffer_size: usize, chunk_size: usize) -> Result<usize, Invali
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DecodeError {
     #[error("The data bits count must be invalid because a length mismatch was detected during decoding: {0}")]
-    InvalidDataBitsCount(#[source] crate::encoding::DecodeError),
+    InvalidDataBitsCount(#[source] crate::encoding::secded::DecodeError),
 }
 
 /// A [`BitBuffer`] that's chunked into chunks that are multiples of 8 bits.
@@ -202,10 +202,10 @@ same unless they have been tampered with after creation. Got error {err}",
             .zip(output_buffer)
             .map(|(mut source, mut dest)| {
                 let result = decode_into(&mut source, &mut dest).map_err(|err| match err {
-                    crate::encoding::DecodeError::DestEmpty => {
+                    crate::encoding::secded::DecodeError::DestEmpty => {
                         unreachable!("There is always at least one chunk")
                     }
-                    crate::encoding::DecodeError::LengthMismatch { .. } => {
+                    crate::encoding::secded::DecodeError::LengthMismatch { .. } => {
                         DecodeError::InvalidDataBitsCount(err)
                     }
                 })?;
@@ -246,10 +246,10 @@ same unless they have been tampered with after creation. Got error {err}",
             .zip(output_buffer)
             .map(|(mut source, mut dest)| {
                 let result = decode_into(&mut source, &mut dest).map_err(|err| match err {
-                    crate::encoding::DecodeError::DestEmpty => {
+                    crate::encoding::secded::DecodeError::DestEmpty => {
                         unreachable!("There is always at least one chunk")
                     }
-                    crate::encoding::DecodeError::LengthMismatch { .. } => {
+                    crate::encoding::secded::DecodeError::LengthMismatch { .. } => {
                         DecodeError::InvalidDataBitsCount(err)
                     }
                 })?;

@@ -11,7 +11,7 @@ use random_picker::RandomPicker;
 use crate::{
     bit_buffer::chunks::InvalidChunks,
     buffers::Limited,
-    encoding::{encode_into, num_encoded_bits},
+    encoding::secded::{encode_into, num_encoded_bits},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -242,8 +242,8 @@ pub trait BitBuffer {
 
         if let Err(err) = encode_into(self, &mut dest) {
             match err {
-                crate::encoding::EncodeError::SourceEmpty => unreachable!("Already checked"),
-                crate::encoding::EncodeError::LengthMismatch { .. } => {
+                crate::encoding::secded::EncodeError::SourceEmpty => unreachable!("Already checked"),
+                crate::encoding::secded::EncodeError::LengthMismatch { .. } => {
                     unreachable!("Using the given buffer must be correct")
                 }
             }

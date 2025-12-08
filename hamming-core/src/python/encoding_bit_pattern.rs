@@ -3,7 +3,7 @@ use crate::{
     buffers::{Limited, NonUniformSequence},
     encoding::{
         bit_patterns::{self, BitPattern, BitPatternEncoding, BitPatternEncodingData},
-        num_encoded_bits,
+        secded::num_encoded_bits,
     },
     prelude::*,
     python::common::*,

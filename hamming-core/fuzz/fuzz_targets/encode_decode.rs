@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use hamming_core::encoding::{decode_into, is_par_i};
+use hamming_core::encoding::secded::{decode_into, is_par_i};
 use libfuzzer_sys::{arbitrary::Arbitrary, fuzz_target, Corpus};
 
 use hamming_core::prelude::*;
