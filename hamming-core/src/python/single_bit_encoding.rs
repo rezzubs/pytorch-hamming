@@ -1,6 +1,6 @@
 use std::cell::LazyCell;
 
-use crate::msb_encoding::{msb_decode, msb_encode, Scheme};
+use crate::encoding::msb::{msb_decode, msb_encode, Scheme};
 use numpy::PyReadwriteArrayDyn;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
