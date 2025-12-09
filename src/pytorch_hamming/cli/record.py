@@ -21,9 +21,10 @@ from pytorch_hamming.data import (
 )
 from pytorch_hamming.dtype import DnnDtype
 from pytorch_hamming.encoding.bit_pattern import BitPattern, BitPatternEncoder
+from pytorch_hamming.encoding.embedded_parity import EmbeddedParityEncoder
 from pytorch_hamming.encoding.full import FullEncoder
 from pytorch_hamming.encoding.msb import MsbEncoder
-from pytorch_hamming.encoding.sequence import EncoderSequence
+from pytorch_hamming.encoding.sequence import EncoderSequence, TensorEncoder
 from pytorch_hamming.encoding.system import EncodedSystem
 from pytorch_hamming.imagenet.dataset import ImageNet
 from pytorch_hamming.imagenet.model import Model as ImagenetModel
@@ -153,6 +154,13 @@ a chunk size of 64 should be used.",
         bool,
         typer.Option(
             help="Duplicate the most significant bit inside two lowest ones.",
+            rich_help_panel="Encoding settings",
+        ),
+    ] = False,
+    embedded_parity: Annotated[
+        bool,
+        typer.Option(
+            help="Use embedded parity encoding",
             rich_help_panel="Encoding settings",
         ),
     ] = False,
@@ -286,13 +294,26 @@ This also greatly reduces the output file size for large numbers of faults.",
         case _:
             encoder = None
 
+    head_encoders: list[TensorEncoder] = []
+
     if duplicate_msb:
         if encoder is None:
             logger.debug("Using MsbEncoder")
             encoder = MsbEncoder()
         else:
-            logger.debug("Wrapping previous encoder with MsbEncoder")
-            encoder = EncoderSequence([MsbEncoder()], encoder)
+            head_encoders.append(MsbEncoder())
+
+    if embedded_parity:
+        if encoder is None:
+            logger.debug("Using EmbeddedParityEncoder")
+            encoder = EmbeddedParityEncoder()
+        else:
+            head_encoders.append(EmbeddedParityEncoder())
+
+    if len(head_encoders) > 0:
+        assert encoder is not None
+        logger.debug(f"Wrapping previous encoder with {head_encoders}")
+        encoder = EncoderSequence(head_encoders, encoder)
 
     if encoder is not None:
         logger.debug("Preparing the system to be encoded")
