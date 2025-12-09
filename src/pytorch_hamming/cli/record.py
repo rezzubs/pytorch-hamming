@@ -11,9 +11,9 @@ from typing import (
 import torch
 import typer
 
-from pytorch_hamming.cifar_models.dataset import CachedDataset as Cifar
-from pytorch_hamming.cifar_models.model import CachedModel as CifarModel
-from pytorch_hamming.cifar_models.system import System as CifarSystem
+from pytorch_hamming.cifar.dataset import Cifar
+from pytorch_hamming.cifar.model import CachedModel as CifarModel
+from pytorch_hamming.cifar.system import System as CifarSystem
 from pytorch_hamming.cli.utils import setup_logging
 from pytorch_hamming.data import (
     Autosave,

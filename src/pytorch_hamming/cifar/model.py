@@ -7,7 +7,7 @@ import logging
 import torch
 from torch import nn
 
-from pytorch_hamming.cifar_models.dataset import CachedDataset
+from pytorch_hamming.cifar.dataset import Cifar
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class CachedModel(enum.Enum):
     ResNet20 = "resnet20"
     VGG11 = "vgg11_bn"
 
-    def root_module(self, dataset: CachedDataset) -> nn.Module:
+    def root_module(self, dataset: Cifar) -> nn.Module:
         model = _ROOT_MODULE_CACHE.get(self)
 
         if model is None:

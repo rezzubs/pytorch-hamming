@@ -6,8 +6,8 @@ import torch
 from torch import nn
 from typing_extensions import override
 
-from pytorch_hamming.cifar_models.dataset import CachedDataset
-from pytorch_hamming.cifar_models.model import CachedModel
+from pytorch_hamming.cifar.dataset import Cifar
+from pytorch_hamming.cifar.model import CachedModel
 from pytorch_hamming.dtype import DnnDtype
 from pytorch_hamming.system import BaseSystem
 from pytorch_hamming.utils import build_map_layer, map_layer_recursive
@@ -17,7 +17,7 @@ _map_layer = build_map_layer("weight", "bias", "running_mean", "running_var")
 
 @dataclass
 class System(BaseSystem[nn.Module]):
-    dataset: CachedDataset
+    dataset: Cifar
     model: CachedModel
     dtype: DnnDtype
     device: torch.device

@@ -10,19 +10,18 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader
-
 from torchvision import datasets, transforms
 
 _logger = logging.getLogger(__name__)
 
 Dataset = datasets.CIFAR10 | datasets.CIFAR100
 
-_CACHE: dict[CachedDataset.Kind, Dataset] = dict()
+_CACHE: dict[Cifar.Kind, Dataset] = dict()
 
 
 @dataclass(frozen=True)
-class CachedDataset:
-    kind: CachedDataset.Kind
+class Cifar:
+    kind: Cifar.Kind
     on_disk_cache: Path
 
     class Kind(enum.Enum):
@@ -33,7 +32,7 @@ class CachedDataset:
         _logger.info(f"Loading dataset `{self.kind.name}`")
         try:
             match self.kind:
-                case CachedDataset.Kind.CIFAR10:
+                case Cifar.Kind.CIFAR10:
                     mean = (0.49139968, 0.48215827, 0.44653124)
                     std = (0.24703233, 0.24348505, 0.26158768)
                     transform = transforms.Compose(
@@ -45,7 +44,7 @@ class CachedDataset:
                         download=True,
                         transform=transform,
                     )
-                case CachedDataset.Kind.CIFAR100:
+                case Cifar.Kind.CIFAR100:
                     mean = (0.5070751592371323, 0.48654887331495095, 0.4409178433670343)
                     std = (0.2673342858792401, 0.2564384629170883, 0.27615047132568404)
                     transform = transforms.Compose(
