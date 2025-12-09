@@ -10,7 +10,7 @@ import hamming_core
 import torch
 from torch import Tensor
 
-from pytorch_hamming.encoding.encoding import Encoder, Encoding
+from pytorch_hamming.encoding.sequence import TensorEncoder, TensorEncoding
 from pytorch_hamming.tensor_ops import tensor_list_dtype, tensor_list_fault_injection
 from pytorch_hamming.utils import dtype_bits_count
 
@@ -21,9 +21,9 @@ def _add_metadata(metadata: dict[str, str]) -> None:
     metadata["msb_duplicated"] = "true"
 
 
-class MsbEncoder(Encoder):
+class MsbEncoder(TensorEncoder):
     @override
-    def encoder_encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
+    def tensor_encoder_encode_tensor_list(self, ts: list[Tensor]) -> MsbEncoding:
         dtype = tensor_list_dtype(ts)
 
         match dtype:
@@ -65,7 +65,7 @@ class MsbEncoder(Encoder):
 
 
 @dataclass
-class MsbEncoding(Encoding):
+class MsbEncoding(TensorEncoding):
     """An encoding format for protecting the most significant bits of parameter tensors.
 
     Most significant in this case referres to the second highest bit — the one
@@ -78,6 +78,14 @@ class MsbEncoding(Encoding):
     _decoded_tensors: list[Tensor]
     _dtype: torch.dtype
     _needs_recompute: bool = False
+
+    @override
+    def tensor_encoding_tensors(self) -> list[Tensor]:
+        return self._encoded_data
+
+    @override
+    def tensor_encoding_trigger_recompute(self) -> None:
+        self._needs_recompute = True
 
     @override
     def encoding_decode_tensor_list(self) -> list[Tensor]:
@@ -126,57 +134,9 @@ class MsbEncoding(Encoding):
     @override
     def encoding_flip_n_bits(self, n: int) -> None:
         _logger.debug("Invalidating decoded tensors due to fault injection")
-        self._needs_recompute = True
+        self.tensor_encoding_trigger_recompute()
         tensor_list_fault_injection(self._encoded_data, n)
 
     @override
     def encoding_bits_count(self) -> int:
         return self._bits_count
-
-
-@dataclass
-class MsbMixedEncoder(Encoder):
-    """Apply another encoding on top of `MsbEncoding`"""
-
-    encoder: Encoder
-
-    @override
-    def encoder_encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
-        msb_encoded = MsbEncoder().encoder_encode_tensor_list(ts)
-        assert isinstance(msb_encoded, MsbEncoding)
-        encoded_data = self.encoder.encoder_encode_tensor_list(
-            msb_encoded._encoded_data  # pyright: ignore[reportPrivateUsage]
-        )
-        return MsbMixedEncoding(encoded_data, msb_encoded)
-
-    @override
-    def encoder_add_metadata(self, metadata: dict[str, str]) -> None:
-        _add_metadata(metadata)
-        self.encoder.encoder_add_metadata(metadata)
-
-
-@dataclass
-class MsbMixedEncoding(Encoding):
-    _overlay: Encoding
-    _base_data: MsbEncoding
-
-    @override
-    def encoding_decode_tensor_list(self) -> list[Tensor]:
-        msb_data = self._overlay.encoding_decode_tensor_list()
-        self._base_data._encoded_data = msb_data  # pyright: ignore[reportPrivateUsage]
-        return self._base_data.encoding_decode_tensor_list()
-
-    @override
-    def encoding_clone(self) -> MsbMixedEncoding:
-        return MsbMixedEncoding(
-            self._overlay.encoding_clone(), self._base_data.encoding_clone()
-        )
-
-    @override
-    def encoding_flip_n_bits(self, n: int) -> None:
-        self._base_data._needs_recompute = True  # pyright: ignore[reportPrivateUsage]
-        self._overlay.encoding_flip_n_bits(n)
-
-    @override
-    def encoding_bits_count(self) -> int:
-        return self._overlay.encoding_bits_count()

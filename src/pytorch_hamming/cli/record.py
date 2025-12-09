@@ -22,7 +22,8 @@ from pytorch_hamming.data import (
 from pytorch_hamming.dtype import DnnDtype
 from pytorch_hamming.encoding.bit_pattern import BitPattern, BitPatternEncoder
 from pytorch_hamming.encoding.full import FullEncoder
-from pytorch_hamming.encoding.msb import MsbEncoder, MsbMixedEncoder
+from pytorch_hamming.encoding.msb import MsbEncoder
+from pytorch_hamming.encoding.sequence import EncoderSequence
 from pytorch_hamming.encoding.system import EncodedSystem
 from pytorch_hamming.imagenet.dataset import ImageNet
 from pytorch_hamming.imagenet.model import Model as ImagenetModel
@@ -291,7 +292,7 @@ This also greatly reduces the output file size for large numbers of faults.",
             encoder = MsbEncoder()
         else:
             logger.debug("Wrapping previous encoder with MsbEncoder")
-            encoder = MsbMixedEncoder(encoder)
+            encoder = EncoderSequence([MsbEncoder()], encoder)
 
     if encoder is not None:
         logger.debug("Preparing the system to be encoded")
