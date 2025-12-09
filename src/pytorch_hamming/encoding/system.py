@@ -36,10 +36,10 @@ class EncodedSystem[T](BaseSystem[Encoding]):
     def encode_base(self) -> Encoding:
         logger.debug("Encoding data tensors")
         data_tensors = self.base.system_data_tensors(self.base.system_data())
-        return self.encoder.encode_tensor_list(data_tensors)
+        return self.encoder.encoder_encode_tensor_list(data_tensors)
 
     def decoded_data(self, data: Encoding) -> T:
-        decoded_tensors = data.decode_tensor_list()
+        decoded_tensors = data.encoding_decode_tensor_list()
 
         # Create a T structure and populate its tensors with decoded values
         # This is necessary because we need to return T (e.g., nn.Module), not just tensors
@@ -69,13 +69,13 @@ class EncodedSystem[T](BaseSystem[Encoding]):
 
     @override
     def system_inject_n_faults(self, data: Encoding, n: int):
-        data.flip_n_bits(n)
+        data.encoding_flip_n_bits(n)
 
     @override
     def system_metadata(self) -> dict[str, str]:
         metadata = copy.deepcopy(self.base.system_metadata())
 
-        self.encoder.add_metadata(metadata)
+        self.encoder.encoder_add_metadata(metadata)
 
         overhead = (
             self.system_total_num_bits() / self.base.system_total_num_bits() - 1
@@ -87,8 +87,8 @@ class EncodedSystem[T](BaseSystem[Encoding]):
 
     @override
     def system_clone_data(self, data: Encoding) -> Encoding:
-        return data.clone()
+        return data.encoding_clone()
 
     @override
     def system_total_num_bits(self) -> int:
-        return self.system_data().bits_count()
+        return self.system_data().encoding_bits_count()

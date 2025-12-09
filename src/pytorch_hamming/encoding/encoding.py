@@ -6,11 +6,11 @@ from torch import Tensor
 
 class Encoder(abc.ABC):
     @abc.abstractmethod
-    def encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
+    def encoder_encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
         """Encode a list of tensors."""
         ...
 
-    def add_metadata(self, metadata: dict[str, str]) -> None:
+    def encoder_add_metadata(self, metadata: dict[str, str]) -> None:
         """Add metadata related to the encoding."""
         _ = metadata
         pass
@@ -18,7 +18,7 @@ class Encoder(abc.ABC):
 
 class Encoding(abc.ABC):
     @abc.abstractmethod
-    def decode_tensor_list(self) -> list[Tensor]:
+    def encoding_decode_tensor_list(self) -> list[Tensor]:
         """Decode and return the list of tensors.
 
         Returns the tensors with the same shape as the original unencoded data.
@@ -26,7 +26,7 @@ class Encoding(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def clone(self) -> Self:
+    def encoding_clone(self) -> Self:
         """Return a full clone of self.
 
         Modifying the clone should not modify the original in any way.
@@ -34,11 +34,11 @@ class Encoding(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def flip_n_bits(self, n: int) -> None:
+    def encoding_flip_n_bits(self, n: int) -> None:
         """Flip a number of bits in the encoded data."""
         ...
 
     @abc.abstractmethod
-    def bits_count(self) -> int:
+    def encoding_bits_count(self) -> int:
         """Return the number of bits used for the encoded data."""
         ...

@@ -21,7 +21,7 @@ class TensorEncoder(Encoder, abc.ABC):
         ...
 
     @override
-    def encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
+    def encoder_encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
         return self.tensor_encoder_encode_tensor_list(ts)
 
 
@@ -56,7 +56,7 @@ class EncoderSequence(Encoder):
     tail: Encoder
 
     @override
-    def encode_tensor_list(self, ts: list[Tensor]) -> EncodingSequence:
+    def encoder_encode_tensor_list(self, ts: list[Tensor]) -> EncodingSequence:
         head_encodings: list[TensorEncoding] = []
 
         for encoder in self.head:
@@ -64,7 +64,7 @@ class EncoderSequence(Encoder):
             head_encodings.append(encoding)
             ts = encoding.tensor_encoding_tensors()
 
-        tail_encoding = self.tail.encode_tensor_list(ts)
+        tail_encoding = self.tail.encoder_encode_tensor_list(ts)
 
         return EncodingSequence(head_encodings, tail_encoding)
 
@@ -77,28 +77,30 @@ class EncodingSequence(Encoding):
     _tail: Encoding
 
     @override
-    def decode_tensor_list(self) -> list[Tensor]:
-        ts = self._tail.decode_tensor_list()
+    def encoding_decode_tensor_list(self) -> list[Tensor]:
+        ts = self._tail.encoding_decode_tensor_list()
 
         for h in reversed(self._head):
             for original, updated in zip(h.tensor_encoding_tensors(), ts, strict=True):
                 _ = original.copy_(updated)
             h.tensor_encoding_trigger_recompute()
 
-            ts = h.decode_tensor_list()
+            ts = h.encoding_decode_tensor_list()
 
         return ts
 
     @override
-    def flip_n_bits(self, n: int) -> None:
+    def encoding_flip_n_bits(self, n: int) -> None:
         for h in self._head:
             h.tensor_encoding_trigger_recompute()
-        self._tail.flip_n_bits(n)
+        self._tail.encoding_flip_n_bits(n)
 
     @override
-    def bits_count(self) -> int:
-        return self._tail.bits_count()
+    def encoding_bits_count(self) -> int:
+        return self._tail.encoding_bits_count()
 
     @override
-    def clone(self) -> EncodingSequence:
-        return EncodingSequence([h.clone() for h in self._head], self._tail.clone())
+    def encoding_clone(self) -> EncodingSequence:
+        return EncodingSequence(
+            [h.encoding_clone() for h in self._head], self._tail.encoding_clone()
+        )

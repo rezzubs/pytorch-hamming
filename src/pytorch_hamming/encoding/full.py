@@ -19,7 +19,7 @@ class FullEncoder(Encoder):
     bits_per_chunk: int
 
     @override
-    def encode_tensor_list(self, ts: list[torch.Tensor]) -> Encoding:
+    def encoder_encode_tensor_list(self, ts: list[torch.Tensor]) -> Encoding:
         dtype = tensor_list_dtype(ts)
         if dtype is None:
             raise ValueError("Cannot encode an empty buffer")
@@ -50,7 +50,7 @@ class FullEncoder(Encoder):
         )
 
     @override
-    def add_metadata(self, metadata: dict[str, str]) -> None:
+    def encoder_add_metadata(self, metadata: dict[str, str]) -> None:
         metadata["chunk_size"] = str(self.bits_per_chunk)
 
 
@@ -62,7 +62,7 @@ class FullEncoding(Encoding):
     _needs_recompute: bool = False
 
     @override
-    def decode_tensor_list(self) -> list[torch.Tensor]:
+    def encoding_decode_tensor_list(self) -> list[torch.Tensor]:
         if not self._needs_recompute:
             _logger.debug("Using cached decoded tensors")
             return self._decoded_tensors
@@ -97,7 +97,7 @@ class FullEncoding(Encoding):
         return self._decoded_tensors
 
     @override
-    def clone(self) -> FullEncoding:
+    def encoding_clone(self) -> FullEncoding:
         return FullEncoding(
             self._encoded_data.clone(),
             self._decoded_tensors,
@@ -106,11 +106,11 @@ class FullEncoding(Encoding):
         )
 
     @override
-    def flip_n_bits(self, n: int):
+    def encoding_flip_n_bits(self, n: int):
         _logger.debug("Invalidating decoded tensor cache due to fault injection.")
         self._needs_recompute = True
         self._encoded_data.flip_n_bits(n)
 
     @override
-    def bits_count(self) -> int:
+    def encoding_bits_count(self) -> int:
         return self._encoded_data.bits_count()

@@ -23,7 +23,7 @@ def _add_metadata(metadata: dict[str, str]) -> None:
 
 class MsbEncoder(Encoder):
     @override
-    def encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
+    def encoder_encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
         dtype = tensor_list_dtype(ts)
 
         match dtype:
@@ -60,7 +60,7 @@ class MsbEncoder(Encoder):
         return MsbEncoding(data, bits_count, decoded_tensors, dtype)
 
     @override
-    def add_metadata(self, metadata: dict[str, str]) -> None:
+    def encoder_add_metadata(self, metadata: dict[str, str]) -> None:
         _add_metadata(metadata)
 
 
@@ -80,7 +80,7 @@ class MsbEncoding(Encoding):
     _needs_recompute: bool = False
 
     @override
-    def decode_tensor_list(self) -> list[Tensor]:
+    def encoding_decode_tensor_list(self) -> list[Tensor]:
         if not self._needs_recompute:
             return self._decoded_tensors
 
@@ -112,7 +112,7 @@ class MsbEncoding(Encoding):
         return self._decoded_tensors
 
     @override
-    def clone(self) -> MsbEncoding:
+    def encoding_clone(self) -> MsbEncoding:
         copied_data = [t.clone() for t in self._encoded_data]
         copied_decoded = [t.clone() for t in self._decoded_tensors]
         return MsbEncoding(
@@ -124,13 +124,13 @@ class MsbEncoding(Encoding):
         )
 
     @override
-    def flip_n_bits(self, n: int) -> None:
+    def encoding_flip_n_bits(self, n: int) -> None:
         _logger.debug("Invalidating decoded tensors due to fault injection")
         self._needs_recompute = True
         tensor_list_fault_injection(self._encoded_data, n)
 
     @override
-    def bits_count(self) -> int:
+    def encoding_bits_count(self) -> int:
         return self._bits_count
 
 
@@ -141,18 +141,18 @@ class MsbMixedEncoder(Encoder):
     encoder: Encoder
 
     @override
-    def encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
-        msb_encoded = MsbEncoder().encode_tensor_list(ts)
+    def encoder_encode_tensor_list(self, ts: list[Tensor]) -> Encoding:
+        msb_encoded = MsbEncoder().encoder_encode_tensor_list(ts)
         assert isinstance(msb_encoded, MsbEncoding)
-        encoded_data = self.encoder.encode_tensor_list(
+        encoded_data = self.encoder.encoder_encode_tensor_list(
             msb_encoded._encoded_data  # pyright: ignore[reportPrivateUsage]
         )
         return MsbMixedEncoding(encoded_data, msb_encoded)
 
     @override
-    def add_metadata(self, metadata: dict[str, str]) -> None:
+    def encoder_add_metadata(self, metadata: dict[str, str]) -> None:
         _add_metadata(metadata)
-        self.encoder.add_metadata(metadata)
+        self.encoder.encoder_add_metadata(metadata)
 
 
 @dataclass
@@ -161,20 +161,22 @@ class MsbMixedEncoding(Encoding):
     _base_data: MsbEncoding
 
     @override
-    def decode_tensor_list(self) -> list[Tensor]:
-        msb_data = self._overlay.decode_tensor_list()
+    def encoding_decode_tensor_list(self) -> list[Tensor]:
+        msb_data = self._overlay.encoding_decode_tensor_list()
         self._base_data._encoded_data = msb_data  # pyright: ignore[reportPrivateUsage]
-        return self._base_data.decode_tensor_list()
+        return self._base_data.encoding_decode_tensor_list()
 
     @override
-    def clone(self) -> MsbMixedEncoding:
-        return MsbMixedEncoding(self._overlay.clone(), self._base_data.clone())
+    def encoding_clone(self) -> MsbMixedEncoding:
+        return MsbMixedEncoding(
+            self._overlay.encoding_clone(), self._base_data.encoding_clone()
+        )
 
     @override
-    def flip_n_bits(self, n: int) -> None:
+    def encoding_flip_n_bits(self, n: int) -> None:
         self._base_data._needs_recompute = True  # pyright: ignore[reportPrivateUsage]
-        self._overlay.flip_n_bits(n)
+        self._overlay.encoding_flip_n_bits(n)
 
     @override
-    def bits_count(self) -> int:
-        return self._overlay.bits_count()
+    def encoding_bits_count(self) -> int:
+        return self._overlay.encoding_bits_count()
