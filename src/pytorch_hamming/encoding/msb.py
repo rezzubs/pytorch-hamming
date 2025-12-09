@@ -77,7 +77,7 @@ class MsbEncoding(TensorEncoding):
     _bits_count: int
     _decoded_tensors: list[Tensor]
     _dtype: torch.dtype
-    _needs_recompute: bool = False
+    _needs_recompute: bool = True
 
     @override
     def tensor_encoding_tensors(self) -> list[Tensor]:
