@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import enum
-import functools
 import logging
 import typing
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import torch
@@ -19,10 +18,14 @@ Dataset = datasets.CIFAR10 | datasets.CIFAR100
 _CACHE: dict[Cifar.Kind, Dataset] = dict()
 
 
-@dataclass(frozen=True)
+@dataclass
 class Cifar:
     kind: Cifar.Kind
     on_disk_cache: Path
+    _batches_cache: dict[
+        tuple[int, torch.dtype, torch.device],
+        list[tuple[torch.Tensor, torch.Tensor]],
+    ] = field(default_factory=dict, init=False, repr=False)
 
     class Kind(enum.Enum):
         CIFAR10 = "cifar10"
@@ -78,13 +81,25 @@ class Cifar:
 
         return dataset
 
-    @functools.cache
     def batches(
         self,
         batch_size: int,
         dtype: torch.dtype,
         device: torch.device,
     ) -> list[tuple[torch.Tensor, torch.Tensor]]:
+        cache_key = (batch_size, dtype, device)
+
+        if cache_key in self._batches_cache:
+            _logger.debug(
+                f"Using cached batch for batch_size={batch_size}, dtype={dtype}, device={device}"
+            )
+            return self._batches_cache[cache_key]
+
+        _logger.info(
+            f"Computing CIFAR batches for batch_size={batch_size}, \
+dtype={dtype}, device={device}"
+        )
+
         dataloader = typing.cast(
             DataLoader[list[torch.Tensor]],
             DataLoader(
@@ -107,4 +122,5 @@ class Cifar:
                 (batch[0].to(dtype).to(device), batch[1].to(dtype).to(device))
             )
 
+        self._batches_cache[cache_key] = batches
         return batches
