@@ -113,6 +113,8 @@ where
         ones += 1;
     }
 
+    buffer.set_0(destination_bit);
+
     if ones % 2 == 0 {
         return Ok(());
     }
@@ -203,8 +205,8 @@ mod tests {
             let mut buffer: u16 = 0b1000_0000_0000_0001;
             decode(source, dest, &mut buffer).unwrap();
             assert_eq!(
-                buffer, 0b1000_0000_0000_0001,
-                "Valid parity should preserve data"
+                buffer, 0b0000_0000_0000_0001,
+                "Valid parity should preserve data and zero the parity bits"
             );
         }
 
@@ -217,7 +219,7 @@ mod tests {
             let mut buffer: u16 = 0b1000_0000_0000_0000;
             decode(source, dest, &mut buffer).unwrap();
             assert_eq!(
-                buffer, 0b1000_0000_0000_0000,
+                buffer, 0b0000_0000_0000_0000,
                 "Parity bit should be preserved"
             );
 
@@ -233,7 +235,7 @@ mod tests {
             let mut buffer: u16 = 0b1000_0000_0000_1111;
             decode(source, dest, &mut buffer).unwrap();
             assert_eq!(
-                buffer, 0b1000_0000_0000_0000,
+                buffer, 0b0000_0000_0000_0000,
                 "Source bits should be zeroed, parity preserved"
             );
         }
@@ -242,7 +244,6 @@ mod tests {
         fn decode_non_contiguous_bits() {
             let source = [0, 8];
             let dest = 15;
-            // Valid parity with non-contiguous bits
             let mut buffer: u16 = 0b0000_0001_0000_0001; // bits 0 and 8 set (even)
             decode(source, dest, &mut buffer).unwrap();
             assert_eq!(
@@ -250,11 +251,10 @@ mod tests {
                 "Valid parity should preserve data"
             );
 
-            // Invalid parity with non-contiguous bits
             let mut buffer: u16 = 0b1000_0001_0000_0001; // bits 0, 8 set + parity 15 = odd
             decode(source, dest, &mut buffer).unwrap();
             assert_eq!(
-                buffer, 0b1000_0000_0000_0000,
+                buffer, 0b0000_0000_0000_0000,
                 "Invalid parity should zero source bits"
             );
         }
@@ -276,8 +276,47 @@ mod tests {
             decode(source, dest, &mut buffer).unwrap();
 
             assert_eq!(
-                buffer, 0b1000_0000_0000_0000,
+                buffer, 0b0000_0000_0000_0000,
                 "Invalid parity should zero source bits"
+            );
+        }
+
+        #[test]
+        fn two_chunks() {
+            let src1 = 0..3;
+            let src2 = 3..6;
+
+            let dest1 = 14;
+            let dest2 = 15;
+
+            // src1 has odd parity (all ones)
+            // src2 has even parity (2/3 ones)
+            let mut buffer: u16 = 0b0000_0000_0011_0111;
+
+            encode(src1.clone(), dest1, &mut buffer).unwrap();
+            encode(src2.clone(), dest2, &mut buffer).unwrap();
+
+            assert_eq!(buffer, 0b0100_0000_0011_0111);
+
+            let mut decoded = buffer;
+
+            decode(src1.clone(), dest1, &mut decoded).unwrap();
+            decode(src2.clone(), dest2, &mut decoded).unwrap();
+
+            assert_eq!(decoded, 0b0000_0000_0011_0111);
+
+            let mut decoded = buffer;
+
+            decoded.flip_bit(0);
+
+            decode(src1, dest1, &mut decoded).unwrap();
+            decode(src2, dest2, &mut decoded).unwrap();
+
+            println!("{:b} {:b}", buffer, decoded);
+
+            assert_eq!(
+                decoded, 0b0000_0000_0011_0000,
+                "The 3 lowest bits should be zeroed due to being invalid"
             );
         }
 
