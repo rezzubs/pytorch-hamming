@@ -5,7 +5,7 @@ from typing import Annotated
 
 import typer
 
-from pytorch_hamming.data import Data
+from faultforge.data import Data
 
 _logger = logging.getLogger(__name__)
 

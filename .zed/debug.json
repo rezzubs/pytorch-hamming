@@ -3,23 +3,8 @@
     "label": "Debug record.py",
     "adapter": "Debugpy",
     "request": "launch",
-    "module": "pytorch_hamming",
-    "args": [
-      "record",
-      "--imagenet-model",
-      "vit_tiny_patch16_224",
-      "--imagenet-path",
-      "~/Documents/imagenet",
-      "--imagenet-limit",
-      "1000",
-      "--batch-size",
-      "64",
-      // "--bit-error-rate",
-      // "1e-6",
-      "--runs",
-      "10",
-      "--summary"
-    ],
+    "module": "faultforge",
+    "args": ["record"],
     "env": {
       "LOG_LEVEL": "debug"
     },

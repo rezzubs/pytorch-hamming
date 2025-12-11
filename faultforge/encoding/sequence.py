@@ -5,7 +5,7 @@ from typing import override
 
 from torch import Tensor
 
-from pytorch_hamming.encoding.encoding import Encoder, Encoding
+from faultforge.encoding.encoding import Encoder, Encoding
 
 
 class TensorEncoder(Encoder, abc.ABC):

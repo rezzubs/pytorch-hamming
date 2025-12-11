@@ -2,12 +2,12 @@ import logging
 from dataclasses import dataclass
 from typing import override
 
-import hamming_core
 import torch
 from torch import Tensor
 
-from pytorch_hamming.encoding._tensor import TensorEncoderHelper, TensorEncodingHelper
-from pytorch_hamming.encoding.sequence import TensorEncoding
+import faultforge._core
+from faultforge.encoding._tensor import TensorEncoderHelper, TensorEncodingHelper
+from faultforge.encoding.sequence import TensorEncoding
 
 _logger = logging.getLogger(__name__)
 
@@ -17,14 +17,14 @@ class EmbeddedParityEncoder(TensorEncoderHelper):
     def encode_float32(self, t: Tensor) -> Tensor:
         with torch.no_grad():
             t_np = t.numpy(force=True)
-        hamming_core.embedded_parity_encode_f32(t_np)
+        faultforge._core.embedded_parity_encode_f32(t_np)
         return torch.from_numpy(t_np)  # pyright: ignore[reportUnknownMemberType]
 
     @override
     def encode_float16(self, t: Tensor) -> Tensor:
         with torch.no_grad():
             t_np = t.view(torch.uint16).numpy(force=True)
-        hamming_core.embedded_parity_encode_u16(t_np)
+        faultforge._core.embedded_parity_encode_u16(t_np)
         return torch.from_numpy(t_np).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
 
     @override
@@ -53,11 +53,11 @@ class EmbeddedParityEncoding(TensorEncodingHelper):
     @override
     def decode_float16(self, t: Tensor) -> Tensor:
         encoded_np = t.view(torch.uint16).numpy(force=True)
-        hamming_core.embedded_parity_decode_u16(encoded_np)
+        faultforge._core.embedded_parity_decode_u16(encoded_np)
         return torch.from_numpy(encoded_np).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
 
     @override
     def decode_float32(self, t: Tensor) -> Tensor:
         encoded_np = t.numpy(force=True)
-        hamming_core.embedded_parity_decode_f32(encoded_np)
+        faultforge._core.embedded_parity_decode_f32(encoded_np)
         return torch.from_numpy(encoded_np)  # pyright: ignore[reportUnknownMemberType]

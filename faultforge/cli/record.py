@@ -11,25 +11,25 @@ from typing import (
 import torch
 import typer
 
-from pytorch_hamming.cifar.dataset import Cifar
-from pytorch_hamming.cifar.model import CachedModel as CifarModel
-from pytorch_hamming.cifar.system import System as CifarSystem
-from pytorch_hamming.cli.utils import setup_logging
-from pytorch_hamming.data import (
+from faultforge.cifar.dataset import Cifar
+from faultforge.cifar.model import CachedModel as CifarModel
+from faultforge.cifar.system import System as CifarSystem
+from faultforge.cli.utils import setup_logging
+from faultforge.data import (
     Autosave,
     Data,
 )
-from pytorch_hamming.dtype import DnnDtype
-from pytorch_hamming.encoding.bit_pattern import BitPattern, BitPatternEncoder
-from pytorch_hamming.encoding.embedded_parity import EmbeddedParityEncoder
-from pytorch_hamming.encoding.full import FullEncoder
-from pytorch_hamming.encoding.msb import MsbEncoder
-from pytorch_hamming.encoding.sequence import EncoderSequence, TensorEncoder
-from pytorch_hamming.encoding.system import EncodedSystem
-from pytorch_hamming.imagenet.dataset import ImageNet
-from pytorch_hamming.imagenet.model import Model as ImagenetModel
-from pytorch_hamming.imagenet.system import System as ImagenetSystem
-from pytorch_hamming.system import BaseSystem
+from faultforge.dtype import DnnDtype
+from faultforge.encoding.bit_pattern import BitPattern, BitPatternEncoder
+from faultforge.encoding.embedded_parity import EmbeddedParityEncoder
+from faultforge.encoding.full import FullEncoder
+from faultforge.encoding.msb import MsbEncoder
+from faultforge.encoding.sequence import EncoderSequence, TensorEncoder
+from faultforge.encoding.system import EncodedSystem
+from faultforge.imagenet.dataset import ImageNet
+from faultforge.imagenet.model import Model as ImagenetModel
+from faultforge.imagenet.system import System as ImagenetSystem
+from faultforge.system import BaseSystem
 
 logger = logging.getLogger(__name__)
 

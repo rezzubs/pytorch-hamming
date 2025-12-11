@@ -4,13 +4,13 @@ import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-import hamming_core
 import torch
 from typing_extensions import override
 
-from pytorch_hamming.dtype import DnnDtype
-from pytorch_hamming.encoding.encoding import Encoder, Encoding
-from pytorch_hamming.tensor_ops import tensor_list_dtype
+import faultforge._core
+from faultforge.dtype import DnnDtype
+from faultforge.encoding.encoding import Encoder, Encoding
+from faultforge.tensor_ops import tensor_list_dtype
 
 _logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ class BitPatternEncoder(Encoder):
             case DnnDtype.Float32:
                 with torch.no_grad():
                     rust_input = [t.numpy(force=True) for t in flattened]
-                    data = hamming_core.encode_bit_pattern_f32(
+                    data = faultforge._core.encode_bit_pattern_f32(
                         rust_input,
                         self.pattern.bits,
                         self.pattern_length,
@@ -172,7 +172,7 @@ class BitPatternEncoder(Encoder):
                     rust_input = [
                         t.view(torch.uint16).numpy(force=True) for t in flattened
                     ]
-                    data = hamming_core.encode_bit_pattern_u16(
+                    data = faultforge._core.encode_bit_pattern_u16(
                         rust_input,
                         self.pattern.bits,
                         self.pattern_length,
@@ -191,7 +191,7 @@ class BitPatternEncoder(Encoder):
 
 @dataclass
 class BitPatternEncoding(Encoding):
-    _encoded_data: hamming_core.BitPatternEncoding
+    _encoded_data: faultforge._core.BitPatternEncoding
     _decoded_tensors: list[torch.Tensor]
     _dtype: torch.dtype
     _needs_recompute: bool = False

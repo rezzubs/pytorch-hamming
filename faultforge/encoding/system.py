@@ -5,8 +5,8 @@ from typing import override
 import torch
 from torch import Tensor
 
-from pytorch_hamming.encoding.encoding import Encoder, Encoding
-from pytorch_hamming.system import BaseSystem
+from faultforge.encoding.encoding import Encoder, Encoding
+from faultforge.system import BaseSystem
 
 logger = logging.getLogger(__name__)
 

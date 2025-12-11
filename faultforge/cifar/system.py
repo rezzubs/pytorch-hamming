@@ -6,11 +6,11 @@ import torch
 from torch import nn
 from typing_extensions import override
 
-from pytorch_hamming.cifar.dataset import Cifar
-from pytorch_hamming.cifar.model import CachedModel
-from pytorch_hamming.dtype import DnnDtype
-from pytorch_hamming.system import BaseSystem
-from pytorch_hamming.utils import build_map_layer, map_layer_recursive
+from faultforge.cifar.dataset import Cifar
+from faultforge.cifar.model import CachedModel
+from faultforge.dtype import DnnDtype
+from faultforge.system import BaseSystem
+from faultforge.utils import build_map_layer, map_layer_recursive
 
 _map_layer = build_map_layer("weight", "bias", "running_mean", "running_var")
 

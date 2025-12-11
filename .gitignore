@@ -5,3 +5,5 @@ target
 wheels
 data
 dataset-cache
+*.so
+*.pyd

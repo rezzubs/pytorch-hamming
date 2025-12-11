@@ -1,16 +1,20 @@
 [project]
-name = "pytorch-hamming"
+name = "faultforge"
 version = "0.0.0"
-description = "Error correction utilities for pytorch"
+description = "Error correction and fault simulation for PyTorch"
 authors = [
     { name = "Marten Roots", email = "marten.roots@gmail.com" }
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "hamming-core",
     "numpy>=2.3.1",
     "pydantic>=2.12.3",
     "torch>=2.7.1",
+]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
 ]
 
 [dependency-groups]
@@ -26,7 +30,8 @@ cifar = [
 ]
 cli = [
     "matplotlib>=3.10.5",
-    { include-group = "cifar"}
+    "typer>=0.20.0",
+    { include-group = "cifar"},
 ]
 imagenet = [
     "pillow>=11.3.0",
@@ -42,17 +47,15 @@ all = [
 [tool.uv]
 default-groups = ["dev", "all"]
 
-[tool.uv.sources]
-hamming-core = { workspace = true }
-
-[tool.uv.workspace]
-members = ["hamming-core"]
-
 [tool.basedpyright]
 typeCheckingMode = "recommended"
 reportExplicitAny = false
 reportMissingTypeStubs = false
 
 [build-system]
-requires = ["uv_build>=0.7.21,<0.8"]
-build-backend = "uv_build"
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+module-name = "faultforge._core"

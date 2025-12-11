@@ -10,7 +10,7 @@ import typer
 from matplotlib import patches
 from matplotlib.colors import LogNorm
 
-from pytorch_hamming.data import Data
+from faultforge.data import Data
 
 logger = logging.getLogger(__name__)
 

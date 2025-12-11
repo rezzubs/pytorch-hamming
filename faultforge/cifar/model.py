@@ -7,7 +7,7 @@ import logging
 import torch
 from torch import nn
 
-from pytorch_hamming.cifar.dataset import Cifar
+from faultforge.cifar.dataset import Cifar
 
 logger = logging.getLogger(__name__)
 

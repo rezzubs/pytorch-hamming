@@ -78,6 +78,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
+name = "faultforge"
+version = "0.1.0"
+dependencies = [
+ "numpy",
+ "pyo3",
+ "rand",
+ "rayon",
+ "thiserror",
+]
+
+[[package]]
+name = "faultforge-fuzz"
+version = "0.0.0"
+dependencies = [
+ "arbitrary",
+ "faultforge",
+ "libfuzzer-sys",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -93,26 +113,6 @@ dependencies = [
  "libc",
  "r-efi",
  "wasi",
-]
-
-[[package]]
-name = "hamming_core"
-version = "0.1.0"
-dependencies = [
- "numpy",
- "pyo3",
- "rand",
- "rayon",
- "thiserror",
-]
-
-[[package]]
-name = "hamming_core-fuzz"
-version = "0.0.0"
-dependencies = [
- "arbitrary",
- "hamming_core",
- "libfuzzer-sys",
 ]
 
 [[package]]

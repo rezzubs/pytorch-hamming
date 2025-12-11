@@ -9,7 +9,7 @@ mod python;
 use pyo3::pymodule;
 
 #[pymodule]
-mod hamming_core {
+mod _core {
     #[pymodule_export]
     use crate::python::generic_fault_injection::f32_array_list_fi;
     #[pymodule_export]

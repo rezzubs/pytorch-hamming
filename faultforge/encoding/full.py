@@ -4,12 +4,12 @@ import logging
 from dataclasses import dataclass
 from typing import override
 
-import hamming_core
 import torch
 
-from pytorch_hamming.dtype import DnnDtype
-from pytorch_hamming.encoding.encoding import Encoder, Encoding
-from pytorch_hamming.tensor_ops import tensor_list_dtype
+import faultforge._core
+from faultforge.dtype import DnnDtype
+from faultforge.encoding.encoding import Encoder, Encoding
+from faultforge.tensor_ops import tensor_list_dtype
 
 _logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class FullEncoder(Encoder):
             case DnnDtype.Float32:
                 with torch.no_grad():
                     rust_input = [t.flatten().numpy(force=True) for t in ts]
-                    encoded_data = hamming_core.encode_full_f32(
+                    encoded_data = faultforge._core.encode_full_f32(
                         rust_input, self.bits_per_chunk
                     )
             case DnnDtype.Float16:
@@ -39,7 +39,7 @@ class FullEncoder(Encoder):
                     rust_input = [
                         t.flatten().view(torch.uint16).numpy(force=True) for t in ts
                     ]
-                    encoded_data = hamming_core.encode_full_u16(
+                    encoded_data = faultforge._core.encode_full_u16(
                         rust_input, self.bits_per_chunk
                     )
 
@@ -56,7 +56,7 @@ class FullEncoder(Encoder):
 
 @dataclass
 class FullEncoding(Encoding):
-    _encoded_data: hamming_core.FullEncoding
+    _encoded_data: faultforge._core.FullEncoding
     _decoded_tensors: list[torch.Tensor]
     _dtype: torch.dtype
     _needs_recompute: bool = False

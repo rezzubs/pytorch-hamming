@@ -8,7 +8,7 @@ import torchvision
 from torch import nn
 from torchvision import transforms
 
-from pytorch_hamming.imagenet.dataset import Transform
+from faultforge.imagenet.dataset import Transform
 
 _logger = logging.getLogger(__name__)
 
