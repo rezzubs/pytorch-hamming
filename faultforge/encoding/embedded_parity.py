@@ -52,12 +52,12 @@ class EmbeddedParityEncoding(TensorEncodingHelper):
 
     @override
     def decode_float16(self, t: Tensor) -> Tensor:
-        encoded_np = t.view(torch.uint16).numpy(force=True)
+        encoded_np = t.view(torch.uint16).numpy(force=True).copy()
         faultforge._core.embedded_parity_decode_u16(encoded_np)
         return torch.from_numpy(encoded_np).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
 
     @override
     def decode_float32(self, t: Tensor) -> Tensor:
-        encoded_np = t.numpy(force=True)
+        encoded_np = t.numpy(force=True).copy()
         faultforge._core.embedded_parity_decode_f32(encoded_np)
         return torch.from_numpy(encoded_np)  # pyright: ignore[reportUnknownMemberType]
