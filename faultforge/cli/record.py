@@ -378,6 +378,7 @@ This also greatly reduces the output file size for large numbers of faults.",
                 min_runs=runs,
                 skip_comparison=skip_comparison,
                 autosave=save_config,
+                summary=summary,
             )
 
     if output_path:
