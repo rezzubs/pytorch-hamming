@@ -1,4 +1,4 @@
-use crate::buffers::NonUniformSequence;
+use faultforge::buffers::NonUniformSequence;
 use numpy::{PyArray1, PyReadonlyArrayDyn};
 use pyo3::prelude::*;
 

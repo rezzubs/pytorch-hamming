@@ -1,0 +1,15 @@
+[package]
+name = "faultforge-bindings"
+edition.workspace = true
+version.workspace = true
+
+[lib]
+crate-type = ["lib", "cdylib"]
+# This name will be used for the .so file that is used by Python.
+name = "_core"
+
+[dependencies]
+faultforge = { path = "../faultforge" }
+numpy = "0.25.0"
+pyo3 = "0.25.0"
+rayon.workspace = true

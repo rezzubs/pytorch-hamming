@@ -12,7 +12,7 @@ libfuzzer-sys = "0.4"
 arbitrary = { version = "1", features = ["derive"] }
 
 [dependencies.faultforge]
-path = ".."
+path = "../crates/faultforge"
 
 [[bin]]
 name = "encode_decode"

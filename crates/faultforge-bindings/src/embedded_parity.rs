@@ -1,8 +1,9 @@
 use numpy::PyReadwriteArrayDyn;
 use pyo3::{exceptions::PyValueError, prelude::*};
+
 use rayon::prelude::*;
 
-use crate::encoding::embedded_parity::{decode, encode};
+use faultforge::encoding::embedded_parity::{decode, encode};
 
 // data bits on the left and parity bits on the right.
 // 0bHHHG_GGFF_FEEE_DDDC_CCBB_BAAA_HGFE_DCBA

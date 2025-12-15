@@ -1,4 +1,4 @@
-use crate::python::common::*;
+use crate::common::*;
 use pyo3::{exceptions::PyValueError, prelude::*};
 use rayon::prelude::*;
 

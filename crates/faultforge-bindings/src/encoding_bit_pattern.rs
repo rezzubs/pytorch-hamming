@@ -1,4 +1,5 @@
-use crate::{
+use crate::common::*;
+use faultforge::{
     bit_buffer::chunks::DynChunks,
     buffers::{Limited, NonUniformSequence},
     encoding::{
@@ -6,7 +7,6 @@ use crate::{
         secded::num_encoded_bits,
     },
     prelude::*,
-    python::common::*,
 };
 use numpy::PyArray1;
 use pyo3::{

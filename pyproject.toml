@@ -57,5 +57,8 @@ requires = ["maturin>=1.8,<2.0"]
 build-backend = "maturin"
 
 [tool.maturin]
+# See https://www.maturin.rs/config.html for more options.
 features = ["pyo3/extension-module"]
+# https://www.maturin.rs/project_layout.html#import-rust-as-a-submodule-of-your-project
 module-name = "faultforge._core"
+manifest-path = "crates/faultforge-bindings/Cargo.toml"

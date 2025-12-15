@@ -175,8 +175,10 @@ impl BitPattern {
 /// bits.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BitPatternEncodingData {
-    pub(crate) unprotected: Limited<Vec<u8>>,
-    pub(crate) protected: DynChunks,
+    // FIXME: Consider restricting access because mutation can cause invariants
+    // to break.
+    pub unprotected: Limited<Vec<u8>>,
+    pub protected: DynChunks,
 }
 
 impl BitBuffer for BitPatternEncodingData {
@@ -223,8 +225,10 @@ impl BitBuffer for BitPatternEncodingData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BitPatternEncoding {
-    pub(crate) data: BitPatternEncodingData,
-    pub(crate) pattern: BitPattern,
+    // TODO: Consider restricting access because mutation can cause invariants
+    // to break.
+    pub data: BitPatternEncodingData,
+    pub pattern: BitPattern,
     pub bits_per_chunk: usize,
 }
 

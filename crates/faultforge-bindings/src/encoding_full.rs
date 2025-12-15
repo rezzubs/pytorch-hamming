@@ -1,9 +1,9 @@
-use crate::{
+use crate::common::*;
+use faultforge::{
     bit_buffer::chunks::{Chunks, DynChunks},
     buffers::{Limited, NonUniformSequence},
     encoding::secded::num_encoded_bits,
     prelude::*,
-    python::common::*,
 };
 use numpy::PyArray1;
 use pyo3::{
@@ -37,7 +37,7 @@ impl PyFullEncoding {
         let (output_chunks, decoding_results) = input_chunks
             .decode_chunks(self.data_bits_count)
             .unwrap_or_else(|err| match err {
-                crate::bit_buffer::chunks::DecodeError::InvalidDataBitsCount(_) => {
+                faultforge::bit_buffer::chunks::DecodeError::InvalidDataBitsCount(_) => {
                     panic!("The data bits count is immutable from the python side and should be correct yet: {}", err);
                 }
             });
@@ -51,7 +51,11 @@ impl PyFullEncoding {
             }
             Chunks::Dyn(dyn_chunks) => dyn_chunks.copy_into(&mut output_buffer).units_copied,
         };
-        assert_eq!(bits_copied, output_buffer.num_bits(), "these must match because the chunked buffer can potentially only have more bits, not less.",);
+        assert_eq!(
+            bits_copied,
+            output_buffer.num_bits(),
+            "these must match because the chunked buffer can potentially only have more bits, not less.",
+        );
 
         Ok((
             output_buffer
@@ -204,15 +208,13 @@ fn encode_full_generic<'py, T>(
 where
     T: ByteChunkedBitBuffer + SizedBitBuffer,
 {
-    use crate::prelude::ByteChunkedBitBuffer;
-
     let item_counts = buffer.0.iter().map(|chunk| chunk.len()).collect::<Vec<_>>();
 
     let encoded_chunks = buffer
         .to_chunks(bits_per_chunk)
         .map_err(|err| match err {
-            crate::bit_buffer::chunks::InvalidChunks::Empty
-            | crate::bit_buffer::chunks::InvalidChunks::ZeroChunksize => {
+            faultforge::bit_buffer::chunks::InvalidChunks::Empty
+            | faultforge::bit_buffer::chunks::InvalidChunks::ZeroChunksize => {
                 PyValueError::new_err(err.to_string())
             }
         })?

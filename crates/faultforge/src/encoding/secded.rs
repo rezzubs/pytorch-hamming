@@ -100,9 +100,7 @@ where
 pub enum EncodeError {
     #[error("The source cannot be empty")]
     SourceEmpty,
-    #[error(
-        "The destination buffer should have {expected} bits based on the source, got {actual}"
-    )]
+    #[error("The destination buffer should have {expected} bits based on the source, got {actual}")]
     LengthMismatch { expected: usize, actual: usize },
 }
 

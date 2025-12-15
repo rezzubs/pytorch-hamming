@@ -1,4 +1,5 @@
-use crate::{prelude::*, python::common::*};
+use crate::common::*;
+use faultforge::prelude::*;
 use numpy::PyArray1;
 use pyo3::{exceptions::PyValueError, prelude::*};
 

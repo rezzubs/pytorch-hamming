@@ -81,11 +81,19 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 name = "faultforge"
 version = "0.1.0"
 dependencies = [
- "numpy",
- "pyo3",
  "rand",
  "rayon",
  "thiserror",
+]
+
+[[package]]
+name = "faultforge-bindings"
+version = "0.1.0"
+dependencies = [
+ "faultforge",
+ "numpy",
+ "pyo3",
+ "rayon",
 ]
 
 [[package]]
