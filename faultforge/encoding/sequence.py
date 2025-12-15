@@ -68,6 +68,12 @@ class EncoderSequence(Encoder):
 
         return EncodingSequence(head_encodings, tail_encoding)
 
+    @override
+    def encoder_add_metadata(self, metadata: dict[str, str]) -> None:
+        for encoder in self.head:
+            encoder.encoder_add_metadata(metadata)
+        self.tail.encoder_add_metadata(metadata)
+
 
 @dataclass
 class EncodingSequence(Encoding):
