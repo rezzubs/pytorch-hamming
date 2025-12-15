@@ -1,9 +1,16 @@
+# Common Python
 __pycache__
 .venv
 *.egg-info
-target
 wheels
-data
-dataset-cache
 *.so
 *.pyd
+
+# Common Rust
+target
+
+# cargo-mutants
+mutants.out
+
+# Pytorch cifar-models dataset cache
+dataset-cache
