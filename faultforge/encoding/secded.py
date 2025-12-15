@@ -15,7 +15,7 @@ _logger = logging.getLogger(__name__)
 
 
 @dataclass
-class FullEncoder(Encoder):
+class SecdedEncoder(Encoder):
     bits_per_chunk: int
 
     @override

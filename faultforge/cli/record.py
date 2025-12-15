@@ -22,8 +22,8 @@ from faultforge.data import (
 from faultforge.dtype import DnnDtype
 from faultforge.encoding.bit_pattern import BitPattern, BitPatternEncoder
 from faultforge.encoding.embedded_parity import EmbeddedParityEncoder
-from faultforge.encoding.full import FullEncoder
 from faultforge.encoding.msb import MsbEncoder
+from faultforge.encoding.secded import SecdedEncoder
 from faultforge.encoding.sequence import EncoderSequence, TensorEncoder
 from faultforge.encoding.system import EncodedSystem
 from faultforge.imagenet.dataset import ImageNet
@@ -118,32 +118,30 @@ See --cifar-kind to specify the exact dataset. \
             rich_help_panel="Fault injection settings",
         ),
     ] = None,
-    protected: Annotated[
+    secded: Annotated[
         bool,
         typer.Option(
-            "--encoded",
-            "--protected",
-            help="Encode all bits",
+            "--secded",
+            help="Use SECDED encoding based on hamming codes.",
             rich_help_panel="Encoding settings",
         ),
     ] = False,
     bit_pattern: Annotated[
         BitPattern | None,
         typer.Option(
-            "--bit-pattern",
-            "--bits",
+            "--secded-bit-pattern",
+            "--secded-bits",
             parser=BitPattern.parse,
-            help="`_` separated bit indices or ranges of indices \
-For example, 0-4_14_18-19. \
-The bit indices cannot exceed the number of bits in the data type.",
+            help="""Encode the specified repeating bit-pattern with hamming codes. Syntax: `_`
+separated bit indices or ranges of indices. For example, 0-4_14_18-19. The bit
+indices cannot exceed the number of bits in the data type.""",
             rich_help_panel="Encoding settings",
         ),
     ] = None,
     bits_per_chunk: Annotated[
         int,
         typer.Option(
-            "--chunk-size",
-            "--bits-per_chunk",
+            "--secded-chunk-size",
             help="How many bits to encode as a chunk. \
 For example if we want to have 1 ecc per 2 float32 values (with all bits protected), \
 a chunk size of 64 should be used.",
@@ -280,7 +278,7 @@ This also greatly reduces the output file size for large numbers of faults.",
 
     system = cast(BaseSystem[Any], system)
 
-    match (protected, bit_pattern):
+    match (secded, bit_pattern):
         case (_, BitPattern()):
             logger.debug("Using BitPatternEncoder")
             encoder = BitPatternEncoder(
@@ -290,7 +288,7 @@ This also greatly reduces the output file size for large numbers of faults.",
             )
         case (True, None):
             logger.debug("Using FullEncoder")
-            encoder = FullEncoder(bits_per_chunk)
+            encoder = SecdedEncoder(bits_per_chunk)
         case _:
             encoder = None
 
