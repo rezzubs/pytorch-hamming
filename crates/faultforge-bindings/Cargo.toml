@@ -4,7 +4,7 @@ edition.workspace = true
 version.workspace = true
 
 [lib]
-crate-type = ["lib", "cdylib"]
+crate-type = ["cdylib"]
 # This name will be used for the .so file that is used by Python.
 name = "_core"
 
