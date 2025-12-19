@@ -307,13 +307,17 @@ def configurations(
             help="Paths which store the files where data is recorded.",
         ),
     ],
-    mode: Annotated[
-        CompareMode,
-        typer.Option(help="What to graph."),
-    ] = CompareMode.MeanAccuracy,
+    percentile: Annotated[
+        float | None,
+        typer.Option(
+            help="Draw a nth percentile instead of the mean.",
+        ),
+    ] = None,
     ignore_key: Annotated[
         list[str] | None,
         typer.Option(
+            min=0,
+            max=100,
             help="Keys to ignore during printing",
         ),
     ] = None,
@@ -413,52 +417,42 @@ def configurations(
 
         return label
 
-    match mode:
-        case CompareMode.MeanAccuracy | CompareMode.MedianAccuracy:
-            for metadata, (by_bit_error_rate, _) in by_metadata_list:
-                label = map_label(metadata)
+    for metadata, (by_bit_error_rate, _) in by_metadata_list:
+        label = map_label(metadata)
 
-                sorted = list(by_bit_error_rate.items())
-                sorted.sort(key=lambda x: x[0])
+        sorted = list(by_bit_error_rate.items())
+        sorted.sort(key=lambda x: x[0])
 
-                xs = [x for x, _ in sorted]
-                if mode == CompareMode.MeanAccuracy:
-                    _ = ax.set_ylabel("Mean Acuraccy")  # pyright: ignore[reportUnknownMemberType]
-                    ys = [
-                        np.mean([e.accuracy for e in entries]) for _, entries in sorted
-                    ]
-                elif mode == CompareMode.MedianAccuracy:
-                    _ = ax.set_ylabel("Median Acuraccy")  # pyright: ignore[reportUnknownMemberType]
-                    ys = [
-                        np.median([e.accuracy for e in entries])
-                        for _, entries in sorted
-                    ]
-                _ = ax.set_xlabel("Bit Error Rate")  # pyright: ignore[reportUnknownMemberType]
+        xs = [x for x, _ in sorted]
+        if percentile is not None:
+            _ = ax.set_ylabel(f"{percentile}th Percentile")  # pyright: ignore[reportUnknownMemberType]
+            ys = [
+                np.percentile([e.accuracy for e in entries], percentile)
+                for _, entries in sorted
+            ]
+            _ = ax.set_xlabel("Bit Error Rate")  # pyright: ignore[reportUnknownMemberType]
+        else:
+            _ = ax.set_ylabel("Mean Acuraccy")  # pyright: ignore[reportUnknownMemberType]
+            ys = [np.mean([e.accuracy for e in entries]) for _, entries in sorted]
 
-                _ = ax.plot(  # pyright: ignore[reportUnknownMemberType]
-                    xs,
-                    ys,
-                    label=label,
-                    marker=MARKERS[marker_i],
-                )
+        _ = ax.plot(  # pyright: ignore[reportUnknownMemberType]
+            xs,
+            ys,
+            label=label,
+            marker=MARKERS[marker_i],
+        )
 
-                if (marker_i := marker_i + 1) == len(MARKERS):
-                    marker_i = 0
+        if (marker_i := marker_i + 1) == len(MARKERS):
+            marker_i = 0
 
-            if logx:
-                ax.set_xscale("log")  # pyright: ignore[reportUnknownMemberType]
+    if logx:
+        ax.set_xscale("log")  # pyright: ignore[reportUnknownMemberType]
 
-            _ = fig.legend(  # pyright: ignore[reportUnknownMemberType]
-                loc="outside upper left",
-                frameon=False,
-                ncols=2,
-            )
-        case CompareMode.Overhead:
-            labels = [map_label(m) for m, _ in by_metadata_list]
-            heights = [overhead for _, (_, overhead) in by_metadata_list]
-
-            _ = ax.bar(labels, heights)  # pyright: ignore[reportUnknownMemberType]
-            _ = ax.set_xticklabels(labels, rotation=90)  # pyright: ignore[reportUnknownMemberType]
+    _ = fig.legend(  # pyright: ignore[reportUnknownMemberType]
+        loc="outside upper left",
+        frameon=False,
+        ncols=2,
+    )
 
     _ = ax.grid()  # pyright: ignore[reportUnknownMemberType]
 
