@@ -780,3 +780,90 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod proptest {
+    use super::*;
+    use ::proptest::prelude::*;
+    use std::ops::RangeInclusive;
+
+    const RANGE: RangeInclusive<usize> = 1..=256;
+
+    proptest! {
+        #[test]
+        fn pack_unpack(
+            buf in (RANGE).prop_flat_map(|len| {
+                prop::collection::vec(any::<u32>(), len)
+            }),
+            chunk_size in RANGE,
+        ) {
+
+            let chunks = buf.to_chunks(chunk_size).unwrap();
+
+            let mut output_buffer = vec![0u32; buf.len()];
+            let bits_copied = match chunks {
+                Chunks::Byte(byte_chunks) => {
+                    byte_chunks
+                        .copy_into_chunked(&mut output_buffer)
+                        .units_copied
+                        * 8
+                }
+                Chunks::Dyn(dyn_chunks) => dyn_chunks.copy_into(&mut output_buffer).units_copied,
+            };
+            assert_eq!(bits_copied, buf.bits_count());
+
+            assert_eq!(output_buffer, buf);
+        }
+
+        #[test]
+        fn encode_decode_u32_single_fault(
+            (buf, fault) in (RANGE).prop_flat_map(|len| {
+                prop::collection::vec(any::<u32>(), len).prop_flat_map(|v| {
+                    let fault_max = 8 * v.len();
+                    (Just(v), 1..fault_max)
+                })
+            }),
+            chunk_size in RANGE,
+        ) {
+
+            let chunks = buf.to_chunks(chunk_size).unwrap();
+
+            let mut encoded_chunks = chunks.encode_chunks();
+            let encoded_chunk_size = encoded_chunks.bits_per_chunk();
+            let before_faults = encoded_chunks.clone();
+
+            encoded_chunks.flip_bit(fault);
+            assert_ne!(before_faults, encoded_chunks);
+
+            let (decoded, results) = encoded_chunks.decode_chunks(chunk_size).unwrap();
+
+            dbg!(&results);
+            for (i, success) in results.into_iter().enumerate() {
+                let hit_bit_0 =  fault % encoded_chunk_size == 0;
+                let hit_chunk = fault / encoded_chunk_size == i;
+
+                if hit_bit_0 && hit_chunk {
+                    assert!(!success);
+                } else {
+                    assert!(success);
+                }
+            }
+
+            assert_eq!(chunks, decoded);
+
+            let mut output_buffer = vec![0u32; buf.len()];
+            let bits_copied = match decoded {
+                Chunks::Byte(byte_chunks) => {
+                    byte_chunks
+                        .copy_into_chunked(&mut output_buffer)
+                        .units_copied
+                        * 8
+                }
+                Chunks::Dyn(dyn_chunks) => dyn_chunks.copy_into(&mut output_buffer).units_copied,
+            };
+            assert_eq!(bits_copied, buf.bits_count());
+
+            assert_eq!(output_buffer, buf);
+        }
+    }
+}
