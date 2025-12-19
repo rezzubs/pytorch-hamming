@@ -261,86 +261,129 @@ mod tests {
         }
         assert_eq!(num_error_correction_bits(512).unwrap(), 10);
     }
+}
 
-    #[test]
-    fn no_faults() {
-        let buf: [f32; 4] = [123.123, 34.0, 0.0234, std::f32::consts::PI];
-        let mut encoded = buf.encode().unwrap();
-        // 128 data + 8 SEC + 1 DED.
-        assert_eq!(encoded.num_bits(), 137);
-        let mut decoded = [0f32; 4];
-        let success = decode_into(&mut encoded, &mut decoded).unwrap();
-        assert!(success);
-        assert_eq!(buf, decoded);
-    }
+#[cfg(test)]
+mod proptest {
+    use super::*;
+    use ::proptest::prelude::*;
+    use std::ops::RangeInclusive;
 
-    #[test]
-    fn single_fault() {
-        let buf: [f32; 4] = [123.123, 34.0, 0.0234, std::f32::consts::PI];
-        let mut encoded = buf.encode().unwrap();
+    const RANGE: RangeInclusive<usize> = 1..=512;
 
-        for i in 1..buf.num_bits() {
-            let mut faulty = encoded.clone();
-            faulty.flip_bit(i);
-            assert_ne!(faulty, encoded);
+    proptest! {
+        #[test]
+        fn encode_decode_u8_zero_fault(
+            (buf, mut decoded) in (RANGE).prop_flat_map(|len| {
+                (
+                    prop::collection::vec(any::<u8>(), len),
+                    prop::collection::vec(any::<u8>(), len),
+                )
+            })
+        ) {
+            let mut encoded = buf.encode().unwrap();
 
-            let mut decoded = [0f32; 4];
-            let success = decode_into(&mut faulty, &mut decoded).unwrap();
-            assert!(success);
-            assert_eq!(buf, decoded);
-        }
-
-        encoded.flip_bit(0);
-        let mut decoded = [0f32; 4];
-        let success = decode_into(&mut encoded, &mut decoded).unwrap();
-        assert!(!success);
-        assert_eq!(buf, decoded);
-    }
-
-    #[test]
-    fn two_faults() {
-        let buf: [f32; 4] = [123.123, 34.0, 0.0234, std::f32::consts::PI];
-        let encoded = buf.encode().unwrap();
-
-        for first in 0..buf.num_bits() {
-            for second in (first + 1)..buf.num_bits() {
-                let mut faulty = encoded.clone();
-                faulty.flip_bit(first);
-                faulty.flip_bit(second);
-
-                assert_ne!(faulty, encoded);
-
-                let mut decoded = [0f32; 4];
-                let success = decode_into(&mut faulty, &mut decoded).unwrap();
-                assert!(!success);
-
-                // If only parity bits were hit then the original data is safe. The decoding
-                // algorithm must still call a failure because there's no way to tell which bits
-                // were hit.
-                if is_par_i(first) && is_par_i(second) {
-                    assert_eq!(buf, decoded);
-                } else {
-                    assert_ne!(buf, decoded);
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn large_buffers() {
-        fn test_buffer(bytes: usize) {
-            let initial = vec![0u8; bytes];
-            let mut decoded = vec![255u8; bytes];
-
-            let mut encoded = initial.encode().unwrap();
             let success = decode_into(&mut encoded, &mut decoded).unwrap();
             assert!(success);
 
-            assert_eq!(initial, decoded);
+            assert_eq!(buf, decoded);
         }
 
-        for i in 1..=128 {
-            test_buffer(i);
+        #[test]
+        fn encode_decode_u8_single_fault(
+            ((buf, fault), mut decoded) in (RANGE).prop_flat_map(|len| {
+                (
+                    prop::collection::vec(any::<u8>(), len).prop_flat_map(|v| {
+                        let fault_max = 8 * v.len();
+                        (Just(v), 1..=fault_max)
+                    }),
+                    prop::collection::vec(any::<u8>(), len),
+                )
+            })
+        ) {
+            let mut encoded = match buf.encode() {
+                Ok(encoded) => encoded,
+                Err(crate::bit_buffer::EncodeError::Empty) => return Ok(()),
+            };
+
+            encoded.flip_bit(fault);
+
+            let success = decode_into(&mut encoded, &mut decoded).unwrap();
+            assert!(success);
+
+            assert_eq!(buf, decoded);
+        }
+
+        #[test]
+        fn encode_decode_f32_zero_fault(
+            (buf, mut decoded) in (RANGE).prop_flat_map(|len| {
+                (
+                    prop::collection::vec(any::<f32>(), len),
+                    prop::collection::vec(any::<f32>(), len),
+                )
+            })
+        ) {
+            let mut encoded = buf.encode().unwrap();
+
+            let success = decode_into(&mut encoded, &mut decoded).unwrap();
+            assert!(success);
+
+            assert_eq!(buf, decoded);
+        }
+
+        #[test]
+        fn encode_decode_f32_single_fault(
+            ((buf, fault), mut decoded) in (RANGE).prop_flat_map(|len| {
+                (
+                    prop::collection::vec(any::<f32>(), len).prop_flat_map(|v| {
+                        let fault_max = 8 * v.len();
+                        (Just(v), 1..=fault_max)
+                    }),
+                    prop::collection::vec(any::<f32>(), len),
+                )
+            })
+        ) {
+            let mut encoded = buf.encode().unwrap();
+
+            encoded.flip_bit(fault);
+
+            let success = decode_into(&mut encoded, &mut decoded).unwrap();
+            assert!(success);
+
+            assert_eq!(buf, decoded);
+        }
+
+        #[test]
+        fn encode_decode_f32_two_faults(
+            ((buf, (fault1, fault2)), mut decoded) in (RANGE).prop_flat_map(|len| (
+                prop::collection::vec(any::<f32>(), len).prop_flat_map(|v| {
+                    let fault_max = 8 * v.len();
+                    (Just(v), (1..=fault_max, 1..=fault_max).prop_filter("must differ", |(a, b)| a != b))
+                }),
+                prop::collection::vec(any::<f32>(), len),
+            ))
+        ) {
+            let encoded = buf.encode().unwrap();
+
+            let mut faulty = encoded.clone();
+            faulty.flip_bit(fault1);
+            faulty.flip_bit(fault2);
+
+            assert_ne!(faulty, encoded);
+
+            // A two bit flip will always be marked as unsuccessful even if in
+            // reality the data matches. See [`correct_error`].
+            let success = decode_into(&mut faulty, &mut decoded).unwrap();
+            assert!(!success);
+
+            // If only parity bits were hit then the original data is safe. The decoding
+            // algorithm must still call a failure because there's no way to tell which bits
+            // were hit.
+            if is_par_i(fault1) && is_par_i(fault2) {
+                assert_eq!(buf, decoded);
+            } else {
+                assert_ne!(buf, decoded);
+            }
         }
     }
 }
