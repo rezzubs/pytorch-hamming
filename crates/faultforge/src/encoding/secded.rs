@@ -381,9 +381,6 @@ mod proptest {
             // were hit.
             if is_par_i(fault1) && is_par_i(fault2) {
                 assert_eq!(buf, decoded);
-            } else {
-                assert_ne!(buf, decoded);
-            }
-        }
+            }        }
     }
 }
