@@ -6,8 +6,8 @@ import copy
 import torch
 
 from .tensor_ops import (
+    tensor_list_bits_count,
     tensor_list_fault_injection,
-    tensor_list_num_bits,
 )
 
 
@@ -55,5 +55,5 @@ class BaseSystem[T](abc.ABC):
         """
         return copy.deepcopy(data)
 
-    def system_total_num_bits(self) -> int:
-        return tensor_list_num_bits(self.system_data_tensors(self.system_data()))
+    def system_total_bits_count(self) -> int:
+        return tensor_list_bits_count(self.system_data_tensors(self.system_data()))

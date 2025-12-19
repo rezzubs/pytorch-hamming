@@ -11,7 +11,7 @@ use random_picker::RandomPicker;
 use crate::{
     bit_buffer::chunks::InvalidChunks,
     buffers::Limited,
-    encoding::secded::{encode_into, num_encoded_bits},
+    encoding::secded::{encode_into, encoded_bits_count},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -61,7 +61,7 @@ pub enum EncodeError {
 
 pub trait BitBuffer {
     /// Number of bits stored by this buffer.
-    fn num_bits(&self) -> usize;
+    fn bits_count(&self) -> usize;
 
     /// Set a bit with index `bit_index` to 1.
     fn set_1(&mut self, bit_index: usize);
@@ -113,7 +113,7 @@ pub trait BitBuffer {
     }
 
     /// Count the number of bits which are 1.
-    fn num_1_bits(&self) -> usize {
+    fn count_1_bits(&self) -> usize {
         self.bits().filter(|is_1| *is_1).count()
     }
 
@@ -121,17 +121,17 @@ pub trait BitBuffer {
     ///
     /// All bit flips will be unique.
     fn flip_n_bits(&mut self, n: usize) -> Result<(), OutOfBounds> {
-        let num_bits = self.num_bits();
+        let bits_count = self.bits_count();
 
-        if n > num_bits {
+        if n > bits_count {
             return Err(OutOfBounds);
         }
 
-        let mut possible_faults = RandomPicker::new(num_bits, rand::rng());
+        let mut possible_faults = RandomPicker::new(bits_count, rand::rng());
 
         for _ in 0..n {
             let fault_target = possible_faults.next().expect(
-                "we confirmed that n <= num_bits so RandomPicker will always have >= n elements",
+                "we confirmed that n <= bits_count so RandomPicker will always have >= n elements",
             );
             self.flip_bit(fault_target);
         }
@@ -153,13 +153,13 @@ pub trait BitBuffer {
             return Err(OutOfBounds);
         }
 
-        let num_flips = (self.num_bits() as f64 * ber) as usize;
+        let flips_count = (self.bits_count() as f64 * ber) as usize;
 
-        self.flip_n_bits(num_flips).unwrap_or_else(|_| {
-            unreachable!("We checked the range of `ber` so `num_flips` cannot be out of bounds.")
+        self.flip_n_bits(flips_count).unwrap_or_else(|_| {
+            unreachable!("We checked the range of `ber` so `flips_count` cannot be out of bounds.")
         });
 
-        Ok(num_flips)
+        Ok(flips_count)
     }
 
     /// [`BitBuffer::copy_into`] with start offsets for `self` and `dest`.
@@ -177,8 +177,8 @@ pub trait BitBuffer {
     where
         D: BitBuffer,
     {
-        let remaining_source = self.num_bits().saturating_sub(self_offset);
-        let remaining_dest = dest.num_bits().saturating_sub(dest_offset);
+        let remaining_source = self.bits_count().saturating_sub(self_offset);
+        let remaining_dest = dest.bits_count().saturating_sub(dest_offset);
 
         if remaining_source == 0 {
             return CopyIntoResult::done(0);
@@ -188,7 +188,9 @@ pub trait BitBuffer {
             return CopyIntoResult::pending(0);
         }
 
-        for (source_i, dest_i) in (self_offset..self.num_bits()).zip(dest_offset..dest.num_bits()) {
+        for (source_i, dest_i) in
+            (self_offset..self.bits_count()).zip(dest_offset..dest.bits_count())
+        {
             if self.is_1(source_i) {
                 dest.set_1(dest_i);
             } else {
@@ -236,13 +238,15 @@ pub trait BitBuffer {
     where
         Self: std::marker::Sized,
     {
-        let num_encoded_bits = num_encoded_bits(self.num_bits()).ok_or(EncodeError::Empty)?;
+        let encoded_bits_count = encoded_bits_count(self.bits_count()).ok_or(EncodeError::Empty)?;
 
-        let mut dest = Limited::bytes(num_encoded_bits);
+        let mut dest = Limited::bytes(encoded_bits_count);
 
         if let Err(err) = encode_into(self, &mut dest) {
             match err {
-                crate::encoding::secded::EncodeError::SourceEmpty => unreachable!("Already checked"),
+                crate::encoding::secded::EncodeError::SourceEmpty => {
+                    unreachable!("Already checked")
+                }
                 crate::encoding::secded::EncodeError::LengthMismatch { .. } => {
                     unreachable!("Using the given buffer must be correct")
                 }
@@ -257,38 +261,38 @@ pub trait BitBuffer {
 pub trait SizedBitBuffer: BitBuffer {
     /// Total number of bits in the buffer.
     ///
-    /// Must be an exact match with [`BitBuffer::num_bits`].
-    const NUM_BITS: usize;
+    /// Must be an exact match with [`BitBuffer::bits_count`].
+    const BITS_COUNT: usize;
 }
 
 macro_rules! int_impl {
     ($t:ty, $bits:expr) => {
         impl SizedBitBuffer for $t {
-            const NUM_BITS: usize = $bits;
+            const BITS_COUNT: usize = $bits;
         }
 
         impl BitBuffer for $t {
-            fn num_bits(&self) -> usize {
-                Self::NUM_BITS
+            fn bits_count(&self) -> usize {
+                Self::BITS_COUNT
             }
 
             fn set_1(&mut self, bit_index: usize) {
-                debug_assert!(bit_index < Self::NUM_BITS, "{bit_index} is out of bounds");
+                debug_assert!(bit_index < Self::BITS_COUNT, "{bit_index} is out of bounds");
                 *self |= 1 << bit_index
             }
 
             fn set_0(&mut self, bit_index: usize) {
-                debug_assert!(bit_index < Self::NUM_BITS, "{bit_index} is out of bounds");
+                debug_assert!(bit_index < Self::BITS_COUNT, "{bit_index} is out of bounds");
                 *self &= !(1 << bit_index)
             }
 
             fn is_1(&self, bit_index: usize) -> bool {
-                debug_assert!(bit_index < Self::NUM_BITS, "{bit_index} is out of bounds");
+                debug_assert!(bit_index < Self::BITS_COUNT, "{bit_index} is out of bounds");
                 (self & (1 << bit_index)) > 0
             }
 
             fn flip_bit(&mut self, bit_index: usize) {
-                debug_assert!(bit_index < Self::NUM_BITS, "{bit_index} is out of bounds");
+                debug_assert!(bit_index < Self::BITS_COUNT, "{bit_index} is out of bounds");
                 *self ^= 1 << bit_index
             }
         }
@@ -309,12 +313,12 @@ int_impl!(i128, 128);
 macro_rules! float_impl {
     ($t:ty, $bits:expr) => {
         impl SizedBitBuffer for $t {
-            const NUM_BITS: usize = $bits;
+            const BITS_COUNT: usize = $bits;
         }
 
         impl BitBuffer for $t {
-            fn num_bits(&self) -> usize {
-                Self::NUM_BITS
+            fn bits_count(&self) -> usize {
+                Self::BITS_COUNT
             }
 
             fn set_1(&mut self, bit_index: usize) {
@@ -351,32 +355,32 @@ where
     T: SizedBitBuffer,
 {
     /// Total number of bits in the buffer.
-    fn num_bits(&self) -> usize {
-        self.len() * T::NUM_BITS
+    fn bits_count(&self) -> usize {
+        self.len() * T::BITS_COUNT
     }
 
     fn set_1(&mut self, bit_index: usize) {
-        debug_assert!(bit_index < self.num_bits());
-        let item_index = bit_index / T::NUM_BITS;
-        self[item_index].set_1(bit_index % T::NUM_BITS);
+        debug_assert!(bit_index < self.bits_count());
+        let item_index = bit_index / T::BITS_COUNT;
+        self[item_index].set_1(bit_index % T::BITS_COUNT);
     }
 
     fn set_0(&mut self, bit_index: usize) {
-        debug_assert!(bit_index < self.num_bits());
-        let item_index = bit_index / T::NUM_BITS;
-        self[item_index].set_0(bit_index % T::NUM_BITS);
+        debug_assert!(bit_index < self.bits_count());
+        let item_index = bit_index / T::BITS_COUNT;
+        self[item_index].set_0(bit_index % T::BITS_COUNT);
     }
 
     fn is_1(&self, bit_index: usize) -> bool {
-        debug_assert!(bit_index < self.num_bits());
-        let item_index = bit_index / T::NUM_BITS;
-        self[item_index].is_1(bit_index % T::NUM_BITS)
+        debug_assert!(bit_index < self.bits_count());
+        let item_index = bit_index / T::BITS_COUNT;
+        self[item_index].is_1(bit_index % T::BITS_COUNT)
     }
 
     fn flip_bit(&mut self, bit_index: usize) {
-        debug_assert!(bit_index < self.num_bits());
-        let item_index = bit_index / T::NUM_BITS;
-        self[item_index].flip_bit(bit_index % T::NUM_BITS);
+        debug_assert!(bit_index < self.bits_count());
+        let item_index = bit_index / T::BITS_COUNT;
+        self[item_index].flip_bit(bit_index % T::BITS_COUNT);
     }
 }
 
@@ -384,15 +388,15 @@ impl<const N: usize, T> SizedBitBuffer for [T; N]
 where
     T: SizedBitBuffer,
 {
-    const NUM_BITS: usize = N * T::NUM_BITS;
+    const BITS_COUNT: usize = N * T::BITS_COUNT;
 }
 
 impl<const N: usize, T> BitBuffer for [T; N]
 where
     T: SizedBitBuffer,
 {
-    fn num_bits(&self) -> usize {
-        self.as_slice().num_bits()
+    fn bits_count(&self) -> usize {
+        self.as_slice().bits_count()
     }
 
     fn set_1(&mut self, bit_index: usize) {
@@ -416,8 +420,8 @@ impl<T> BitBuffer for Vec<T>
 where
     T: SizedBitBuffer,
 {
-    fn num_bits(&self) -> usize {
-        self.as_slice().num_bits()
+    fn bits_count(&self) -> usize {
+        self.as_slice().bits_count()
     }
 
     fn set_1(&mut self, bit_index: usize) {
@@ -531,32 +535,32 @@ mod tests {
         }
 
         #[test]
-        fn num_1_bits() {
-            assert_eq!(0b00101100u8.num_1_bits(), 3);
-            assert_eq!(0b1000001u8.num_1_bits(), 2);
+        fn count_1_bits() {
+            assert_eq!(0b00101100u8.count_1_bits(), 3);
+            assert_eq!(0b1000001u8.count_1_bits(), 2);
         }
 
         #[test]
         fn fault_injection() {
             let mut buf = 0u8;
             buf.flip_n_bits(1).unwrap();
-            assert_eq!(buf.num_1_bits(), 1);
+            assert_eq!(buf.count_1_bits(), 1);
 
             let mut buf = 0u8;
             buf.flip_n_bits(2).unwrap();
-            assert_eq!(buf.num_1_bits(), 2);
+            assert_eq!(buf.count_1_bits(), 2);
 
             let mut buf = 0u8;
             buf.flip_n_bits(3).unwrap();
-            assert_eq!(buf.num_1_bits(), 3);
+            assert_eq!(buf.count_1_bits(), 3);
 
             let mut buf = 0u8;
             buf.flip_n_bits(4).unwrap();
-            assert_eq!(buf.num_1_bits(), 4);
+            assert_eq!(buf.count_1_bits(), 4);
 
             let mut buf = 0u8;
             buf.flip_by_ber(1.).unwrap();
-            assert_eq!(buf.num_1_bits(), 8);
+            assert_eq!(buf.count_1_bits(), 8);
         }
 
         #[test]
@@ -627,7 +631,7 @@ mod tests {
     #[test]
     fn copy_into_different_structure() {
         let a_actual: [u8; 8] = [123, 4, 255, 0, 2, 97, 34, 255];
-        let num_bits = a_actual.num_bits();
+        let bits_count = a_actual.bits_count();
         let b_actual: [u16; 4] = [
             u16::from_le_bytes([123, 4]),
             u16::from_le_bytes([255, 0]),
@@ -637,12 +641,12 @@ mod tests {
 
         let mut b: [u16; 4] = [0xabc2, 0x1234, 0x1ab2, 0x4a89];
         let result = a_actual.copy_into(&mut b);
-        assert_eq!(result, CopyIntoResult::done(num_bits));
+        assert_eq!(result, CopyIntoResult::done(bits_count));
         assert_eq!(b, b_actual);
 
         let mut a: [u8; 8] = [0xfa, 0xab, 0x42, 0x01, 0xaa, 0x00, 0xff, 0x4c];
         let result = b_actual.copy_into(&mut a);
-        assert_eq!(result, CopyIntoResult::done(num_bits));
+        assert_eq!(result, CopyIntoResult::done(bits_count));
         assert_eq!(a, a_actual);
     }
 
@@ -690,8 +694,8 @@ mod tests {
         struct CustomU8(u8);
 
         impl BitBuffer for CustomU8 {
-            fn num_bits(&self) -> usize {
-                self.0.num_bits()
+            fn bits_count(&self) -> usize {
+                self.0.bits_count()
             }
 
             fn set_1(&mut self, bit_index: usize) {
@@ -711,7 +715,7 @@ mod tests {
         fn default_impl() {
             let value = CustomU8(0);
 
-            assert_eq!(value.num_bits(), 8);
+            assert_eq!(value.bits_count(), 8);
 
             for i in 0..8 {
                 let mut copy = value.clone();
@@ -724,11 +728,11 @@ mod tests {
     }
 
     #[test]
-    fn num_bits() {
-        assert_eq!(0f32.num_bits(), 32);
-        assert_eq!(0f64.num_bits(), 64);
-        assert_eq!(0u8.num_bits(), 8);
-        assert_eq!(0u16.num_bits(), 16);
+    fn bits_count() {
+        assert_eq!(0f32.bits_count(), 32);
+        assert_eq!(0f64.bits_count(), 64);
+        assert_eq!(0u8.bits_count(), 8);
+        assert_eq!(0u16.bits_count(), 16);
     }
 
     #[test]

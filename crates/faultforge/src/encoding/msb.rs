@@ -76,14 +76,14 @@ impl Scheme {
     where
         B: BitBuffer,
     {
-        Self::new(buffer.num_bits(), from, targets)
+        Self::new(buffer.bits_count(), from, targets)
     }
 
     pub fn is_valid_for<B>(&self, buffer: &B) -> bool
     where
         B: BitBuffer,
     {
-        self.buffer_length == buffer.num_bits()
+        self.buffer_length == buffer.bits_count()
     }
 }
 
@@ -137,11 +137,7 @@ where
     let mut is_0 = 0;
 
     for i in indices {
-        if buffer.is_1(i) {
-            is_1 += 1
-        } else {
-            is_0 += 1
-        }
+        if buffer.is_1(i) { is_1 += 1 } else { is_0 += 1 }
     }
 
     // Cannot be the same for a valid scheme because the number of `indices` is always odd.

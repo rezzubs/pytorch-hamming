@@ -1,10 +1,10 @@
 use crate::prelude::*;
 
-/// How many bytes does it take to store `num_bits` bits.
+/// How many bytes does it take to store `bits_count` bits.
 #[inline]
 #[must_use]
-pub fn bytes_to_store_n_bits(num_bits: usize) -> usize {
-    match (num_bits / 8, num_bits % 8) {
+pub fn bytes_to_store_n_bits(bits_count: usize) -> usize {
+    match (bits_count / 8, bits_count % 8) {
         (0, 0) => 0,
         (a, 0) => a,
         (a, _) => a + 1,
@@ -15,7 +15,7 @@ pub fn bytes_to_store_n_bits(num_bits: usize) -> usize {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub struct Limited<T> {
     buffer: T,
-    num_bits: usize,
+    bits_count: usize,
 }
 
 impl Limited<Vec<u8>> {
@@ -23,9 +23,9 @@ impl Limited<Vec<u8>> {
     //
     // All bytes are initialized to zero.
     #[must_use]
-    pub fn bytes(num_bits: usize) -> Self {
-        let num_bytes = bytes_to_store_n_bits(num_bits);
-        Limited::new(vec![0u8; num_bytes], num_bits)
+    pub fn bytes(bits_count: usize) -> Self {
+        let bytes_count = bytes_to_store_n_bits(bits_count);
+        Limited::new(vec![0u8; bytes_count], bits_count)
             .expect("cannot fail as long as the function above is correct")
     }
 }
@@ -35,8 +35,8 @@ where
     T: BitBuffer,
 {
     /// Create a new limited bit buffer.
-    pub fn new(buffer: T, num_bits: usize) -> Option<Self> {
-        (num_bits <= buffer.num_bits()).then_some(Self { buffer, num_bits })
+    pub fn new(buffer: T, bits_count: usize) -> Option<Self> {
+        (bits_count <= buffer.bits_count()).then_some(Self { buffer, bits_count })
     }
 
     /// Extract the original bitbuffer.
@@ -49,33 +49,33 @@ impl<T> BitBuffer for Limited<T>
 where
     T: BitBuffer,
 {
-    fn num_bits(&self) -> usize {
-        self.num_bits
+    fn bits_count(&self) -> usize {
+        self.bits_count
     }
 
     fn is_1(&self, bit_index: usize) -> bool {
-        if bit_index >= self.num_bits {
+        if bit_index >= self.bits_count {
             panic!("{bit_index} is out of bounds");
         }
         self.buffer.is_1(bit_index)
     }
 
     fn set_0(&mut self, bit_index: usize) {
-        if bit_index >= self.num_bits {
+        if bit_index >= self.bits_count {
             panic!("{bit_index} is out of bounds");
         }
         self.buffer.set_0(bit_index)
     }
 
     fn set_1(&mut self, bit_index: usize) {
-        if bit_index >= self.num_bits {
+        if bit_index >= self.bits_count {
             panic!("{bit_index} is out of bounds");
         }
         self.buffer.set_1(bit_index)
     }
 
     fn flip_bit(&mut self, bit_index: usize) {
-        if bit_index >= self.num_bits {
+        if bit_index >= self.bits_count {
             panic!("{bit_index} is out of bounds");
         }
         self.buffer.flip_bit(bit_index)
@@ -165,7 +165,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_num_bits() {
+    fn invalid_bits_count() {
         assert!(Limited::new(0u8, 8).is_some());
         assert!(Limited::new(0u8, 9).is_none());
     }
@@ -176,14 +176,14 @@ mod tests {
         let mut dest = [0u8; 2];
 
         let result = source.copy_into(&mut dest);
-        assert_eq!(result, CopyIntoResult::done(source.num_bits()));
+        assert_eq!(result, CopyIntoResult::done(source.bits_count()));
         assert_eq!(dest, [255u8, 0b01111111u8]);
 
         let source = [255u8; 2];
         let mut dest = Limited::new([0u8; 2], 15).unwrap();
 
         let result = source.copy_into(&mut dest);
-        assert_eq!(result, CopyIntoResult::pending(dest.num_bits()));
+        assert_eq!(result, CopyIntoResult::pending(dest.bits_count()));
         assert_eq!(dest.into_inner(), [255u8, 0b01111111u8]);
     }
 

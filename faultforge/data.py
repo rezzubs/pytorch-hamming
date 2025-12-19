@@ -96,8 +96,8 @@ class Data(BaseModel):
             @override
             def __str__(self) -> str:
                 error_counts_str = "\n".join(
-                    f"{num_params} parameters had {num_faults} faulty bits"
-                    for num_faults, num_params in self.error_counts_sorted()
+                    f"{params_count} parameters had {faults_count} faulty bits"
+                    for faults_count, params_count in self.error_counts_sorted()
                 )
 
                 output_str = (
@@ -132,8 +132,8 @@ Accuracy: {self.accuracy:.2f}%
                 This is different from the number of bits injected because encodign might mask a number of faults.
                 """
                 count = 0
-                for num_faults, num_parameters in self.n_bit_error_counts.items():
-                    count += num_faults * num_parameters
+                for faults_count, parameters_count in self.n_bit_error_counts.items():
+                    count += faults_count * parameters_count
                 return count
 
             def masked_percentage(self) -> float | None:
@@ -154,11 +154,11 @@ Accuracy: {self.accuracy:.2f}%
             )
 
             for faulty in self.faulty_parameters:
-                num_invalid_bits = _count_ones(faulty)
+                invalid_bits_count = _count_ones(faulty)
                 try:
-                    out.n_bit_error_counts[num_invalid_bits] += 1
+                    out.n_bit_error_counts[invalid_bits_count] += 1
                 except KeyError:
-                    out.n_bit_error_counts[num_invalid_bits] = 1
+                    out.n_bit_error_counts[invalid_bits_count] = 1
 
             return out
 

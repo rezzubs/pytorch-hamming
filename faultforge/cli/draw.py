@@ -250,9 +250,9 @@ def mean(
 
         drift_min, drift_max = result
 
-        num_entries = len(d.entries)
+        entries_count = len(d.entries)
 
-        box_start_x = num_entries - stable_within
+        box_start_x = entries_count - stable_within
 
         drift = drift_max - drift_min
 

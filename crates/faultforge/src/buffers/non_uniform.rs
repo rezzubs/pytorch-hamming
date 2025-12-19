@@ -21,7 +21,7 @@ where
     fn inner_bit_index(&self, index: usize) -> Result<(usize, usize), OutOfBounds> {
         let mut start_of_current = 0;
         for (i, buffer) in self.0.into_iter().enumerate() {
-            let start_of_next = start_of_current + buffer.num_bits();
+            let start_of_next = start_of_current + buffer.bits_count();
             if index < start_of_next {
                 return Ok((i, index - start_of_current));
             }
@@ -41,7 +41,7 @@ where
     fn inner_byte_index(&self, index: usize) -> Result<(usize, usize), OutOfBounds> {
         let mut start_of_current = 0;
         for (i, buffer) in self.0.into_iter().enumerate() {
-            let start_of_next = start_of_current + buffer.num_bytes();
+            let start_of_next = start_of_current + buffer.bytes_count();
             if index < start_of_next {
                 return Ok((i, index - start_of_current));
             }
@@ -58,8 +58,8 @@ where
     I: std::ops::IndexMut<usize, Output = T>,
     T: BitBuffer,
 {
-    fn num_bits(&self) -> usize {
-        self.0.into_iter().map(|x| x.num_bits()).sum()
+    fn bits_count(&self) -> usize {
+        self.0.into_iter().map(|x| x.bits_count()).sum()
     }
 
     fn set_1(&mut self, bit_index: usize) {
@@ -89,8 +89,8 @@ where
     I: std::ops::IndexMut<usize, Output = T>,
     T: ByteChunkedBitBuffer,
 {
-    fn num_bytes(&self) -> usize {
-        self.0.into_iter().map(|x| x.num_bytes()).sum()
+    fn bytes_count(&self) -> usize {
+        self.0.into_iter().map(|x| x.bytes_count()).sum()
     }
 
     fn get_byte(&self, n: usize) -> u8 {
@@ -147,10 +147,10 @@ mod tests {
     fn bounds() {
         let buffer = NonUniformSequence(vec![0u16; 9]);
 
-        assert!(buffer.inner_bit_index(buffer.num_bits()).is_err());
-        assert!(buffer.inner_bit_index(buffer.num_bits() - 1).is_ok());
-        assert!(buffer.inner_byte_index(buffer.num_bytes()).is_err());
-        assert!(buffer.inner_byte_index(buffer.num_bytes() - 1).is_ok());
+        assert!(buffer.inner_bit_index(buffer.bits_count()).is_err());
+        assert!(buffer.inner_bit_index(buffer.bits_count() - 1).is_ok());
+        assert!(buffer.inner_byte_index(buffer.bytes_count()).is_err());
+        assert!(buffer.inner_byte_index(buffer.bytes_count() - 1).is_ok());
     }
 
     #[test]
@@ -173,8 +173,8 @@ mod tests {
         let mut b: Vec<u16> = vec![0; 4];
 
         let result = a_true.copy_into(&mut b);
-        assert_eq!(result, CopyIntoResult::done(a_true.num_bits()));
-        assert_eq!(result.units_copied, b_true.num_bits());
+        assert_eq!(result, CopyIntoResult::done(a_true.bits_count()));
+        assert_eq!(result.units_copied, b_true.bits_count());
 
         assert_eq!(b, b_true);
 
@@ -188,8 +188,8 @@ mod tests {
         ]);
 
         let result = b_true.copy_into(&mut a);
-        assert_eq!(result, CopyIntoResult::done(a_true.num_bits()));
-        assert_eq!(result.units_copied, b_true.num_bits());
+        assert_eq!(result, CopyIntoResult::done(a_true.bits_count()));
+        assert_eq!(result.units_copied, b_true.bits_count());
 
         assert_eq!(a, a_true);
     }
@@ -214,8 +214,8 @@ mod tests {
         let mut b: Vec<u16> = vec![0; 4];
 
         let result = a_true.copy_into_chunked(&mut b);
-        assert_eq!(result.units_copied, a_true.num_bytes());
-        assert_eq!(result.units_copied, b_true.num_bytes());
+        assert_eq!(result.units_copied, a_true.bytes_count());
+        assert_eq!(result.units_copied, b_true.bytes_count());
 
         assert_eq!(b, b_true);
 
@@ -229,8 +229,8 @@ mod tests {
         ]);
 
         let result = a_true.copy_into_chunked(&mut a);
-        assert_eq!(result.units_copied, a_true.num_bytes());
-        assert_eq!(result.units_copied, b_true.num_bytes());
+        assert_eq!(result.units_copied, a_true.bytes_count());
+        assert_eq!(result.units_copied, b_true.bytes_count());
 
         assert_eq!(a, a_true);
     }

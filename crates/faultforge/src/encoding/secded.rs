@@ -14,10 +14,10 @@ pub fn is_par_i(i: usize) -> bool {
 /// Get corresponding number of bits required for error correction for a buffer with length
 /// `source_length`.
 ///
-/// Returns None if `num_data_bits` is 0.
+/// Returns None if `data_bits_count` is 0.
 #[must_use]
-pub fn num_error_correction_bits(num_data_bits: usize) -> Option<usize> {
-    if num_data_bits == 0 {
+pub fn error_correction_bits_count(data_bits_count: usize) -> Option<usize> {
+    if data_bits_count == 0 {
         return None;
     }
 
@@ -25,7 +25,7 @@ pub fn num_error_correction_bits(num_data_bits: usize) -> Option<usize> {
     let mut parity_bits = 2u32;
     loop {
         let max_data_bits_per_parity_bits = (2u32.pow(parity_bits) - parity_bits - 1) as usize;
-        if num_data_bits <= max_data_bits_per_parity_bits {
+        if data_bits_count <= max_data_bits_per_parity_bits {
             return Some(parity_bits as usize);
         }
         parity_bits += 1
@@ -34,11 +34,11 @@ pub fn num_error_correction_bits(num_data_bits: usize) -> Option<usize> {
 
 /// Get the number of total bits that are required to encode a buffer with length `source_length`.
 ///
-/// Returns None if `num_data_bits` is 0.
+/// Returns None if `data_bits_count` is 0.
 #[must_use]
-pub fn num_encoded_bits(num_data_bits: usize) -> Option<usize> {
+pub fn encoded_bits_count(data_bits_count: usize) -> Option<usize> {
     // +1 for the 0th double error detection bit.
-    Some(num_data_bits + num_error_correction_bits(num_data_bits)? + 1)
+    Some(data_bits_count + error_correction_bits_count(data_bits_count)? + 1)
 }
 
 /// Get the index of a flipped bit in an encoded buffer in case of a single bit flip.
@@ -85,7 +85,7 @@ where
         (_, true) => false,
         // If only one of our protected bits flipped it will cause the error
         // index to be in our protected range.
-        (e, false) if e >= buffer.num_bits() => false,
+        (e, false) if e >= buffer.bits_count() => false,
         // We found an error location and the parity changed which means we
         // either have 1 error which we will attempt to correct or an
         // undetectable odd number of errors.
@@ -117,20 +117,20 @@ where
     S: BitBuffer,
     D: BitBuffer,
 {
-    let num_error_correction_bits =
-        num_error_correction_bits(source.num_bits()).ok_or(EncodeError::SourceEmpty)?;
-    let num_encoded_bits = num_encoded_bits(source.num_bits()).expect("already checked");
+    let error_correction_bits_count =
+        error_correction_bits_count(source.bits_count()).ok_or(EncodeError::SourceEmpty)?;
+    let encoded_bits_count = encoded_bits_count(source.bits_count()).expect("already checked");
 
-    if dest.num_bits() != num_encoded_bits {
+    if dest.bits_count() != encoded_bits_count {
         return Err(EncodeError::LengthMismatch {
-            expected: num_encoded_bits,
-            actual: dest.num_bits(),
+            expected: encoded_bits_count,
+            actual: dest.bits_count(),
         });
     }
 
     let mut input_index = 0;
     // NOTE: starting from 3 because 0, 1, 2 are all reserved for parity.
-    for output_index in 3..num_encoded_bits {
+    for output_index in 3..encoded_bits_count {
         if is_par_i(output_index) {
             continue;
         }
@@ -146,7 +146,7 @@ where
 
     let bits_to_toggle = u64::try_from(error_index(dest)).expect("error index out of bounds");
 
-    for i in 0..num_error_correction_bits {
+    for i in 0..error_correction_bits_count {
         let parity_bit = 1 << i;
 
         if bits_to_toggle.is_1(i) {
@@ -183,17 +183,17 @@ where
 {
     let success = correct_error(source);
 
-    let num_encoded_bits = num_encoded_bits(dest.num_bits()).ok_or(DecodeError::DestEmpty)?;
+    let encoded_bits_count = encoded_bits_count(dest.bits_count()).ok_or(DecodeError::DestEmpty)?;
 
-    if source.num_bits() != num_encoded_bits {
+    if source.bits_count() != encoded_bits_count {
         return Err(DecodeError::LengthMismatch {
-            expected: num_encoded_bits,
-            actual: source.num_bits(),
+            expected: encoded_bits_count,
+            actual: source.bits_count(),
         });
     }
 
     let mut output_index = 0;
-    for input_index in 3..num_encoded_bits {
+    for input_index in 3..encoded_bits_count {
         if is_par_i(input_index) {
             continue;
         }
@@ -236,30 +236,30 @@ mod tests {
     }
 
     #[test]
-    fn num_bits() {
-        assert_eq!(num_error_correction_bits(1).unwrap(), 2);
+    fn bits_count() {
+        assert_eq!(error_correction_bits_count(1).unwrap(), 2);
         for i in 3..=4 {
-            assert_eq!(num_error_correction_bits(i).unwrap(), 3);
+            assert_eq!(error_correction_bits_count(i).unwrap(), 3);
         }
         for i in 5..=11 {
-            assert_eq!(num_error_correction_bits(i).unwrap(), 4);
+            assert_eq!(error_correction_bits_count(i).unwrap(), 4);
         }
         for i in 12..=26 {
-            assert_eq!(num_error_correction_bits(i).unwrap(), 5);
+            assert_eq!(error_correction_bits_count(i).unwrap(), 5);
         }
         for i in 27..=57 {
-            assert_eq!(num_error_correction_bits(i).unwrap(), 6);
+            assert_eq!(error_correction_bits_count(i).unwrap(), 6);
         }
         for i in 58..=120 {
-            assert_eq!(num_error_correction_bits(i).unwrap(), 7);
+            assert_eq!(error_correction_bits_count(i).unwrap(), 7);
         }
         for i in 121..=247 {
-            assert_eq!(num_error_correction_bits(i).unwrap(), 8);
+            assert_eq!(error_correction_bits_count(i).unwrap(), 8);
         }
         for i in 248..=502 {
-            assert_eq!(num_error_correction_bits(i).unwrap(), 9);
+            assert_eq!(error_correction_bits_count(i).unwrap(), 9);
         }
-        assert_eq!(num_error_correction_bits(512).unwrap(), 10);
+        assert_eq!(error_correction_bits_count(512).unwrap(), 10);
     }
 }
 

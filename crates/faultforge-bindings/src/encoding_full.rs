@@ -2,7 +2,7 @@ use crate::common::*;
 use faultforge::{
     bit_buffer::chunks::{Chunks, DynChunks},
     buffers::{Limited, NonUniformSequence},
-    encoding::secded::num_encoded_bits,
+    encoding::secded::encoded_bits_count,
     prelude::*,
 };
 use numpy::PyArray1;
@@ -53,7 +53,7 @@ impl PyFullEncoding {
         };
         assert_eq!(
             bits_copied,
-            output_buffer.num_bits(),
+            output_buffer.bits_count(),
             "these must match because the chunked buffer can potentially only have more bits, not less.",
         );
 
@@ -74,7 +74,7 @@ impl PyFullEncoding {
         item_counts: Vec<usize>,
     ) -> PyResult<Self> {
         let bytes = encoded_chunks.into_raw().into_iter().map(|chunk| {
-            debug_assert_eq!(chunk.num_bits(), data_bits_count);
+            debug_assert_eq!(chunk.bits_count(), data_bits_count);
             let chunk_bytes = chunk.into_inner();
             PyBytes::new(py, &chunk_bytes).unbind()
         });
@@ -89,7 +89,7 @@ impl PyFullEncoding {
     }
 
     pub fn to_rust<'py>(&self, py: Python<'py>) -> PyResult<DynChunks> {
-        let encoded_bits_count = num_encoded_bits(self.data_bits_count)
+        let encoded_bits_count = encoded_bits_count(self.data_bits_count)
             .expect("Known to be correct. Checked during initialization.");
 
         let raw_chunks = self
@@ -157,7 +157,7 @@ impl PyFullEncoding {
         encoding.flip_n_bits(n).map_err(|_| {
             PyValueError::new_err(format!(
                 "invalid number of bits {n}, only 0 <= {} is possible",
-                encoding.num_bits()
+                encoding.bits_count()
             ))
         })?;
 
@@ -195,7 +195,7 @@ impl PyFullEncoding {
 
     pub fn bits_count<'py>(&self, py: Python<'py>) -> usize {
         self.encoded_chunks.bind(py).len()
-            * num_encoded_bits(self.data_bits_count)
+            * encoded_bits_count(self.data_bits_count)
                 .expect("the data bits count must be checked during initialization")
     }
 }

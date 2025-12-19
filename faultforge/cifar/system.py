@@ -36,8 +36,8 @@ class System(BaseSystem[nn.Module]):
         data = data.to(self.device)
 
         _ = data.eval()
-        num_samples = torch.tensor(0).to(self.device)
-        num_correct = torch.tensor(0).to(self.device)
+        samples_count = torch.tensor(0).to(self.device)
+        correct_count = torch.tensor(0).to(self.device)
 
         for data_unit in self.dataset.batches(
             self.batch_size,
@@ -53,10 +53,10 @@ class System(BaseSystem[nn.Module]):
 
             outputs = outputs.argmax(dim=1)
 
-            num_samples += targets.size(0)
-            num_correct += (outputs == targets).sum()
+            samples_count += targets.size(0)
+            correct_count += (outputs == targets).sum()
 
-        return (num_correct / num_samples * 100).item()
+        return (correct_count / samples_count * 100).item()
 
     @override
     def system_data_tensors(self, data: nn.Module) -> list[torch.Tensor]:

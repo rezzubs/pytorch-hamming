@@ -38,7 +38,7 @@ def tensor_list_dtype(ts: list[torch.Tensor]) -> torch.dtype | None:
     return dtype
 
 
-def tensor_list_num_bits(ts: list[torch.Tensor]) -> int:
+def tensor_list_bits_count(ts: list[torch.Tensor]) -> int:
     """Get the total number of bits in a list of tensors."""
     total = 0
 
@@ -48,14 +48,14 @@ def tensor_list_num_bits(ts: list[torch.Tensor]) -> int:
     return total
 
 
-def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
-    """Flip `num_faults` unique bits in `ts`.
+def tensor_list_fault_injection(ts: list[torch.Tensor], faults_count: int):
+    """Flip `faults_count` unique bits in `ts`.
 
     Raises:
         DtypeMismatchError:
             If values in `ts` don't all have the same data type.
         ValueError:
-            - If num_faults is greated than the number of bits `ts`.
+            - If faults_count is greated than the number of bits `ts`.
             - If the data type is unsupported, see `FiDtype`.
     """
     dtype = tensor_list_dtype(ts)
@@ -71,7 +71,7 @@ def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
         case FiDtype.Float32:
             with torch.no_grad():
                 rust_input = [t.numpy(force=True) for t in flattened]
-                result = faultforge._core.f32_array_list_fi(rust_input, num_faults)
+                result = faultforge._core.f32_array_list_fi(rust_input, faults_count)
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
                     torch.from_numpy(t)  # pyright: ignore[reportUnknownMemberType]
@@ -82,7 +82,7 @@ def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
             with torch.no_grad():
                 rust_input = [t.cpu().view(torch.uint16).numpy() for t in flattened]
 
-                result = faultforge._core.u16_array_list_fi(rust_input, num_faults)
+                result = faultforge._core.u16_array_list_fi(rust_input, faults_count)
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
                     torch.from_numpy(t).view(torch.float16)  # pyright: ignore[reportUnknownMemberType]
@@ -95,7 +95,7 @@ def tensor_list_fault_injection(ts: list[torch.Tensor], num_faults: int):
             with torch.no_grad():
                 rust_input = [t.numpy(force=True) for t in flattened]
 
-                result = faultforge._core.u8_array_list_fi(rust_input, num_faults)
+                result = faultforge._core.u8_array_list_fi(rust_input, faults_count)
                 torch_result = [
                     # HACK: There's nothing we can do about this warning without an upstream fix.
                     torch.from_numpy(t)  # pyright: ignore[reportUnknownMemberType]

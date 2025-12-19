@@ -13,12 +13,12 @@ where
 {
     let mut buffer = prep_input_array_list(input);
 
-    let num_bits = buffer.num_bits();
+    let bits_count = buffer.bits_count();
 
     buffer.flip_n_bits(faults_count).map_err(|_| {
         PyValueError::new_err(format!(
             "Buffer has {} bits, cannot flip {}",
-            num_bits, faults_count
+            bits_count, faults_count
         ))
     })?;
 

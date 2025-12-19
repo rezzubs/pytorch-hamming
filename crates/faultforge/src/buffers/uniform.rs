@@ -7,8 +7,8 @@ use crate::prelude::*;
 /// condition cannot be upheld then [`crate::wrapper::NonUniformSequence`] should be used instead.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default, Hash)]
 pub struct UniformSequence<T> {
-    item_num_bits: usize,
-    num_items: usize,
+    item_bits_count: usize,
+    items_count: usize,
     sequence: T,
 }
 
@@ -17,10 +17,10 @@ pub struct UniformSequence<T> {
 pub struct NonMatchingIndex(usize);
 
 impl<T> UniformSequence<T> {
-    pub fn new_unchecked(sequence: T, item_num_bits: usize, num_items: usize) -> Self {
+    pub fn new_unchecked(sequence: T, item_bits_count: usize, items_count: usize) -> Self {
         Self {
-            item_num_bits,
-            num_items,
+            item_bits_count,
+            items_count,
             sequence,
         }
     }
@@ -30,34 +30,37 @@ impl<T> UniformSequence<T> {
         for<'a> &'a T: IntoIterator<Item = &'a U>,
         U: BitBuffer,
     {
-        let mut item_num_bits: Option<usize> = None;
-        let mut num_items = 0;
+        let mut item_bits_count: Option<usize> = None;
+        let mut items_count = 0;
         for (i, item) in (&sequence).into_iter().enumerate() {
-            match item_num_bits {
+            match item_bits_count {
                 Some(prev) => {
-                    if item.num_bits() != prev {
+                    if item.bits_count() != prev {
                         return Err(NonMatchingIndex(i));
                     }
                 }
-                None => item_num_bits = Some(item.num_bits()),
+                None => item_bits_count = Some(item.bits_count()),
             }
-            num_items += 1;
+            items_count += 1;
         }
 
-        let item_num_bits = item_num_bits.unwrap_or(0);
-        if item_num_bits == 0 {
-            debug_assert_eq!(num_items, 0, "Num bits is 0 but num items is {num_items}");
+        let item_bits_count = item_bits_count.unwrap_or(0);
+        if item_bits_count == 0 {
+            debug_assert_eq!(
+                items_count, 0,
+                "Num bits is 0 but num items is {items_count}"
+            );
         }
 
-        Ok(Self::new_unchecked(sequence, item_num_bits, num_items))
+        Ok(Self::new_unchecked(sequence, item_bits_count, items_count))
     }
 
-    pub fn item_num_bits(&self) -> usize {
-        self.item_num_bits
+    pub fn item_bits_count(&self) -> usize {
+        self.item_bits_count
     }
 
-    pub fn num_items(&self) -> usize {
-        self.num_items
+    pub fn items_count(&self) -> usize {
+        self.items_count
     }
 
     pub fn inner(&self) -> &T {
@@ -79,32 +82,32 @@ where
     T: std::ops::IndexMut<usize, Output = U>,
     U: BitBuffer,
 {
-    fn num_bits(&self) -> usize {
-        self.num_items * self.item_num_bits
+    fn bits_count(&self) -> usize {
+        self.items_count * self.item_bits_count
     }
 
     fn set_1(&mut self, bit_index: usize) {
-        debug_assert!(bit_index < self.num_bits());
-        let item_index = bit_index / self.item_num_bits;
-        self.sequence[item_index].set_1(bit_index % self.item_num_bits)
+        debug_assert!(bit_index < self.bits_count());
+        let item_index = bit_index / self.item_bits_count;
+        self.sequence[item_index].set_1(bit_index % self.item_bits_count)
     }
 
     fn set_0(&mut self, bit_index: usize) {
-        debug_assert!(bit_index < self.num_bits());
-        let item_index = bit_index / self.item_num_bits;
-        self.sequence[item_index].set_0(bit_index % self.item_num_bits)
+        debug_assert!(bit_index < self.bits_count());
+        let item_index = bit_index / self.item_bits_count;
+        self.sequence[item_index].set_0(bit_index % self.item_bits_count)
     }
 
     fn is_1(&self, bit_index: usize) -> bool {
-        debug_assert!(bit_index < self.num_bits());
-        let item_index = bit_index / self.item_num_bits;
-        self.sequence[item_index].is_1(bit_index % self.item_num_bits)
+        debug_assert!(bit_index < self.bits_count());
+        let item_index = bit_index / self.item_bits_count;
+        self.sequence[item_index].is_1(bit_index % self.item_bits_count)
     }
 
     fn flip_bit(&mut self, bit_index: usize) {
-        debug_assert!(bit_index < self.num_bits());
-        let item_index = bit_index / self.item_num_bits;
-        self.sequence[item_index].flip_bit(bit_index % self.item_num_bits)
+        debug_assert!(bit_index < self.bits_count());
+        let item_index = bit_index / self.item_bits_count;
+        self.sequence[item_index].flip_bit(bit_index % self.item_bits_count)
     }
 }
 
@@ -114,27 +117,27 @@ where
     for<'a> &'a T: IntoIterator<Item = &'a U>,
     U: ByteChunkedBitBuffer,
 {
-    fn num_bytes(&self) -> usize {
+    fn bytes_count(&self) -> usize {
         let Some(first) = self.sequence.into_iter().next() else {
-            debug_assert_eq!(self.num_items, 0);
-            debug_assert_eq!(self.item_num_bits, 0);
+            debug_assert_eq!(self.items_count, 0);
+            debug_assert_eq!(self.item_bits_count, 0);
             return 0;
         };
 
-        first.num_bytes() * self.num_items
+        first.bytes_count() * self.items_count
     }
 
     fn get_byte(&self, n: usize) -> u8 {
-        debug_assert!(n < self.num_bytes());
-        let item_index = (n * 8) / self.item_num_bits;
-        let index_in_item = ((n * 8) % self.item_num_bits) / 8;
+        debug_assert!(n < self.bytes_count());
+        let item_index = (n * 8) / self.item_bits_count;
+        let index_in_item = ((n * 8) % self.item_bits_count) / 8;
         self.sequence[item_index].get_byte(index_in_item)
     }
 
     fn set_byte(&mut self, n: usize, value: u8) {
-        debug_assert!(n < self.num_bytes());
-        let item_index = (n * 8) / self.item_num_bits;
-        let index_in_item = ((n * 8) % self.item_num_bits) / 8;
+        debug_assert!(n < self.bytes_count());
+        let item_index = (n * 8) / self.item_bits_count;
+        let index_in_item = ((n * 8) % self.item_bits_count) / 8;
         self.sequence[item_index].set_byte(index_in_item, value)
     }
 }
@@ -155,17 +158,17 @@ mod tests {
         let buffer: Vec<[u8; 6]> = vec![];
         let uniform = UniformSequence::new(buffer).unwrap();
 
-        assert_eq!(uniform.num_items(), 0);
-        assert_eq!(uniform.item_num_bits(), 0);
-        assert_eq!(uniform.num_bytes(), 0);
-        assert_eq!(uniform.num_bits(), 0);
+        assert_eq!(uniform.items_count(), 0);
+        assert_eq!(uniform.item_bits_count(), 0);
+        assert_eq!(uniform.bytes_count(), 0);
+        assert_eq!(uniform.bits_count(), 0);
     }
 
     #[test]
     fn common_ops() {
         let mut buf = UniformSequence::new([0u8, 0b1010u8]).unwrap();
-        assert_eq!(buf.num_bits(), 16);
-        assert_eq!(buf.item_num_bits(), 8);
+        assert_eq!(buf.bits_count(), 16);
+        assert_eq!(buf.item_bits_count(), 8);
 
         for i in 0..9 {
             assert!(buf.is_0(i));
@@ -187,7 +190,7 @@ mod tests {
         buf.flip_bit(10);
         assert!(buf.is_1(10));
 
-        assert_eq!(buf.num_bytes(), 2);
+        assert_eq!(buf.bytes_count(), 2);
         assert_eq!(buf.get_byte(0), 0);
         assert_eq!(buf.get_byte(1), 0b1110);
         buf.set_byte(0, u8::MAX);
@@ -200,8 +203,8 @@ mod tests {
     #[test]
     fn multi_byte_items() {
         let mut buf = UniformSequence::new([0u32, 0xffu32]).unwrap();
-        assert_eq!(buf.num_bytes(), 8);
-        assert_eq!(buf.item_num_bits(), 32);
+        assert_eq!(buf.bytes_count(), 8);
+        assert_eq!(buf.item_bits_count(), 32);
 
         assert_eq!(buf.get_byte(4), 0xff);
         buf.set_byte(1, 0xaa);

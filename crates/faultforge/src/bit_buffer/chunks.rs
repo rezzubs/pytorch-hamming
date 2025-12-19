@@ -21,7 +21,7 @@ pub enum InvalidChunks {
 
 /// How many chunks are required to store a buffer with `chunk_size` bits per chunk.
 #[inline]
-pub fn num_chunks(buffer_size: usize, chunk_size: usize) -> Result<usize, InvalidChunks> {
+pub fn chunks_count(buffer_size: usize, chunk_size: usize) -> Result<usize, InvalidChunks> {
     if buffer_size == 0 {
         return Err(InvalidChunks::Empty);
     }
@@ -40,7 +40,9 @@ pub fn num_chunks(buffer_size: usize, chunk_size: usize) -> Result<usize, Invali
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DecodeError {
-    #[error("The data bits count must be invalid because a length mismatch was detected during decoding: {0}")]
+    #[error(
+        "The data bits count must be invalid because a length mismatch was detected during decoding: {0}"
+    )]
     InvalidDataBitsCount(#[source] crate::encoding::secded::DecodeError),
 }
 
@@ -53,14 +55,14 @@ pub struct ByteChunks(UniformSequence<Vec<ByteChunk>>);
 impl ByteChunks {
     /// Create new chunks with all bits initialized to zero.
     ///
-    /// Returns [`None`] if `num_bytes` is 0.
-    pub fn zero(num_bytes: usize, bytes_per_chunk: usize) -> Result<Self, InvalidChunks> {
-        let num_chunks = num_chunks(num_bytes, bytes_per_chunk)?;
+    /// Returns [`None`] if `bytes_count` is 0.
+    pub fn zero(bytes_count: usize, bytes_per_chunk: usize) -> Result<Self, InvalidChunks> {
+        let chunks_count = chunks_count(bytes_count, bytes_per_chunk)?;
 
         Ok(Self(UniformSequence::new_unchecked(
-            vec![vec![0u8; bytes_per_chunk]; num_chunks],
+            vec![vec![0u8; bytes_per_chunk]; chunks_count],
             bytes_per_chunk * 8,
-            num_chunks,
+            chunks_count,
         )))
     }
 
@@ -75,11 +77,11 @@ impl ByteChunks {
     where
         T: ByteChunkedBitBuffer,
     {
-        let num_bytes = buffer.num_bytes();
-        let mut output_buffer = Self::zero(num_bytes, bytes_per_chunk)?;
+        let bytes_count = buffer.bytes_count();
+        let mut output_buffer = Self::zero(bytes_count, bytes_per_chunk)?;
 
         let result = buffer.copy_into_chunked(&mut output_buffer);
-        assert_eq!(result.units_copied, num_bytes);
+        assert_eq!(result.units_copied, bytes_count);
 
         Ok(output_buffer)
     }
@@ -108,8 +110,8 @@ same unless they have been tampered with after creation. Got error {err}",
 
     /// Get the number of chunks.
     #[must_use]
-    pub fn num_chunks(&self) -> usize {
-        self.0.num_items()
+    pub fn chunks_count(&self) -> usize {
+        self.0.items_count()
     }
 
     /// Get the number of bytes per chunk.
@@ -131,13 +133,13 @@ same unless they have been tampered with after creation. Got error {err}",
 pub struct DynChunks(UniformSequence<Vec<DynChunk>>);
 
 impl DynChunks {
-    pub fn zero(num_bits: usize, bits_per_chunk: usize) -> Result<Self, InvalidChunks> {
-        let num_chunks = num_chunks(num_bits, bits_per_chunk)?;
+    pub fn zero(bits_count: usize, chunk_bits_count: usize) -> Result<Self, InvalidChunks> {
+        let chunks_count = chunks_count(bits_count, chunk_bits_count)?;
 
         Ok(Self(UniformSequence::new_unchecked(
-            vec![Limited::bytes(bits_per_chunk); num_chunks],
-            bits_per_chunk,
-            num_chunks,
+            vec![Limited::bytes(chunk_bits_count); chunks_count],
+            chunk_bits_count,
+            chunks_count,
         )))
     }
     /// Create new dynamic chunks from the `buffer`.
@@ -149,7 +151,7 @@ impl DynChunks {
     where
         T: BitBuffer,
     {
-        let input_size = buffer.num_bits();
+        let input_size = buffer.bits_count();
         let mut output_buffer = Self::zero(input_size, bits_per_chunk)?;
         let result = buffer.copy_into(&mut output_buffer);
         assert_eq!(result.units_copied, input_size);
@@ -190,11 +192,11 @@ same unless they have been tampered with after creation. Got error {err}",
     /// - [`DynChunks::decode_chunks`]
     pub fn decode_chunks_dyn(
         self,
-        num_chunk_data_bits: usize,
+        chunk_data_bits_count: usize,
     ) -> Result<(DynChunks, Vec<bool>), DecodeError> {
-        let num_chunks = self.num_chunks();
+        let chunks_count = self.chunks_count();
 
-        let output_buffer = vec![Limited::bytes(num_chunk_data_bits); num_chunks];
+        let output_buffer = vec![Limited::bytes(chunk_data_bits_count); chunks_count];
         let (decoded_output, ded_results) = self
             .0
             .into_inner()
@@ -217,8 +219,8 @@ same unless they have been tampered with after creation. Got error {err}",
         Ok((
             DynChunks(UniformSequence::new_unchecked(
                 decoded_output,
-                num_chunk_data_bits,
-                num_chunks,
+                chunk_data_bits_count,
+                chunks_count,
             )),
             ded_results,
         ))
@@ -235,10 +237,10 @@ same unless they have been tampered with after creation. Got error {err}",
     /// - [`DynChunks::decode_chunks`]
     fn decode_chunks_byte(
         self,
-        num_chunk_data_bytes: usize,
+        chunk_data_bytes_count: usize,
     ) -> Result<(ByteChunks, Vec<bool>), DecodeError> {
-        let num_chunks = self.num_chunks();
-        let output_buffer = vec![vec![0u8; num_chunk_data_bytes]; num_chunks];
+        let chunks_count = self.chunks_count();
+        let output_buffer = vec![vec![0u8; chunk_data_bytes_count]; chunks_count];
         let (decoded_output, results) = self
             .0
             .into_inner()
@@ -261,8 +263,8 @@ same unless they have been tampered with after creation. Got error {err}",
         Ok((
             ByteChunks(UniformSequence::new_unchecked(
                 decoded_output,
-                num_chunk_data_bytes * 8,
-                num_chunks,
+                chunk_data_bytes_count * 8,
+                chunks_count,
             )),
             results,
         ))
@@ -282,22 +284,22 @@ same unless they have been tampered with after creation. Got error {err}",
     /// `data_bits` is given again instead.
     pub fn decode_chunks(
         self,
-        num_chunk_data_bits: usize,
+        chunk_data_bits_count: usize,
     ) -> Result<(Chunks, Vec<bool>), DecodeError> {
-        Ok(if num_chunk_data_bits.is_multiple_of(8) {
-            let num_data_bytes = num_chunk_data_bits / 8;
-            let (chunks, ded_results) = self.decode_chunks_byte(num_data_bytes)?;
+        Ok(if chunk_data_bits_count.is_multiple_of(8) {
+            let data_bytes_count = chunk_data_bits_count / 8;
+            let (chunks, ded_results) = self.decode_chunks_byte(data_bytes_count)?;
             (Chunks::Byte(chunks), ded_results)
         } else {
-            let (chunks, ded_results) = self.decode_chunks_dyn(num_chunk_data_bits)?;
+            let (chunks, ded_results) = self.decode_chunks_dyn(chunk_data_bits_count)?;
             (Chunks::Dyn(chunks), ded_results)
         })
     }
 
     /// Get the number of chunks.
     #[must_use]
-    pub fn num_chunks(&self) -> usize {
-        let chunks = self.0.num_items();
+    pub fn chunks_count(&self) -> usize {
+        let chunks = self.0.items_count();
         assert!(chunks > 0);
         chunks
     }
@@ -309,7 +311,7 @@ same unless they have been tampered with after creation. Got error {err}",
             .inner()
             .iter()
             .next()
-            .map(|chunk| chunk.num_bits())
+            .map(|chunk| chunk.bits_count())
             .unwrap_or(0)
     }
 
@@ -357,23 +359,23 @@ impl Chunks {
 
     /// Create new chunks with all bits initialized to zero.
     ///
-    /// Returns [`None`] if `num_bits` is 0.
-    pub fn zero(num_bits: usize, bits_per_chunk: usize) -> Result<Self, InvalidChunks> {
+    /// Returns [`None`] if `bits_count` is 0.
+    pub fn zero(bits_count: usize, chunk_bits_count: usize) -> Result<Self, InvalidChunks> {
         Ok(
-            if bits_per_chunk.is_multiple_of(8) && num_bits.is_multiple_of(8) {
-                Chunks::Byte(ByteChunks::zero(num_bits / 8, bits_per_chunk / 8)?)
+            if chunk_bits_count.is_multiple_of(8) && bits_count.is_multiple_of(8) {
+                Chunks::Byte(ByteChunks::zero(bits_count / 8, chunk_bits_count / 8)?)
             } else {
-                Chunks::Dyn(DynChunks::zero(num_bits, bits_per_chunk)?)
+                Chunks::Dyn(DynChunks::zero(bits_count, chunk_bits_count)?)
             },
         )
     }
 
     /// Get the number of chunks.
     #[must_use]
-    pub fn num_chunks(&self) -> usize {
+    pub fn chunks_count(&self) -> usize {
         match self {
-            Chunks::Byte(byte_chunks) => byte_chunks.num_chunks(),
-            Chunks::Dyn(dyn_chunks) => dyn_chunks.num_chunks(),
+            Chunks::Byte(byte_chunks) => byte_chunks.chunks_count(),
+            Chunks::Dyn(dyn_chunks) => dyn_chunks.chunks_count(),
         }
     }
 
@@ -387,8 +389,8 @@ impl Chunks {
 }
 
 impl BitBuffer for ByteChunks {
-    fn num_bits(&self) -> usize {
-        self.0.num_bits()
+    fn bits_count(&self) -> usize {
+        self.0.bits_count()
     }
 
     fn set_1(&mut self, bit_index: usize) {
@@ -409,8 +411,8 @@ impl BitBuffer for ByteChunks {
 }
 
 impl BitBuffer for DynChunks {
-    fn num_bits(&self) -> usize {
-        self.0.num_bits()
+    fn bits_count(&self) -> usize {
+        self.0.bits_count()
     }
 
     fn set_1(&mut self, bit_index: usize) {
@@ -431,10 +433,10 @@ impl BitBuffer for DynChunks {
 }
 
 impl BitBuffer for Chunks {
-    fn num_bits(&self) -> usize {
+    fn bits_count(&self) -> usize {
         match self {
-            Chunks::Byte(chunks) => chunks.num_bits(),
-            Chunks::Dyn(chunks) => chunks.num_bits(),
+            Chunks::Byte(chunks) => chunks.bits_count(),
+            Chunks::Dyn(chunks) => chunks.bits_count(),
         }
     }
 
@@ -468,8 +470,8 @@ impl BitBuffer for Chunks {
 }
 
 impl ByteChunkedBitBuffer for ByteChunks {
-    fn num_bytes(&self) -> usize {
-        self.0.num_bytes()
+    fn bytes_count(&self) -> usize {
+        self.0.bytes_count()
     }
 
     fn get_byte(&self, n: usize) -> u8 {
@@ -494,8 +496,8 @@ mod tests {
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 7 bits.
         // We need 7 chunks -> 49 (7*7) bits to store the original data.
-        assert_eq!(chunks.num_chunks(), 7);
-        assert_eq!(chunks.num_bits(), 49);
+        assert_eq!(chunks.chunks_count(), 7);
+        assert_eq!(chunks.bits_count(), 49);
 
         let mut bytes = chunks.0.clone().into_inner().into_iter();
 
@@ -510,12 +512,12 @@ mod tests {
         let mut restored = [0u16; 3];
         let result = chunks.copy_into(&mut restored);
         // The result will be pending because the chunks had extra padding at the end.
-        assert_eq!(result, CopyIntoResult::pending(restored.num_bits()));
+        assert_eq!(result, CopyIntoResult::pending(restored.bits_count()));
         assert_eq!(restored, source);
 
         assert_eq!(
             chunks.bits().skip(result.units_copied).count(),
-            chunks.num_bits() - source.num_bits()
+            chunks.bits_count() - source.bits_count()
         );
         assert!(chunks.bits().skip(result.units_copied).all(|is_1| !is_1));
 
@@ -523,8 +525,8 @@ mod tests {
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 9 bits.
         // We need 6 bytes -> 54 (9*6) bits to store the original data.
-        assert_eq!(chunks.num_chunks(), 6);
-        assert_eq!(chunks.num_bits(), 54);
+        assert_eq!(chunks.chunks_count(), 6);
+        assert_eq!(chunks.bits_count(), 54);
 
         let mut bytes = chunks.0.clone().into_inner().into_iter();
 
@@ -538,7 +540,7 @@ mod tests {
 
         let mut restored = [0u16; 3];
         let result = chunks.copy_into(&mut restored);
-        assert_eq!(result.units_copied, restored.num_bits());
+        assert_eq!(result.units_copied, restored.bits_count());
     }
 
     #[test]
@@ -548,8 +550,8 @@ mod tests {
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 1 byte.
         // 6 chunks are used to store the data.
-        assert_eq!(chunks.num_chunks(), 6);
-        assert_eq!(chunks.num_bits(), 48);
+        assert_eq!(chunks.chunks_count(), 6);
+        assert_eq!(chunks.bits_count(), 48);
 
         let mut bytes = chunks.0.clone().into_inner().into_iter();
 
@@ -560,14 +562,14 @@ mod tests {
 
         let mut restored = [0u16; 3];
         let result = chunks.copy_into(&mut restored);
-        assert_eq!(result, CopyIntoResult::done(restored.num_bits()));
+        assert_eq!(result, CopyIntoResult::done(restored.bits_count()));
 
         let chunks = source.to_byte_chunks(2).unwrap();
         // The original is 6 bytes -> 48 bits long;
         // The chunk size is 2 bytes.
         // 3 chunks are used to store the data.
-        assert_eq!(chunks.num_chunks(), 3);
-        assert_eq!(chunks.num_bits(), 48);
+        assert_eq!(chunks.chunks_count(), 3);
+        assert_eq!(chunks.bits_count(), 48);
 
         let mut bytes = chunks.0.clone().into_inner().into_iter();
 
@@ -578,24 +580,24 @@ mod tests {
 
         let mut restored = [0u16; 3];
         let result = chunks.copy_into(&mut restored);
-        assert_eq!(result, CopyIntoResult::done(restored.num_bits()));
+        assert_eq!(result, CopyIntoResult::done(restored.bits_count()));
     }
 
     #[test]
     fn byte_chunked_encoding() {
         let source = [123.123f32, std::f32::consts::PI, 0.001, 10000.123];
-        let expected_num_bytes = 4 * 4;
-        assert_eq!(source.num_bytes(), expected_num_bytes);
+        let expected_bytes_count = 4 * 4;
+        assert_eq!(source.bytes_count(), expected_bytes_count);
 
         let chunk_size = 16;
-        let expected_num_chunks = 8;
-        let expected_bytes_per_chunk = chunk_size / expected_num_chunks;
+        let chunks_count_expected = 8;
+        let expected_bytes_per_chunk = chunk_size / chunks_count_expected;
         let chunks = source.to_chunks(chunk_size).unwrap();
 
         match chunks {
             Chunks::Byte(ref byte_chunks) => {
-                assert_eq!(byte_chunks.num_bytes(), expected_num_bytes);
-                assert_eq!(byte_chunks.num_chunks(), expected_num_chunks);
+                assert_eq!(byte_chunks.bytes_count(), expected_bytes_count);
+                assert_eq!(byte_chunks.chunks_count(), chunks_count_expected);
                 assert_eq!(
                     byte_chunks.0.inner().first().map(|x| x.len()),
                     Some(expected_bytes_per_chunk)
@@ -605,7 +607,7 @@ mod tests {
         }
 
         let encoded = chunks.encode_chunks();
-        assert_eq!(encoded.num_chunks(), expected_num_chunks);
+        assert_eq!(encoded.chunks_count(), chunks_count_expected);
 
         {
             let non_faulty = encoded.clone();
@@ -622,7 +624,7 @@ mod tests {
 
             let mut target = [0f32; 4];
             let result = raw_decoded.copy_into_chunked(&mut target);
-            assert_eq!(result.units_copied, source.num_bytes());
+            assert_eq!(result.units_copied, source.bytes_count());
 
             assert_eq!(target, source);
         }
@@ -649,7 +651,7 @@ mod tests {
 
             let mut target = [0f32; 4];
             let result = raw_decoded.copy_into_chunked(&mut target);
-            assert_eq!(result.units_copied, source.num_bytes());
+            assert_eq!(result.units_copied, source.bytes_count());
 
             assert_eq!(target, source, "failed on fault_index={fault_index}");
         }
@@ -670,7 +672,7 @@ mod tests {
                     .0
                     .inner()
                     .iter()
-                    .for_each(|chunk| assert_eq!(chunk.num_bits(), chunk_size)),
+                    .for_each(|chunk| assert_eq!(chunk.bits_count(), chunk_size)),
             }
 
             let encoded = chunks.encode_chunks();
@@ -689,10 +691,10 @@ mod tests {
 
                 let mut target = [0f32; 4];
                 let result = raw_decoded.copy_into(&mut target);
-                if source.num_bits() == chunks.num_bits() {
-                    assert_eq!(result, CopyIntoResult::done(source.num_bits()));
+                if source.bits_count() == chunks.bits_count() {
+                    assert_eq!(result, CopyIntoResult::done(source.bits_count()));
                 } else {
-                    assert_eq!(result, CopyIntoResult::pending(source.num_bits()));
+                    assert_eq!(result, CopyIntoResult::pending(source.bits_count()));
                 }
 
                 assert_eq!(target, source);
@@ -722,10 +724,10 @@ mod tests {
 
                 let mut target = [0f32; 4];
                 let result = raw_decoded.copy_into(&mut target);
-                if source.num_bits() == chunks.num_bits() {
-                    assert_eq!(result, CopyIntoResult::done(source.num_bits()));
+                if source.bits_count() == chunks.bits_count() {
+                    assert_eq!(result, CopyIntoResult::done(source.bits_count()));
                 } else {
-                    assert_eq!(result, CopyIntoResult::pending(source.num_bits()));
+                    assert_eq!(result, CopyIntoResult::pending(source.bits_count()));
                 }
 
                 assert_eq!(target, source, "failed on fault_index={fault_index}");
@@ -747,7 +749,7 @@ mod tests {
         for i in 1..=16 {
             assert_eq!(
                 zero_buffer.to_chunks(i).unwrap(),
-                Chunks::zero(zero_buffer.num_bits(), i).unwrap()
+                Chunks::zero(zero_buffer.bits_count(), i).unwrap()
             );
         }
     }

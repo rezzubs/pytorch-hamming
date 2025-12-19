@@ -29,7 +29,7 @@ fuzz_target!(|input: Input| -> Corpus {
 
     let mut hit = HashSet::new();
     for &fault in &faults {
-        if fault >= encoded.num_bits() || !hit.insert(fault) {
+        if fault >= encoded.bits_count() || !hit.insert(fault) {
             return Corpus::Reject;
         }
 

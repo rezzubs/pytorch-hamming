@@ -40,14 +40,14 @@ pub enum CreationError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct BufferParams {
-    num_total_bits: usize,
-    num_masks: usize,
-    num_protected_bits: usize,
+    total_bits_count: usize,
+    masks_count: usize,
+    protected_bits_count: usize,
 }
 
 impl BufferParams {
-    fn num_unprotected_bits(&self) -> usize {
-        self.num_total_bits - self.num_protected_bits
+    fn unprotected_bits_count(&self) -> usize {
+        self.total_bits_count - self.protected_bits_count
     }
 }
 
@@ -97,20 +97,20 @@ impl BitPattern {
     {
         assert!(self.length >= self.mask.len());
 
-        let num_total_bits = buffer.num_bits();
-        if !num_total_bits.is_multiple_of(self.length) {
+        let total_bits_count = buffer.bits_count();
+        if !total_bits_count.is_multiple_of(self.length) {
             return Err(LengthMismatch);
         }
 
-        let num_masks = buffer.num_bits() / self.length;
+        let masks_count = buffer.bits_count() / self.length;
         // NOTE: the length of the mask corresponds to the number of bits to be encoded per pattern.
-        let num_protected_bits = self.mask.len() * num_masks;
-        assert!(num_protected_bits <= num_total_bits);
+        let protected_bits_count = self.mask.len() * masks_count;
+        assert!(protected_bits_count <= total_bits_count);
 
         Ok(BufferParams {
-            num_total_bits,
-            num_masks,
-            num_protected_bits,
+            total_bits_count,
+            masks_count,
+            protected_bits_count,
         })
     }
 
@@ -124,8 +124,8 @@ impl BitPattern {
     {
         let params = self.buffer_params(buffer)?;
 
-        let mut protected = Chunks::zero(params.num_protected_bits, bits_per_chunk)?;
-        let mut unprotected = Limited::bytes(params.num_unprotected_bits());
+        let mut protected = Chunks::zero(params.protected_bits_count, bits_per_chunk)?;
+        let mut unprotected = Limited::bytes(params.unprotected_bits_count());
 
         let mut protected_i = 0;
         let mut unprotected_i = 0;
@@ -182,12 +182,12 @@ pub struct BitPatternEncodingData {
 }
 
 impl BitBuffer for BitPatternEncodingData {
-    fn num_bits(&self) -> usize {
-        self.unprotected.num_bits() + self.protected.num_bits()
+    fn bits_count(&self) -> usize {
+        self.unprotected.bits_count() + self.protected.bits_count()
     }
 
     fn set_1(&mut self, bit_index: usize) {
-        let unprotected_count = self.unprotected.num_bits();
+        let unprotected_count = self.unprotected.bits_count();
         if bit_index < unprotected_count {
             self.unprotected.set_1(bit_index);
         } else {
@@ -196,7 +196,7 @@ impl BitBuffer for BitPatternEncodingData {
     }
 
     fn set_0(&mut self, bit_index: usize) {
-        let unprotected_count = self.unprotected.num_bits();
+        let unprotected_count = self.unprotected.bits_count();
         if bit_index < unprotected_count {
             self.unprotected.set_0(bit_index);
         } else {
@@ -205,7 +205,7 @@ impl BitBuffer for BitPatternEncodingData {
     }
 
     fn is_1(&self, bit_index: usize) -> bool {
-        let unprotected_count = self.unprotected.num_bits();
+        let unprotected_count = self.unprotected.bits_count();
         if bit_index < unprotected_count {
             self.unprotected.is_1(bit_index)
         } else {
@@ -214,7 +214,7 @@ impl BitBuffer for BitPatternEncodingData {
     }
 
     fn flip_bit(&mut self, bit_index: usize) {
-        let unprotected_count = self.unprotected.num_bits();
+        let unprotected_count = self.unprotected.bits_count();
         if bit_index < unprotected_count {
             self.unprotected.flip_bit(bit_index)
         } else {
@@ -256,7 +256,7 @@ impl BitPatternEncoding {
             .buffer_params(buffer)
             .expect("the pattern must be valid if it was used successfully for encoding");
 
-        assert_eq!(params.num_unprotected_bits(), unprotected.num_bits());
+        assert_eq!(params.unprotected_bits_count(), unprotected.bits_count());
 
         let (protected, ded_results) =
             protected
@@ -268,15 +268,15 @@ impl BitPatternEncoding {
                 });
 
         {
-            let expected_num_chunks = chunks::num_chunks(params.num_protected_bits, bits_per_chunk).expect("It should be possible to decode using the same parameters that were used to encode.");
+            let chunks_count_expected = chunks::chunks_count(params.protected_bits_count, bits_per_chunk).expect("It should be possible to decode using the same parameters that were used to encode.");
             // these values are the values from before encoding.
-            let expected_num_protected_bits_in_chunks = expected_num_chunks * bits_per_chunk;
-            assert_eq!(expected_num_protected_bits_in_chunks, protected.num_bits());
+            let chunk_protected_bits_count_expected = chunks_count_expected * bits_per_chunk;
+            assert_eq!(chunk_protected_bits_count_expected, protected.bits_count());
         }
 
         let mut protected_i = 0;
         let mut unprotected_i = 0;
-        for buffer_i in 0..buffer.num_bits() {
+        for buffer_i in 0..buffer.bits_count() {
             let mask_i = buffer_i % pattern.length;
 
             if pattern.mask.contains(&mask_i) {
@@ -335,11 +335,11 @@ mod tests {
         let (unprotected, protected) = pattern.partition(&data, 4).unwrap();
 
         // Two bits repeated twice.
-        assert_eq!(protected.num_bits(), 4);
+        assert_eq!(protected.bits_count(), 4);
         // chunk size 4, 4 bits total.
-        assert_eq!(protected.num_chunks(), 1);
+        assert_eq!(protected.chunks_count(), 1);
 
-        assert_eq!(unprotected.num_bits(), 12);
+        assert_eq!(unprotected.bits_count(), 12);
 
         assert!(protected.is_1(0));
         assert!(protected.is_1(1));
@@ -388,8 +388,8 @@ mod tests {
         // - 3 bits per chunk
         // - 2 chunks to fit the data
         // - 6 bits in total
-        assert_eq!(protected.num_chunks(), 2);
-        assert_eq!(protected.num_bits(), 6);
+        assert_eq!(protected.chunks_count(), 2);
+        assert_eq!(protected.bits_count(), 6);
 
         for i in 0..4 {
             assert!(protected.is_1(i))

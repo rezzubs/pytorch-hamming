@@ -78,7 +78,7 @@ class EncodedSystem[T](BaseSystem[Encoding]):
         self.encoder.encoder_add_metadata(metadata)
 
         overhead = (
-            self.system_total_num_bits() / self.base.system_total_num_bits() - 1
+            self.system_total_bits_count() / self.base.system_total_bits_count() - 1
         ) * 100
         metadata["memory_overhead"] = f"{overhead:.1f}%"
         metadata["protected"] = "true"
@@ -90,5 +90,5 @@ class EncodedSystem[T](BaseSystem[Encoding]):
         return data.encoding_clone()
 
     @override
-    def system_total_num_bits(self) -> int:
+    def system_total_bits_count(self) -> int:
         return self.system_data().encoding_bits_count()

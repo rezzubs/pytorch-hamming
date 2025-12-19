@@ -32,7 +32,7 @@ where
     I: IntoIterator<Item = usize>,
     B: BitBuffer,
 {
-    let length = buffer.num_bits();
+    let length = buffer.bits_count();
 
     let mut iter_length = 0;
     for index in source_bits {

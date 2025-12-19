@@ -27,8 +27,8 @@ where
     type Item = bool;
 
     fn next(&mut self) -> Option<Self::Item> {
-        assert!(self.next_bit <= self.buffer.num_bits());
-        if self.next_bit == self.buffer.num_bits() {
+        assert!(self.next_bit <= self.buffer.bits_count());
+        if self.next_bit == self.buffer.bits_count() {
             return None;
         }
 

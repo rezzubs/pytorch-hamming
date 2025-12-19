@@ -1,7 +1,7 @@
 use crate::{
     bit_buffer::{
-        chunks::{ByteChunks, Chunks, InvalidChunks},
         CopyIntoResult,
+        chunks::{ByteChunks, Chunks, InvalidChunks},
     },
     prelude::*,
 };
@@ -9,7 +9,7 @@ use crate::{
 /// A [`BitBuffer`] that is byte addressable.
 pub trait ByteChunkedBitBuffer: BitBuffer {
     /// Return the number of bytes in the buffer.
-    fn num_bytes(&self) -> usize;
+    fn bytes_count(&self) -> usize;
 
     /// Get the byte at index `n`.
     fn get_byte(&self, n: usize) -> u8;
@@ -31,8 +31,8 @@ pub trait ByteChunkedBitBuffer: BitBuffer {
     where
         D: ByteChunkedBitBuffer,
     {
-        let remaining_source = self.num_bytes().saturating_sub(self_offset);
-        let remaining_dest = dest.num_bytes().saturating_sub(dest_offset);
+        let remaining_source = self.bytes_count().saturating_sub(self_offset);
+        let remaining_dest = dest.bytes_count().saturating_sub(dest_offset);
 
         if remaining_source == 0 {
             return CopyIntoResult::done(0);
@@ -42,7 +42,8 @@ pub trait ByteChunkedBitBuffer: BitBuffer {
             return CopyIntoResult::pending(0);
         }
 
-        for (source_i, dest_i) in (self_offset..self.num_bytes()).zip(dest_offset..dest.num_bytes())
+        for (source_i, dest_i) in
+            (self_offset..self.bytes_count()).zip(dest_offset..dest.bytes_count())
         {
             dest.set_byte(dest_i, self.get_byte(source_i));
         }
@@ -99,7 +100,7 @@ pub trait ByteChunkedBitBuffer: BitBuffer {
 }
 
 impl ByteChunkedBitBuffer for u8 {
-    fn num_bytes(&self) -> usize {
+    fn bytes_count(&self) -> usize {
         1
     }
 
@@ -117,7 +118,7 @@ impl ByteChunkedBitBuffer for u8 {
 macro_rules! uint_impl {
     ($ty:ty, $bytes:expr) => {
         impl ByteChunkedBitBuffer for $ty {
-            fn num_bytes(&self) -> usize {
+            fn bytes_count(&self) -> usize {
                 $bytes
             }
 
@@ -128,9 +129,9 @@ macro_rules! uint_impl {
             }
 
             fn set_byte(&mut self, n: usize, value: u8) {
-                let num_bits = n * 8;
-                let value_shifted = (value as $ty) << (num_bits);
-                let mask: $ty = !(0xff << num_bits);
+                let bits_count = n * 8;
+                let value_shifted = (value as $ty) << (bits_count);
+                let mask: $ty = !(0xff << bits_count);
 
                 *self &= mask;
                 *self |= value_shifted;
@@ -146,7 +147,7 @@ uint_impl!(u64, 8);
 macro_rules! float_impl {
     ($ty:ty, $bytes:expr) => {
         impl ByteChunkedBitBuffer for $ty {
-            fn num_bytes(&self) -> usize {
+            fn bytes_count(&self) -> usize {
                 $bytes
             }
 
@@ -170,22 +171,22 @@ impl<T> ByteChunkedBitBuffer for [T]
 where
     T: ByteChunkedBitBuffer + SizedBitBuffer,
 {
-    fn num_bytes(&self) -> usize {
-        self.len() * (T::NUM_BITS / 8)
+    fn bytes_count(&self) -> usize {
+        self.len() * (T::BITS_COUNT / 8)
     }
 
     fn get_byte(&self, n: usize) -> u8 {
-        let child_num_bytes = T::NUM_BITS / 8;
-        let item_index = n / child_num_bytes;
-        let index_in_item = n % child_num_bytes;
-        let item = self.get(item_index).unwrap_or_else(|| panic!("out of bounds, child_num_bytes: {child_num_bytes}, item_index: {item_index}, index_in_item: {index_in_item}"));
+        let child_bytes_count = T::BITS_COUNT / 8;
+        let item_index = n / child_bytes_count;
+        let index_in_item = n % child_bytes_count;
+        let item = self.get(item_index).unwrap_or_else(|| panic!("out of bounds, child_bytes_count: {child_bytes_count}, item_index: {item_index}, index_in_item: {index_in_item}"));
         item.get_byte(index_in_item)
     }
 
     fn set_byte(&mut self, n: usize, value: u8) {
-        let num_bytes = T::NUM_BITS / 8;
-        let item_index = n / num_bytes;
-        let index_in_item = n % num_bytes;
+        let bytes_count = T::BITS_COUNT / 8;
+        let item_index = n / bytes_count;
+        let index_in_item = n % bytes_count;
         let Some(item) = self.get_mut(item_index) else {
             panic!("{n} is out of bounds");
         };
@@ -197,8 +198,8 @@ impl<const N: usize, T> ByteChunkedBitBuffer for [T; N]
 where
     T: ByteChunkedBitBuffer + SizedBitBuffer,
 {
-    fn num_bytes(&self) -> usize {
-        self.as_slice().num_bytes()
+    fn bytes_count(&self) -> usize {
+        self.as_slice().bytes_count()
     }
 
     fn get_byte(&self, n: usize) -> u8 {
@@ -214,8 +215,8 @@ impl<T> ByteChunkedBitBuffer for Vec<T>
 where
     T: ByteChunkedBitBuffer + SizedBitBuffer,
 {
-    fn num_bytes(&self) -> usize {
-        self.as_slice().num_bytes()
+    fn bytes_count(&self) -> usize {
+        self.as_slice().bytes_count()
     }
 
     fn get_byte(&self, n: usize) -> u8 {
@@ -260,7 +261,7 @@ mod tests {
     #[test]
     fn copy_into_different_structure() {
         let a_actual: Vec<u8> = vec![123, 4, 255, 0, 2, 97, 34, 255];
-        let num_bytes = a_actual.len();
+        let bytes_count = a_actual.len();
         let b_actual: Vec<u16> = vec![
             u16::from_le_bytes([123, 4]),
             u16::from_le_bytes([255, 0]),
@@ -270,12 +271,12 @@ mod tests {
 
         let mut b = vec![0u16; 4];
         let result = a_actual.copy_into_chunked(&mut b);
-        assert_eq!(result, CopyIntoResult::done(num_bytes));
+        assert_eq!(result, CopyIntoResult::done(bytes_count));
         assert_eq!(b, b_actual);
 
         let mut a = vec![0u8; 8];
         let result = b_actual.copy_into_chunked(&mut a);
-        assert_eq!(result, CopyIntoResult::done(num_bytes));
+        assert_eq!(result, CopyIntoResult::done(bytes_count));
         assert_eq!(a, a_actual);
     }
 

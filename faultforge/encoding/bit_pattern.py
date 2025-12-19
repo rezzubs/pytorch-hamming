@@ -92,12 +92,12 @@ class BitPattern:
 
     bits: set[int]
 
-    def num_bits(self) -> int:
+    def bits_count(self) -> int:
         return len(self.bits)
 
     @override
     def __repr__(self) -> str:
-        if self.num_bits() == 0:
+        if self.bits_count() == 0:
             return "empty_bit_pattern"
 
         bits = list(self.bits)

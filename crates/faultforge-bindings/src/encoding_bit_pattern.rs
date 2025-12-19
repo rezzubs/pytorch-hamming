@@ -4,7 +4,7 @@ use faultforge::{
     buffers::{Limited, NonUniformSequence},
     encoding::{
         bit_patterns::{self, BitPattern, BitPatternEncoding, BitPatternEncodingData},
-        secded::num_encoded_bits,
+        secded::encoded_bits_count,
     },
     prelude::*,
 };
@@ -31,12 +31,12 @@ pub struct PyBitPatternEncoding {
 impl PyBitPatternEncoding {
     fn to_rust<'py>(&self, py: Python<'py>) -> BitPatternEncoding {
         let unprotected = Vec::from(self.unprotected.as_bytes(py));
-        let unprotected_bits_count_actual = unprotected.num_bits();
+        let unprotected_bits_count_actual = unprotected.bits_count();
         let unprotected = Limited::new(unprotected, self.unprotected_bits_count).unwrap_or_else(|| {
             panic!("`unprotected_bits_count` ({}) cannot be larger than the number bits in of `unprotected` ({})", self.unprotected_bits_count, unprotected_bits_count_actual);
         });
 
-        let encoded_bits_per_chunk = num_encoded_bits(self.bits_per_chunk ).expect("PyBitPatternEncoding is the result of a successful encoding, therefore this cannot fail.");
+        let encoded_bits_per_chunk = encoded_bits_count(self.bits_per_chunk ).expect("PyBitPatternEncoding is the result of a successful encoding, therefore this cannot fail.");
 
         let protected =
             self.protected
@@ -72,9 +72,9 @@ impl PyBitPatternEncoding {
     }
 
     fn from_rust<'py>(py: Python<'py>, encoding: BitPatternEncoding) -> PyResult<Self> {
-        let unprotected_bits_count = encoding.data.unprotected.num_bits();
+        let unprotected_bits_count = encoding.data.unprotected.bits_count();
 
-        let total_bits_count = encoding.data.num_bits();
+        let total_bits_count = encoding.data.bits_count();
         let protected = encoding
             .data
             .protected
@@ -126,7 +126,7 @@ impl PyBitPatternEncoding {
         encoding.data.flip_n_bits(n).map_err(|_| {
             PyValueError::new_err(format!(
                 "invalid number of bits {n}, only 0 <= {} is possible",
-                encoding.data.num_bits()
+                encoding.data.bits_count()
             ))
         })?;
 

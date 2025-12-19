@@ -317,7 +317,7 @@ This also greatly reduces the output file size for large numbers of faults.",
         logger.debug("Preparing the system to be encoded")
         system = EncodedSystem(system, encoder)
 
-    total_num_bits = system.system_total_num_bits()
+    bits_count_total = system.system_total_bits_count()
 
     match (faults_count, bit_error_rate):
         case (None, None):
@@ -325,7 +325,7 @@ This also greatly reduces the output file size for large numbers of faults.",
         case (faults_count, None):
             faults_count = faults_count
         case (None, bit_error_rate):
-            faults_count = int(round(total_num_bits * bit_error_rate))
+            faults_count = int(round(bits_count_total * bit_error_rate))
         case _:
             print("Choose one of --bit_error_rate and --faults_count")
             raise typer.Exit()
@@ -336,7 +336,7 @@ This also greatly reduces the output file size for large numbers of faults.",
     data = Data.load_or_create(
         output_path,
         faults_count=faults_count,
-        bits_count=total_num_bits,
+        bits_count=bits_count_total,
         metadata=system.system_metadata(),
         metadata_name=metadata_name,
     )
