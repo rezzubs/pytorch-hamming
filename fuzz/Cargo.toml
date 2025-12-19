@@ -20,3 +20,10 @@ path = "fuzz_targets/encode_decode.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "chunked"
+path = "fuzz_targets/chunked.rs"
+test = false
+doc = false
+bench = false
