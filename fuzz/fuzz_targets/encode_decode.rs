@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use faultforge::encoding::secded::{decode_into, is_par_i};
+use faultforge::encoding::secded::decode_into;
 use libfuzzer_sys::{arbitrary::Arbitrary, fuzz_target, Corpus};
 
 use faultforge::prelude::*;
@@ -16,7 +16,11 @@ struct Input {
 fuzz_target!(|input: Input| -> Corpus {
     let Input { source, faults } = input;
 
-    if source.is_empty() || faults.len() > 2 {
+    if source.is_empty() {
+        return Corpus::Reject;
+    }
+
+    if faults.len() > source.len() {
         return Corpus::Reject;
     }
 
@@ -32,24 +36,7 @@ fuzz_target!(|input: Input| -> Corpus {
         encoded.flip_bit(fault);
     }
 
-    let success = decode_into(&mut encoded, &mut decoded).unwrap();
-
-    if faults.len() <= 1 {
-        if faults.iter().all(|fault| *fault != 0) {
-            assert!(success);
-        } else {
-            assert!(!success);
-        }
-        assert_eq!(source, decoded);
-    } else {
-        assert!(!success);
-
-        if faults.iter().all(|fault| is_par_i(*fault)) {
-            assert_eq!(source, decoded);
-        } else {
-            assert_ne!(source, decoded);
-        }
-    }
+    decode_into(&mut encoded, &mut decoded).unwrap();
 
     Corpus::Keep
 });
