@@ -306,6 +306,7 @@ same unless they have been tampered with after creation. Got error {err}",
 
     /// Get the number of bits per chunk.
     #[must_use]
+    #[doc(alias = "chunk_size")]
     pub fn bits_per_chunk(&self) -> usize {
         self.0
             .inner()
@@ -380,6 +381,7 @@ impl Chunks {
     }
 
     #[must_use]
+    #[doc(alias = "chunk_size")]
     pub fn bits_per_chunk(&self) -> usize {
         match self {
             Chunks::Byte(byte_chunks) => byte_chunks.bytes_per_chunk() * 8,
@@ -770,6 +772,7 @@ mod tests {
     }
 
     #[test]
+    #[doc(alias = "chunk_size")]
     fn bits_per_chunk() {
         for i in 1..=64 {
             let chunks = [0u8; 14].to_chunks(i).unwrap();
