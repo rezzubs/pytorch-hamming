@@ -8,23 +8,21 @@ use libfuzzer_sys::{arbitrary::Arbitrary, fuzz_target, Corpus};
 use faultforge::prelude::*;
 
 #[derive(Debug, Arbitrary)]
-pub struct Input {
-    pub source: Vec<u8>,
-    pub faults: Vec<usize>,
-}
-
-impl Input {
-    fn is_valid(&self) -> bool {
-        !self.source.is_empty() && self.faults.len() <= self.source.len()
-    }
+struct Input {
+    source: Vec<u8>,
+    faults: Vec<usize>,
 }
 
 fuzz_target!(|input: Input| -> Corpus {
-    if !input.is_valid() {
+    let Input { source, faults } = input;
+
+    if source.is_empty() {
         return Corpus::Reject;
     }
 
-    let Input { source, faults } = input;
+    if faults.len() > source.len() {
+        return Corpus::Reject;
+    }
 
     let mut decoded = vec![0u8; source.len()];
     let mut encoded = source.encode().unwrap();
