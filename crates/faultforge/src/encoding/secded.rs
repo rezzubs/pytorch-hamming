@@ -264,9 +264,9 @@ mod tests {
 }
 
 #[cfg(test)]
-mod proptest {
+mod proptests {
     use super::*;
-    use ::proptest::prelude::*;
+    use proptest::prelude::*;
     use std::ops::RangeInclusive;
 
     const RANGE: RangeInclusive<usize> = 1..=512;
